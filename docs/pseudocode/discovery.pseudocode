@@ -1,0 +1,20 @@
+Discovery interface (instance dis, genesis genesis):
+    Procedures:
+        dis.publish([Install(View view), Sequence sequence, (Certificate certificate) such that (certificate.view == view)]): publishes an `Install` message to the entire universe of replicas.
+    
+    Events:
+        <dis.Discover | [Install(View view), Sequence sequence]>: delivers an `Install` message.
+
+Definitions:
+    `[Install(view), sequence, certificate]` is valid if and only if:
+     - sequence.follows(view)
+     - |certificate.signers| >= quorum(view)
+     - verify(certificate.multisignature)
+     - (view == genesis) or (exists valid [Install(_), sequence', _] such that view = first(sequence'))
+
+Properties:
+    Safety: no correct replica triggers <dis.Discover | Install(view), sequence> unless some valid [Install(view), sequence, _] exists.
+    Liveness: if a correct replica returns from dis.publish([Install(view), sequence, _]), then every correct replica that never leaves the system eventually triggers <dis.Discover | [Install(view), sequence]>.
+
+Algorithm:
+    // Implementation using universal gossip or discovery servers

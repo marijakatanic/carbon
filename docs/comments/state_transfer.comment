@@ -1,0 +1,45 @@
+Definitions:
+
+ - The core of a view v is the set of Commit messages for which 2f + 1 commit acknowledgements have been issued (either by correct or Byzantine) in any (w subseteq v). 
+   Remark: as soon as a client sees (2f + 1) acknowledgements for a commit message, it gives up on retransmission! This means that something in the core should stay in the core forever.
+
+ - A correct process p adopts a view v upon setting view.current = v.
+
+ - A correct process p is prepared for a view d such that (p in members(d)) upon receiving an Install(s, d) message AND:
+   * Acquiring (2f + 1) states from s.
+     OR
+   * Acquiring (f + 1) states from any v supset s.
+  p is prepared for a view d' such that that (p not in members(d')) upon receiving an Install(s', d') message.
+
+ - Let p be a correct process, let c be a view p adopts. p discharges c upon:
+   * Receiving an Install(s, d) message, with (s supset c).
+   * Receiving from a view (v supset c) (2f + 1) statements of preparedness for v.
+
+Arguments:
+
+ - Let i, j be consecutive installed views. For every v such that (i subseteq v subset j), we have core(v) = core(i). 
+   This follows immediately from the fact that a correct doesn't sign commit acknowledgements in views it did not install.
+
+ - Let v[0], ..., v[n] be a maximal sequence of views (i.e., no views between v[i] and v[i + 1]) such that v[0] and v[n] are consecutive installed views.
+   Let p be a correct process such that p is prepared for v[i > 0]. p has core(v[0]). By induction:
+    * If (i = 1), then p can only be prepared for v[i] by receiving (2f + 1) states from v[0]. Indeed, p cannot receive anything other than an Install(v[0], v[1]) message (Install messages do not skip installed views).
+      As a result, p receives (f + 1) correct states, which necessarily intersect with every message commit-acknowledged at or before v[0].
+    * Let us assume that induction holds for some i < n. Because p is prepared, EITHER:
+      + p receives (2f + 1) states from v[j], with 0 <= j <= i (upon delivering an Install(j, i) message that cannot skip installed views)
+        OR
+      + p receives (f + 1) states from v[k], with 0 < k <= i (recall that v[k] must be supset of the source of an Install message, and Install sources cannot precede v[0]).
+    We then have that either p received (2f + 1) states from v[0] (hence p has core(v[0]) by the same argument as the base induction case), or p has received (f + 1) states from v[h], with h > 0. 
+    By induction hypothesis, however, this means that p has received at least one state from a process that has core(v[0]), hence p also has core(v[0]).
+
+ - Let p be a correct process, let v be a view p acquires. Because p acquires v only if p is prepared for v, upon acquiring v p has core[w], for any (w subset v). This follows from the two above.
+
+ - Let p be a correct process. If p receives an Install(s, d) message, then p is eventually prepared for d. Indeed:
+   * If p receives (2f + 1) states from s, then p is prepared for d by definition.
+   * If p does not receive (2f + 1) states from s, then some correct process q in s left s. As a result, q discharged s. Consequently, some v[1] exists such that (f + 1) correct processes in v[1] are prepared for v[1].
+   * If p does not receive (f + 1) states from v[i], then again some correct process discharged s, and some v[i + 1] supset v[i] exists such that (f + 1) correct processes in v[i + 1] are prepared for v[i + 1].
+   * Because there is a final view, eventually p receives enough states, and is prepared for d. 
+
+ - Let p be a process, let v be a view p acquires. If p receives an Install(s, d) message, with d supset v, then p eventually discharges v. Indeed:
+   * By the above, for all d for which an Install(s, d) message is generated, every correct process in d is eventually prepared for d.
+   * Again by the finiteness of reconfigurations, p eventually receives (2f + 1) confirmations of preparedness.
+   

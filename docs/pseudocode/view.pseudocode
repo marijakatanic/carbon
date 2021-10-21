@@ -1,0 +1,34 @@
+class Change:
+    Change r = (c, p), with (c in {+, -}) and (p Process)
+
+class View:
+    View v = {r}, with (r Change)
+
+    procedure members(View v):
+        return {Process p | ((+, p) in v) and ((-, p) not in v)}
+    
+    procedure quorum(View v):
+        n = |members(v)|
+        return n - floor((n - 1) / 3)
+
+    procedure plurality(View v):
+        n = |members(v)|
+        return floor((n - 1) / 3) + 1
+
+    procedure comparable(View v, View w):
+        return (v supseteq w) or (w supset v)
+
+class Sequence:
+    Sequence s = {v}, with (v View) and (for all v, w in s, comparable(v, w))
+
+    procedure (Sequence s).follows(View v):
+        return (for all w in s, w supset v)
+
+    procedure (Sequence s).first():
+        return (w in s | for all v in s, w subseteq v)
+
+    procedure (Sequence s).last():
+        return (w in s | for all v in s, w supseteq v)
+
+    procedure mergeable(Sequence s, Sequence t):
+        return (s union t) is Sequence

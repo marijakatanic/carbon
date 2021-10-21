@@ -1,0 +1,60 @@
+class Entry:
+    Account account
+    UInt height
+
+enum State:
+    UInt height
+
+    variant Legal:
+        UInt balance
+        MerkleSetRoot(Entry) deposits
+        Set(Motion) votes
+    variant Illegal:
+        (none)
+
+class Certificate
+    View view
+    Subset(memebers(view)) signers
+    MultiSignature signature
+
+enum Operation:
+    variant Withdraw:
+        Account recipient
+        UInt amount
+    variant Deposit:
+        Commit withdrawal
+        Certificate legality
+        MerkleProof novelty
+    variant Support:
+        Motion motion
+    variant Abandon:
+        Motion motion
+
+class Prepare:
+    Entry entry
+    Hash hash
+    Signature signature
+
+class Commit:
+    Entry entry
+    Operation operation
+    Certificate certificate
+
+alias History = Map(Account -> State)
+alias MerkleHistory = MerkleMap(Account -> State)
+
+class Summary:
+    MerkleHistory history
+    Certificate certificate
+
+class Proof:
+    base:
+        Certificate certificate
+        MerkleProof proof
+    Array(Commit) updates
+
+class Prover:
+    Summary & base
+    Array(Commit) updates
+
+alias Batch = Array(Commit or Proof)

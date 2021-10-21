@@ -1,0 +1,390 @@
+Replica interface (instance rep):
+    Requests:
+        <rep.Join>: `rep` expresses its intent to join the system.
+        <rep.Leave>: `rep` expresses its intent to leave the system.
+        <rep.Collect>: `rep` initializes a garbage collection procedure.
+
+    Logging:
+        <rep.Support | Motion mot>: indicates that `rep` should send the `(support, mot)` message.
+        <rep.Pass | Motion mot>: indicates that `rep` passes `mot`.
+        <rep.Imminent | History his>: indicates that the latest imminent history is `his`.
+        <rep.Current | History his>:  indicates that the latest current history is `his`.
+
+Algorithm
+    Implements:
+        Replica rep
+    
+    Settings:
+        UInt PIPELINE_WIDTH
+        UInt MAX_SUPPORTS
+
+    Constants:
+        View genesis // The genesis view of the system
+
+    upon <rep.Init>:
+        // Current view
+
+        view = {
+            View current: genesis,
+            Bool installed: true
+        }
+
+        // Reconfiguration process
+
+        reconfiguration = {
+            Set(Change) admissible: genesis, // This is only technically a `view`: we never use `view` semantics with this set.
+            Set(Change) requested: {}, // Same as above.
+            
+            Sequence proposed: {}, // Associated with `view.current`: a replica takes part in the reconfiguration of its local view only.
+            Sequence converged: {}, // Same as above.
+            
+            support: {
+                Map(Sequence -> Set(Process)) proposal: {} (default {})
+                Map(Sequence -> (Set((Process, Signature))) convergence: {} (default {})
+            },
+
+            View source: {}
+            View destination: {}
+
+            Bool prepared: false
+            Bool discharged: false
+
+            transition: {
+                Map(View -> Set(Process)) states: {} (default {})
+                Map(View -> Set(Process)) dischargements: {} (default {})
+            }
+        }
+
+        discovery = {
+            Sequence sequence: {genesis},
+            Map(View -> View) sources: {} (default {}),
+            Map(View -> Set(Sequence)) formats: {genesis: {{}}} (default {}) // TODO: Figure out if this can relate only to `view.current`, or something similar.
+        }
+
+        state = {
+            MerkleMap(Entry -> Set(Prepare)) acknowledgements: {} (default {}),
+
+            MerkleHistory imminent,
+
+            current: {
+                Bool initialized,
+                Map(Account -> UInt) gap
+            },
+
+            Set(Summary) summaries: {},
+            Map(Account -> Prover) provers: {},
+
+            // Set(Batch) batches: {}, // TODO: Refactor to allow state-jumps (i.e., shards of summaries) in a batch.
+            // Array(Batch &) queue: []
+        }
+    
+
+
+
+    /**************** View generation ****************/
+
+    upon <rep.Pass | mot = [Join, Process p]>:
+        reconfiguration.admissible.add((+, p))
+
+    upon <rep.Pass | mot = [Leave, Process p]>:
+        reconfiguration.admissible.add((-, p))
+
+    // Further conditions here, e.g., provable misbehaviour.
+
+    upon receipt of (message = [Reconfig(View view), Change change = (c, p)]) from q:
+        abort upon <last(discovery.sequence) supset view.current>:
+            if (view == view.current) and (view.installed) and (change in reconfiguration.admissible) and (change not in view) and ((c == -) implies ((+, p) in view)):
+                reconfiguration.requested.add(change)
+                acknowledge message with q
+
+    upon (reconfiguration.requested != {}) and (view.installed):
+        abort upon <last(discovery.sequence) supset view.current>:
+            if (reconfiguration.proposed = {}):
+                reconfiguration.proposed = {((view.current) union (reconfiguration.requested))}
+                push [Propose(view.current), reconfiguration.proposed] to members(view.current)
+
+    upon receipt of (message = [Propose(View view), Sequence proposal]) from q in members(view):
+        abort upon <last(discovery.sequence) supset view.current>:
+            if (view == view.current) and ((proposal minus reconfiguration.proposed) != {}) and (proposal.follows(view)) and (proposal.last() subseteq reconfiguration.admissible) and ((proposal in discovery.formats[view]) or ({} in discovery.formats[view])):
+                reconfiguration.support.proposal[proposal].add(q)
+
+                if mergeable(reconfiguration.proposed, proposal):
+                    reconfiguration.proposed = (reconfiguration.proposed union proposal)
+                else:
+                    reconfiguration.proposed = (reconfiguration.converged) union {(reconfiguration.proposed.last() union proposal.last())}
+
+                acknowledge message with q
+                push [Propose(view.current), reconfiguration.proposed] to members(view.current)
+
+    upon |reconfiguration.support.proposal[reconfiguration.proposed]| >= quorum(view.current):
+        abort upon <last(discovery.sequence) supset view.current>:
+            reconfiguration.converged = reconfiguration.proposed
+
+            signature = sign([Converged(view.current), reconfiguration.converged])
+            push [Converged(view.current), reconfiguration.converged, signature] to members(view.current)
+
+    procedure verify.converged(signer, signature, (view, proposal)):
+        return verify(signer, signature, [Converged(view), proposal])
+
+    upon receipt of message = ([Converged(View view), proposal, signature]) from q in members(view):
+        abort upon <last(discovery.sequence) supset view.current>:
+            if (view == view.current) and (verify(q, signature, (view, proposal))):
+                reconfiguration.support.convergence[proposal].add((q, signature))
+
+    upon exists (Sequence sequence) such that |reconfiguration.support.convergence[sequence]| >= quorum(view.current):
+        abort upon <last(discovery.sequence) supset view.current>:
+            dis.publish([Install(view.current), sequence, {view: view.current, signers: reconfiguration.support.convergence[sequence].0, signature: merge(reconfiguration.support.convergence[sequence].1)}) // Rust-like tuple notation on a vector.
+
+
+
+
+    /**************** View transition ****************/
+
+    upon <dis.Discover | [Install(source), sequence]>: // Checking the correctness of the `Install` message and checking that `source` is in `discovery.sequence` is delegated to the `dis` instance.
+        destination = first(sequence)
+        
+        discovery.sequence.add(destination)
+        discovery.sources[destination] = (discovery.sources[destination] union source)
+        discovery.formats[destination].add(sequence minus {destination})
+
+    upon (last(discovery.sequence) supset view.current) and (reconfiguration.destination == {}):
+        reconfiguration.destination = last(discovery.sequence)
+        reconfiguration.source = discovery.sources[reconfiguration.destination]
+
+        if (self not in members(reconfiguration.destination)):
+            reconfiguration.prepared = true
+
+        if (view.current subset (reconfiguration.source)):
+            reconfiguration.discharged = true
+
+
+        wait until <(reconfiguration.prepared == true) and (reconfiguration.discharged == true)>
+
+
+        view.current = reconfiguration.destination
+
+        reconfiguration.proposed = {}
+        reconfiguration.converged = {}
+        
+        reconfiguration.support.proposal = {}
+        reconfiguration.support.convergence = {}
+
+        reconfiguration.source = {}
+        reconfiguration.destination = {}
+
+        reconfiguration.prepared = false
+        reconfiguration.discharged = false
+
+        reconfiguration.transition.states = {}
+        reconfiguration.transition.dischargements = {}
+
+        if ({} in discovery.formats[view.current]):
+            view.installed = true
+
+            state.current.initialized = false
+            state.current.gap = {}
+        else:
+            view.installed = false
+            reconfiguration.proposed = discovery.formats[view.current].max() // TODO: Define `max` on totally order sets of sequences: `discovery.formats` is always totally ordered by set inclusion!
+
+            abort upon <last(discovery.sequence) supset view.current>:
+                push [Propose(view.current), reconfiguration.proposed] to members(view.current)
+            
+    whenever (reconfiguration.destination != {}) and (!reconfiguration.prepared):
+        send [BriefingRequest(reconfiguration.source), Final] to members(reconfiguration.source)
+        
+        for all (view in discovery.sequence) such that (view supset reconfiguration.source): // TODO: Maybe find a way to improve this? (Low priority: not a problem anyway)
+            send [BriefingRequest(view), Initial] to members(view)
+
+    upon receipt of [BriefingRequest(View view), (Initial or Final) guarantee] from q:
+        if ((guarantee == Final) and ((view.current supset view) or ((view.current == view) and ((last(discovery.sequence) supset view.current) or !(view.installed)))))
+            or ((guarantee == Initial) and ((view.current supseteq view) or ((reconfiguration.destination supseteq view) and (reconfiguration.prepared))):
+                send.frontier(q, [Briefing(view), guarantee])
+
+    upon <rep.FrontierReceipt, Process sender, [Briefing(View view), (Initial or Final) guarantee]>:
+        if ((reconfiguration.destination != {}) and !(reconfiguration.prepared)):
+            if ((sender in members(view)) and (((view == reconfiguration.source) and (guarantee == Final)) or ((view supset reconfiguration.source)))):
+                reconfiguration.transition.states[view].add(q)
+            
+    upon (|reconfiguration.transition.states[reconfiguration.source]| >= quorum(reconfiguration.source)) or (exists ((View view) supset reconfiguration.source) such that (|reconfiguration.transition.states[view]| > plurality(view))):
+        reconfiguration.prepared = true
+
+    whenever (reconfiguration.destination != {}) and !(reconfiguration.discharged):
+        for all (view in discovery.sequence) such that (view supset view.current):
+            send [DischargeRequest(view)] to members(view)
+
+    upon receipt of [DischargeRequest(View view)] from q:
+        if (view subseteq view.current) or ((view subseteq reconfiguration.destination) and (reconfiguration.prepared)):
+            sent [Discharge(view)] to q
+
+    upon receipt of [Discharge(View view)] from q:
+        if (q in members(view)) and (view in discovery.sequence) and (view supset view.current):
+            reconfiguration.transition.dischargements[view].add(q)
+
+    upon exists (View view supset view.current) such that (|reconfiguration.transition.dischargements[view]| > quorum(view)):
+        reconfiguration.discharged = true
+
+
+
+
+    /**************** Processing ****************/
+
+    // `verify.*` procedures perform internal consistency checks, such as messages / operations being well-formed and correctly signed.
+    // Each object should be verified at most once, and a failed verification should be proof of Byzantine behaviour.
+
+    procedure verify.legality(Entry head, Certificate certificate):
+        return verify.plurality(certificate, [Correct, head])
+
+    procedure verify.commit(Commit commit):
+        if !(verify.quorum(certificate, [Acknowledge, commit.entry, commit.operation]))
+            return false
+
+        match commit.operation:
+            case Deposit:
+                if !(commit.operation.withdrawal.operation is Withdraw):
+                    return false
+
+                if !(verify.commit(commit.operation.withdrawal)):
+                    return false
+
+                if !(verify.legality({account: commit.operation.withdrawal.entry}, commit.operation.legality)):
+                    return false
+
+                if !(verify(commit.operation.novelty) and (commit.operation.withdrawal.entry not in commit.operation.novelty)):
+                    return false
+
+        return true
+
+    procedure verify.summary(Certificate certificate, MerkleProof summary, Account account):
+        return (verify(certificate, [Summary, summary.root()]) and verify(summary) and (account in summary))
+
+    procedure verify.proof(Account account, Proof proof):
+        if !(verify.summary(proof.base.certificate, proof.base.proof, account))
+            return false
+
+        for (update in proof.updates):
+            if (!(verify.commit(update)) or (update.entry.account != account)):
+                return false
+
+        if (|proof.updates| > 0):
+            if (proof.updates[0].entry.height != proof.base.proof[account].height + 1)
+                return false
+            
+            for (index in 1..(|proof.updates| - 1)):
+                if (proof.updates[index].entry.height != proof.updates[index].entry.height + 1)
+                    return false
+
+        return true
+
+    procedure verify.prepare(Prepare prepare):
+        verify(prepare.entry.account, prepare.signature, [Prepare, entry.height, prepare.hash])
+
+    procedure apply(State state, Operation operation):
+        if (state is Illegal):
+            return Illegal({height: state.height + 1})
+
+        match operation:
+            case Withdraw:
+                if (state.balance >= operation.amount):
+                    return Legal({height: state.height + 1, balance: state.balance - operation.amount, deposits: state.deposits, votes: state.votes})
+            case Deposit:
+                if (novelty.root() == state.deposits):
+                    return Legal({height: height + 1, balance: state.balance + operation.withdrawal.operation.amount, deposits: (novelty union {operation.sender}).root(), votes: state.votes})
+            case Support:
+                if (|state.votes| < MAX_SUPPORTS)
+                    return Legal({height: height + 1, balance: state.balance, deposits: state.deposits, votes: state.votes union {operation.motion}})
+            case Abandon:
+                if (operation.motion in state.votes):
+                    return Legal({height: height + 1, balance: state.balance, deposits: state.deposits, votes: state.votes minus {operation.motion}})
+
+        return Illegal({height: state.height + 1})
+
+    procedure wipe(Entry below):
+        for (entry in state.acknowledgements) such that ((entry.account == below.account) and (entry.height <= below.height)):
+            state.acknowledgements.remove(entry)
+
+    procedure process.imminent(Commit commit):
+        Account account = commit.entry.account
+
+        state.imminent[account] = apply(state.imminent[account], commit.operation)
+        state.provers[account].updates.append(commit)
+
+        wipe(commit.entry)
+
+    /**************** Frontier transfer ****************/
+
+    procedure send.frontier(Process recipient, Message header, MerkleMap(Entry -> Set(Prepare)) acknowledgements = state.acknowledgements, MerkleHistory imminent = state.imminent):
+        sync [FrontierSync, header, <acknowledgements>, <imminent>] with q
+
+    upon sync of [FrontierSync, Message header, <local.acknowledgements, remote.acknowledgements>, <local.imminent, remote.imminent>] with q:
+        Map(Entry -> Set(Prepare)) acknowledgements = {(entry -> local.acknowledgements[entry]) for entry in diff(local.acknowledgements, remote.acknowledgements) such that (local.acknowledgements[entry] minus remote.acknowledgements[entry] != {})}
+        Map(Account -> Proof) proofs = {}
+
+        for (account in diff(local.imminent, remote.imminent)) such that ((account not in remote.imminent) or (local.imminent[account].height > remote.imminent[account].height)):
+            State & state = state.imminent[account]
+            Prover & prover = state.provers[account]
+
+            proofs[account] = {
+                height: state.height,
+                base: {
+                    certificate: prover.base.certificate,
+                    proof: prover.base.history.prove(account)
+                },
+                updates: prover.updates
+            }
+
+        send [Frontier, header, acknowledgements, proofs] to q
+
+    procedure push.frontier(Process recipient, Message header, MerkleMap(Entry -> Set(Prepare)) acknowledgements = state.acknowledgements, MerkleHistory imminent = state.imminent):
+        // Code omitted, completes upon successful `send.frontier(recipient, header, acknowledgements, imminent)`. 
+        // This includes successful `send` of `[Frontier, header, acknowledgements, proofs]` to `recipient`.
+
+    upon receipt of [Frontier, Message header, Map(Entry -> Set(Prepare)) acknowledgements, Map(Account -> Proof) proofs] from q:
+        new.proofs = {(account in proofs) such that proofs[account].height() > state.imminent[account].height}
+
+        for (account in new.proofs):
+            if !(verify.proof(account, proofs[account]))
+                return
+        
+        new.acknowledgements = {(entry in acknowledgements such that ((entry.height > state.imminent[entry.account].height) and (acknowledgements[entry] minus state.acknowledgements[entry]) != {})}
+
+        for (entry in new.acknowledgements):
+            for (acknowledgement in (acknowledgements[entry] minus state.acknowledgements[entry])):
+                if !(verify.prepare(acknowledgement))
+                    return
+
+            if (entry.account in proofs) and (entry.height <= proofs[entry.account].height()):
+                return
+
+            if (((entry.height - state.imminent[entry.account].height) > PIPELINE_WIDTH) and ((entry.account not in proofs) or ((entry.height - proofs[entry.account].height()) > PIPELINE_WIDTH))):
+                return
+        
+        for (account in new.proofs):
+            proof = proofs[account]
+            gain = proof.height() - state.imminent[account].height
+        
+            if (proof.base.proof.height > state.provers[account].base.history[account]):
+                state.imminent[account] = proof.base.proof[account]
+                wipe({account: account, height: state.imminent[account].height})
+
+                state.provers[account].base.history.drop(account)
+                if (state.provers[account].base.history.empty()):
+                    state.summaries.remove(state.provers[account].base)
+
+                if (proofs[account].base.proof.root() not in state.summaries): // Check Merkle tree by root
+                    summary = state.summaries.add({history: proofs[account].base.proof, certificate: proofs[account].base.certificate})
+                else
+                    summary = state.summaries[proofs[account].base.proof.root()]
+                    summary.history.add(proofs[account].base.proof)
+
+                state.provers[account].updates = []
+                for (update in proof.updates):
+                    process.imminent(update)
+            else:
+                for (update in proof.updates.last(gain)):
+                    process.imminent(update)
+        
+        for (entry in new.acknowledgements):
+            state.acknowledgements[entry] = (state.acknowledgements[entry] union acknowledgements[entry]).sort().first(2) // We take the first two alphabetically in order to contain fragmentation.
+
+        trigger <rep.FrontierReceipt, q, header>

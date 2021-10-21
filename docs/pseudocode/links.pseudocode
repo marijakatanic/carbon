@@ -1,0 +1,61 @@
+class Type:
+    members:
+        attributes = {}
+
+class Message:
+    Message m = ([t, ...], with (t Type)) or ([t(v), ...] with (t Type), (v View))
+
+    procedure type(Message m = ([t, ...] or [t(_), ...])):
+        return t
+
+FairLossLinks interface (instance fl):
+    Procedures:
+        fl.(send (Message message) to (Process recipient)): sends `message` to `recipient` along Fair Loss Links.
+        fl.(acknowledge (Message message) with (Process sender)): acknowledges receipt of `message` with `sender`.
+
+        fl.(push (Procedure: () -> (Message, Set(Process)) goal): reliably sends `goal().message` to `goal().recipients`.
+        fl.(push (Message message) to (Set(Process)) recipients): reliably sends `message` to `recipients`.
+
+        fl.(acknowledgements(Message message)): if `message` is being `push`ed, returns the set of processes that acknowledged `message`.
+
+    Events:
+        fl.(receipt of (Message message) from (Process sender)): indicates that `message` was delivered from `sender`.
+
+Notation:
+    Unless otherwise specified, `fl` is the default instance of `FairLossLinks`, and is omitted from implementation.
+
+Algorithm:
+    upon <links.Init>:
+        Map(Message -> Set(Process)) acknowledgements = {} (default {}, explicit initialization)
+
+    procedure fl.(send (Message message) to (Process recipient)):
+        // Low-level implementation omitted.
+
+    procedure fl.(acknowledge (Message message) with (Process sender)):
+        fl.(send [Acknowledge, message] to sender)
+
+    upon <fl.(receipt of (Message message) from (Process sender))>:
+        if message == [Acknowledge, original]:
+            acknowledgements[original].add(sender)
+        else if type(message).attributes.autoack:
+            fl.(acknowledge message with sender)
+
+    procedure fl.(push (Procedure: () -> (Message, Set(Process)) goal):
+        poll:
+            (message, recipients) = goal()
+            if message not in acknowledgements:
+                acknowledgements[message] := {} (remove upon return)
+            
+            targets = recipients minus acknowledgements[message]
+
+            if |targets| > 0:
+                for target in targets:
+                    send message to target
+            else:
+                break
+
+    procedure fl.(push (Message message) to (Set(Process) recipients):
+        fl.push (() => {return (message, recipients)})
+
+    procedure fl.(acknowledgements(Message message)):
+        return acknowledgements[message]

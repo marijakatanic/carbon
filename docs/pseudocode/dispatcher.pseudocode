@@ -1,0 +1,48 @@
+Dispatcher interface (instance dis):
+    Procedures:
+        procedure dispatch(Batch): used to `sendonce` a batch to all other replicas.
+    
+    Events:
+        <dis.BaseDispatched>: indicates that a quorum of replicas acknowledged the reception of all batches up to `batch`.
+        <dis.BatchDispatched | Batch batch>: indicates that a quorum of replicas acknowledged the reception of all batches up to `batch`.
+
+Algorithm
+    upon <dis.Init | Replica & replica, View view, MerkleHistory base>:
+        Replica & replica = replica;
+        View view = view;
+        MerkleHistory base = base;
+
+        (Base or Batch(UInt)) head = Base;
+        Map(UInt -> Batch) queue = [];
+        Map(Process -> (None, Base, Batch(UInt))) progress = {} (default None);
+
+        for (process in members(view)):
+            spawn(run(process));
+
+    procedure achieve(Process target, (Base or Batch(Uint)) achievement):
+        progress[target] = achievement;
+        UInt reception = (|{(process in progress) such that (progress[process] >= achievement)}|)
+
+        if (reception == view.quorum()):
+            match achievement:
+                variant Base:
+                    trigger <dis.Dispatched | base>
+                variant Batch(index):
+                    trigger <dis.Dispatched | queue[index]>
+
+        if (reception == |members(view)|):
+            match achievement:
+                variant Base:
+                    delete base
+                variant Batch(index):
+                    delete queue[index]
+
+    procedure run(Process target):
+        abort upon <dis | Delete>:
+            replica.push.frontier(target, {}, base);
+            achieve(target, Base)
+
+            loop:
+                wait until (head > progress[target]): // None < Base < Batch(0) < Batch(1) < ...
+                    replica.push(queue[progress[target].next()]) // None.next() = Base, Base.next() = Batch(0), Batch(0).next() = Batch(1), ...
+                    achieve(target, progress[target].next())
