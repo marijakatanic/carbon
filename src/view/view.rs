@@ -1,4 +1,4 @@
-use crate::view::{Change, CHANGES, FAMILY};
+use crate::view::{Change, CHANGES, FAMILY, MEMBERS};
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -53,6 +53,7 @@ impl View {
         let identifier = changes.commit();
 
         CHANGES.lock().unwrap().insert(identifier, changes.clone());
+        MEMBERS.lock().unwrap().insert(identifier, members.clone());
 
         let data = Arc::new(Data { changes, members });
 
@@ -125,8 +126,6 @@ impl View {
 
         let identifier = changes.commit();
 
-        CHANGES.lock().unwrap().insert(identifier, changes.clone());
-
         let mut members = self.data.members.iter().cloned().collect::<HashSet<_>>();
 
         for update in updates {
@@ -142,6 +141,9 @@ impl View {
 
         let mut members = members.into_iter().collect::<Vec<_>>();
         members.sort();
+
+        CHANGES.lock().unwrap().insert(identifier, changes.clone());
+        MEMBERS.lock().unwrap().insert(identifier, members.clone());
 
         let data = Arc::new(Data { changes, members });
 
