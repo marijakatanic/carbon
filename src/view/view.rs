@@ -9,7 +9,6 @@ use zebra::database::{Collection, CollectionTransaction};
 use zebra::Commitment;
 
 pub(crate) struct View {
-    identifier: Commitment,
     data: Arc<Data>,
 }
 
@@ -57,7 +56,7 @@ impl View {
 
         let data = Arc::new(Data { changes, members });
 
-        View { identifier, data }
+        View { data }
     }
 
     pub async fn extend<C>(&self, updates: C) -> Self
@@ -147,7 +146,7 @@ impl View {
 
         let data = Arc::new(Data { changes, members });
 
-        View { identifier, data }
+        View { data }
     }
 
     pub fn get(identifier: Commitment) -> Option<Self> {
@@ -157,7 +156,7 @@ impl View {
         match (changes, members) {
             (Some(changes), Some(members)) => {
                 let data = Arc::new(Data { changes, members });
-                Some(View { identifier, data })
+                Some(View { data })
             }
             _ => None,
         }
