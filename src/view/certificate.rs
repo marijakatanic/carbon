@@ -25,7 +25,7 @@ impl Certificate {
                 .next()
                 .expect("Called `Certificate::aggregate` with a foreign component");
 
-            if replica == member {
+            if *replica == member.root() {
                 signers.set(index, true);
             }
         }
