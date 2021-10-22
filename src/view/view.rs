@@ -1,5 +1,6 @@
 use crate::view::{Change, CHANGES, FAMILY};
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use talk::crypto::primitives::sign::PublicKey;
@@ -25,36 +26,124 @@ impl View {
         let mut members = members.into_iter().collect::<Vec<_>>();
         members.sort();
 
-        if members.len() < 4 {
-            panic!(
-                "called `genesis` with insufficient `members` for Byzantine resilience (i.e., 4)"
-            );
+        #[cfg(debug_assertions)]
+        {
+            let members_set = members.clone().into_iter().collect::<HashSet<_>>();
+
+            if members_set.len() > members.len() {
+                panic!("called `View::genesis` with non-distinct `members`");
+            }
+
+            if members.len() < 4 {
+                panic!("called `View::genesis` with insufficient `members` for Byzantine resilience (i.e., 4)");
+            }
         }
 
-        let changes = members.iter().map(|replica| Change::Join(*replica));
+        let updates = members.iter().map(|replica| Change::Join(*replica));
 
-        let mut collection = FAMILY.empty_collection();
+        let mut changes = FAMILY.empty_collection();
         let mut transaction = CollectionTransaction::new();
 
-        for change in changes {
-            transaction
-                .insert(change)
-                .expect("called `genesis` with non-distinct `members`");
+        for change in updates {
+            transaction.insert(change).unwrap();
         }
 
-        collection.execute(transaction).await;
+        changes.execute(transaction).await;
 
-        let identifier = collection.commit();
+        let identifier = changes.commit();
 
-        CHANGES
-            .lock()
-            .unwrap()
-            .insert(identifier, collection.clone());
+        CHANGES.lock().unwrap().insert(identifier, changes.clone());
 
-        let data = Arc::new(Data {
-            changes: collection,
-            members: members,
-        });
+        let data = Arc::new(Data { changes, members });
+
+        View { identifier, data }
+    }
+
+    pub async fn extend<C>(&self, updates: C) -> Self
+    where
+        C: IntoIterator<Item = Change>,
+    {
+        let updates = updates.into_iter().collect::<Vec<_>>();
+
+        #[cfg(debug_assertions)]
+        {
+            use std::collections::HashMap;
+
+            let updates_set = updates.clone().into_iter().collect::<HashSet<_>>();
+
+            if updates_set.len() > updates.len() {
+                panic!("called `View::extend` with non-distinct `updates`");
+            }
+
+            let positive_updates = updates.iter().cloned().filter(Change::is_join);
+            let negative_updates = updates.iter().cloned().filter(Change::is_leave);
+
+            let matching_updates = updates
+                .iter()
+                .cloned()
+                .filter(Change::is_leave)
+                .map(Change::mirror);
+
+            let queries = positive_updates
+                .chain(negative_updates)
+                .chain(matching_updates)
+                .collect::<HashSet<_>>();
+
+            let mut transaction = CollectionTransaction::new();
+
+            let queries = queries
+                .into_iter()
+                .map(|change| (change, transaction.contains(&change).unwrap()))
+                .collect::<Vec<_>>();
+
+            let response = self.data.changes.clone().execute(transaction).await;
+
+            let response = queries
+                .into_iter()
+                .map(|(change, query)| (change, response.contains(&query)))
+                .collect::<HashMap<_, _>>();
+
+            for update in updates.iter() {
+                if response[update] {
+                    panic!("called `View::extend` with a pre-existing `Change`");
+                }
+
+                if update.is_leave() && !response[&update.mirror()] {
+                    panic!("called `View::extend` with an unmatched `Change::Leave`");
+                }
+            }
+        }
+
+        let mut changes = self.data.changes.clone();
+        let mut transaction = CollectionTransaction::new();
+
+        for update in updates.iter() {
+            transaction.insert(*update).unwrap();
+        }
+
+        changes.execute(transaction).await;
+
+        let identifier = changes.commit();
+
+        CHANGES.lock().unwrap().insert(identifier, changes.clone());
+
+        let mut members = self.data.members.iter().cloned().collect::<HashSet<_>>();
+
+        for update in updates {
+            match update {
+                Change::Join(replica) => {
+                    members.insert(replica);
+                }
+                Change::Leave(replica) => {
+                    members.remove(&replica);
+                }
+            }
+        }
+
+        let mut members = members.into_iter().collect::<Vec<_>>();
+        members.sort();
+
+        let data = Arc::new(Data { changes, members });
 
         View { identifier, data }
     }
