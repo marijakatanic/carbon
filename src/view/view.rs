@@ -161,4 +161,20 @@ impl View {
             _ => None,
         }
     }
+
+    pub fn identifier(&self) -> Commitment {
+        self.data.changes.commit()
+    }
+
+    pub fn plurality(&self) -> usize {
+        (self.data.members.len() - 1) / 3 + 1
+    }
+
+    pub fn quorum(&self) -> usize {
+        self.data.members.len() - (self.data.members.len() - 1) / 3
+    }
+
+    pub fn members(&self) -> &[PublicKey] {
+        self.data.members.as_slice()
+    }
 }
