@@ -149,4 +149,17 @@ impl View {
 
         View { identifier, data }
     }
+
+    pub fn get(identifier: Commitment) -> Option<Self> {
+        let changes = CHANGES.lock().unwrap().get(&identifier).cloned();
+        let members = MEMBERS.lock().unwrap().get(&identifier).cloned();
+
+        match (changes, members) {
+            (Some(changes), Some(members)) => {
+                let data = Arc::new(Data { changes, members });
+                Some(View { identifier, data })
+            }
+            _ => None,
+        }
+    }
 }
