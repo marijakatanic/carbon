@@ -2,7 +2,11 @@ use bit_vec::BitVec;
 
 use crate::view::View;
 
-use talk::crypto::primitives::{multi::Signature as MultiSignature, sign::PublicKey};
+use doomstack::Top;
+
+use talk::crypto::primitives::multi::{MultiError, Signature as MultiSignature};
+use talk::crypto::primitives::sign::PublicKey;
+use talk::crypto::Statement;
 
 pub(crate) struct Certificate {
     signers: BitVec,
@@ -36,5 +40,24 @@ impl Certificate {
             .expect("Called `Certificate::aggregate` with an incorrect multi-signature");
 
         Certificate { signers, signature }
+    }
+
+    pub fn verify<S>(&self, view: &View, message: &S) -> Result<(), Top<MultiError>>
+    where
+        S: Statement,
+    {
+        self.signature.verify(
+            view.members()
+                .iter()
+                .enumerate()
+                .filter_map(|(index, card)| {
+                    if self.signers[index] {
+                        Some(card)
+                    } else {
+                        None
+                    }
+                }),
+            message,
+        )
     }
 }
