@@ -111,8 +111,12 @@ impl View {
                     panic!("called `View::extend` with a pre-existing `Change`");
                 }
 
-                if update.is_leave() && !response[&update.clone().mirror()] {
-                    panic!("called `View::extend` with an unmatched `Change::Leave`");
+                if update.is_leave() {
+                    let mirror = update.clone().mirror();
+
+                    if !updates_set.contains(&mirror) && !response[&mirror] {
+                        panic!("called `View::extend` with an unmatched `Change::Leave`");
+                    }
                 }
             }
         }
