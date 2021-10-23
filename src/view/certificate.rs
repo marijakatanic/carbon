@@ -23,6 +23,10 @@ impl Certificate {
         let mut signers = BitVec::from_elem(view.members().len(), false);
         let mut signer_ids = components.iter().map(|component| component.0).peekable();
 
+        // Both `view.members()` and `signer_ids` are sorted. In order to determine which
+        // elements of `signers` to set to `true`, loop thorugh all elements of `view.members()`:
+        // for every `member`, if `member` is the next element of `signer_ids`, then set the
+        // corresponding element of `signers` to `true`, and move `signer_ids` on.
         for (index, member) in view.members().iter().enumerate() {
             if signer_ids.peek() == Some(&member.identity()) {
                 signers.set(index, true);
