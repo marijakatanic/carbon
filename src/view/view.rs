@@ -1,14 +1,9 @@
-use crate::{
-    directory::Directory,
-    view::{Change, CHANGES, FAMILY, MEMBERS},
-};
-
-use futures::stream::{FuturesOrdered, StreamExt};
+use crate::view::{Change, CHANGES, FAMILY, MEMBERS};
 
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use talk::crypto::{Identity, KeyCard};
+use talk::crypto::KeyCard;
 
 use zebra::database::{Collection, CollectionTransaction};
 use zebra::Commitment;
@@ -23,12 +18,12 @@ struct Data {
 }
 
 impl View {
-    pub async fn genesis<M>(members: M, directory: &Directory) -> Self
+    pub async fn genesis<M>(members: M) -> Self
     where
-        M: IntoIterator<Item = Identity>,
+        M: IntoIterator<Item = KeyCard>,
     {
         let mut members = members.into_iter().collect::<Vec<_>>();
-        members.sort();
+        members.sort_by_key(KeyCard::identity);
 
         #[cfg(debug_assertions)]
         {
@@ -43,28 +38,21 @@ impl View {
             }
         }
 
-        let updates = members.iter().map(|replica| Change::Join(*replica));
+        let updates = members
+            .clone()
+            .into_iter()
+            .map(|replica| Change::Join(replica));
 
         let mut changes = FAMILY.empty_collection();
         let mut transaction = CollectionTransaction::new();
 
-        for change in updates {
-            transaction.insert(change).unwrap();
+        for update in updates {
+            transaction.insert(update).unwrap();
         }
 
         changes.execute(transaction).await;
 
         let identifier = changes.commit();
-
-        let members = members
-            .into_iter()
-            .map(|member| directory.get_card(member))
-            .collect::<FuturesOrdered<_>>()
-            .map(|member| {
-                member.expect("called `View::genesis` on a member with unknown `KeyCard`")
-            })
-            .collect::<Vec<_>>()
-            .await;
 
         CHANGES.lock().unwrap().insert(identifier, changes.clone());
         MEMBERS.lock().unwrap().insert(identifier, members.clone());
@@ -74,7 +62,7 @@ impl View {
         View { data }
     }
 
-    pub async fn extend<C>(&self, updates: C, directory: &Directory) -> Self
+    pub async fn extend<C>(&self, updates: C) -> Self
     where
         C: IntoIterator<Item = Change>,
     {
@@ -90,13 +78,13 @@ impl View {
                 panic!("called `View::extend` with non-distinct `updates`");
             }
 
-            let positive_updates = updates.iter().cloned().filter(Change::is_join);
-            let negative_updates = updates.iter().cloned().filter(Change::is_leave);
+            let positive_updates = updates.iter().filter(|update| update.is_join()).cloned();
+            let negative_updates = updates.iter().filter(|update| update.is_leave()).cloned();
 
             let matching_updates = updates
                 .iter()
+                .filter(|update| update.is_leave())
                 .cloned()
-                .filter(Change::is_leave)
                 .map(Change::mirror);
 
             let queries = positive_updates
@@ -108,7 +96,10 @@ impl View {
 
             let queries = queries
                 .into_iter()
-                .map(|change| (change, transaction.contains(&change).unwrap()))
+                .map(|change| {
+                    let query = transaction.contains(&change).unwrap();
+                    (change, query)
+                })
                 .collect::<Vec<_>>();
 
             let response = self.data.changes.clone().execute(transaction).await;
@@ -123,7 +114,7 @@ impl View {
                     panic!("called `View::extend` with a pre-existing `Change`");
                 }
 
-                if update.is_leave() && !response[&update.mirror()] {
+                if update.is_leave() && !response[&update.clone().mirror()] {
                     panic!("called `View::extend` with an unmatched `Change::Leave`");
                 }
             }
@@ -132,8 +123,8 @@ impl View {
         let mut changes = self.data.changes.clone();
         let mut transaction = CollectionTransaction::new();
 
-        for update in updates.iter() {
-            transaction.insert(*update).unwrap();
+        for update in updates.clone() {
+            transaction.insert(update).unwrap();
         }
 
         changes.execute(transaction).await;
@@ -143,8 +134,8 @@ impl View {
         let mut members = self
             .data
             .members
-            .iter()
-            .map(KeyCard::identity)
+            .clone()
+            .into_iter()
             .collect::<HashSet<_>>();
 
         for update in updates {
@@ -159,17 +150,7 @@ impl View {
         }
 
         let mut members = members.into_iter().collect::<Vec<_>>();
-        members.sort();
-
-        let members = members
-            .into_iter()
-            .map(|member| directory.get_card(member))
-            .collect::<FuturesOrdered<_>>()
-            .map(|member| {
-                member.expect("called `View::genesis` on a member with unknown `KeyCard`")
-            })
-            .collect::<Vec<_>>()
-            .await;
+        members.sort_by_key(KeyCard::identity);
 
         CHANGES.lock().unwrap().insert(identifier, changes.clone());
         MEMBERS.lock().unwrap().insert(identifier, members.clone());
