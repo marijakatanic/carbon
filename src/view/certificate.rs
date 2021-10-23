@@ -4,9 +4,12 @@ use crate::view::View;
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use talk::crypto::primitives::multi::{MultiError, Signature as MultiSignature};
+use serde::{Deserialize, Serialize};
+
+use talk::crypto::primitives::multi::Signature as MultiSignature;
 use talk::crypto::{Identity, Statement};
 
+#[derive(Serialize, Deserialize)]
 pub(crate) struct Certificate {
     signers: BitVec,
     signature: MultiSignature,
