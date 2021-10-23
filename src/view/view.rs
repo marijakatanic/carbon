@@ -1,4 +1,4 @@
-use crate::view::{Change, CHANGES, FAMILY, MEMBERS};
+use crate::view::{Change, Increment, CHANGES, FAMILY, MEMBERS};
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -62,11 +62,8 @@ impl View {
         View { data }
     }
 
-    pub async fn extend<C>(&self, updates: C) -> Self
-    where
-        C: IntoIterator<Item = Change>,
-    {
-        let updates = updates.into_iter().collect::<Vec<_>>();
+    pub async fn extend(&self, increment: Increment) -> Self {
+        let updates = increment.into_vec();
 
         #[cfg(debug_assertions)]
         {
