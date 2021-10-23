@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-use std::cmp::{Ord, Ordering, PartialOrd};
 use std::hash::Hash;
 
 use talk::crypto::{Identity, KeyCard};
@@ -37,22 +36,6 @@ impl Change {
         match self {
             Change::Join(_) => false,
             Change::Leave(_) => true,
-        }
-    }
-}
-
-impl PartialOrd for Change {
-    fn partial_cmp(&self, rho: &Change) -> Option<Ordering> {
-        Some(self.cmp(rho))
-    }
-}
-
-impl Ord for Change {
-    fn cmp(&self, rho: &Change) -> Ordering {
-        match (self, rho) {
-            (Change::Join(_), Change::Leave(_)) => Ordering::Greater,
-            (Change::Leave(_), Change::Join(_)) => Ordering::Less,
-            (lho, rho) => lho.identity().cmp(&rho.identity()),
         }
     }
 }
