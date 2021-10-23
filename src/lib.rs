@@ -1,4 +1,6 @@
 #[allow(dead_code)]
+mod crypto;
+#[allow(dead_code)]
 mod directory;
 
 #[allow(dead_code)]
