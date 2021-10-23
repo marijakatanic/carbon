@@ -2,7 +2,7 @@ use bit_vec::BitVec;
 
 use crate::view::View;
 
-use doomstack::Top;
+use doomstack::{here, Doom, ResultExt, Top};
 
 use talk::crypto::primitives::multi::{MultiError, Signature as MultiSignature};
 use talk::crypto::{Identity, Statement};
@@ -10,6 +10,14 @@ use talk::crypto::{Identity, Statement};
 pub(crate) struct Certificate {
     signers: BitVec,
     signature: MultiSignature,
+}
+
+#[derive(Doom)]
+pub(crate) enum CertificateError {
+    #[doom(description("Certificate invalid"))]
+    CertificateInvalid,
+    #[doom(description("Not enough signers"))]
+    NotEnoughSigners,
 }
 
 impl Certificate {
@@ -46,22 +54,60 @@ impl Certificate {
         Certificate { signers, signature }
     }
 
-    pub fn verify<S>(&self, view: &View, message: &S) -> Result<(), Top<MultiError>>
+    pub fn power(&self) -> usize {
+        self.signers.iter().filter(|mask| *mask).count()
+    }
+
+    pub fn verify<S>(&self, view: &View, message: &S) -> Result<(), Top<CertificateError>>
     where
         S: Statement,
     {
-        self.signature.verify(
-            view.members()
-                .iter()
-                .enumerate()
-                .filter_map(|(index, card)| {
-                    if self.signers[index] {
-                        Some(card)
-                    } else {
-                        None
-                    }
-                }),
-            message,
-        )
+        self.signature
+            .verify(
+                view.members()
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, card)| {
+                        if self.signers[index] {
+                            Some(card)
+                        } else {
+                            None
+                        }
+                    }),
+                message,
+            )
+            .pot(CertificateError::CertificateInvalid, here!())
+    }
+
+    pub fn verify_threshold<S>(
+        &self,
+        view: &View,
+        message: &S,
+        threshold: usize,
+    ) -> Result<(), Top<CertificateError>>
+    where
+        S: Statement,
+    {
+        self.verify(view, message)?;
+
+        if self.power() >= threshold {
+            Ok(())
+        } else {
+            CertificateError::NotEnoughSigners.fail()
+        }
+    }
+
+    pub fn verify_plurality<S>(&self, view: &View, message: &S) -> Result<(), Top<CertificateError>>
+    where
+        S: Statement,
+    {
+        self.verify_threshold(view, message, view.plurality())
+    }
+
+    pub fn verify_quorum<S>(&self, view: &View, message: &S) -> Result<(), Top<CertificateError>>
+    where
+        S: Statement,
+    {
+        self.verify_threshold(view, message, view.quorum())
     }
 }
