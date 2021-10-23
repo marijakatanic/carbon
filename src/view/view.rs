@@ -8,8 +8,7 @@ use futures::stream::{FuturesOrdered, StreamExt};
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use talk::crypto::primitives::sign::PublicKey;
-use talk::crypto::KeyCard;
+use talk::crypto::{Identity, KeyCard};
 
 use zebra::database::{Collection, CollectionTransaction};
 use zebra::Commitment;
@@ -26,7 +25,7 @@ struct Data {
 impl View {
     pub async fn genesis<M>(members: M, directory: &Directory) -> Self
     where
-        M: IntoIterator<Item = PublicKey>,
+        M: IntoIterator<Item = Identity>,
     {
         let mut members = members.into_iter().collect::<Vec<_>>();
         members.sort();
@@ -145,7 +144,7 @@ impl View {
             .data
             .members
             .iter()
-            .map(KeyCard::root)
+            .map(KeyCard::identity)
             .collect::<HashSet<_>>();
 
         for update in updates {

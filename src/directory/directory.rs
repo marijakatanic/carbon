@@ -3,8 +3,7 @@ use doomstack::{here, Doom, ResultExt, Top};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use talk::crypto::primitives::sign::PublicKey;
-use talk::crypto::KeyCard;
+use talk::crypto::{Identity, KeyCard};
 use talk::link::rendezvous::Client;
 
 pub(crate) struct Directory {
@@ -13,7 +12,7 @@ pub(crate) struct Directory {
 }
 
 struct Database {
-    cache: HashMap<PublicKey, KeyCard>,
+    cache: HashMap<Identity, KeyCard>,
 }
 
 #[derive(Doom)]
@@ -32,20 +31,20 @@ impl Directory {
         Directory { client, database }
     }
 
-    pub async fn get_card(&self, root: PublicKey) -> Result<KeyCard, Top<DirectoryError>> {
-        match self.search(root) {
+    pub async fn get_card(&self, identity: Identity) -> Result<KeyCard, Top<DirectoryError>> {
+        match self.search(identity) {
             Some(card) => Ok(card),
             None => self
                 .client
-                .get_card(root)
+                .get_card(identity)
                 .await
                 .pot(DirectoryError::CardUnknown, here!())
                 .map(|card| self.store(card)),
         }
     }
 
-    fn search(&self, root: PublicKey) -> Option<KeyCard> {
-        self.database.lock().unwrap().cache.get(&root).cloned()
+    fn search(&self, identity: Identity) -> Option<KeyCard> {
+        self.database.lock().unwrap().cache.get(&identity).cloned()
     }
 
     fn store(&self, card: KeyCard) -> KeyCard {
@@ -53,7 +52,7 @@ impl Directory {
             .lock()
             .unwrap()
             .cache
-            .insert(card.root(), card.clone());
+            .insert(card.identity(), card.clone());
 
         card
     }

@@ -5,8 +5,7 @@ use crate::view::View;
 use doomstack::Top;
 
 use talk::crypto::primitives::multi::{MultiError, Signature as MultiSignature};
-use talk::crypto::primitives::sign::PublicKey;
-use talk::crypto::Statement;
+use talk::crypto::{Identity, Statement};
 
 pub(crate) struct Certificate {
     signers: BitVec,
@@ -16,7 +15,7 @@ pub(crate) struct Certificate {
 impl Certificate {
     pub fn aggregate<C>(view: &View, components: C) -> Self
     where
-        C: IntoIterator<Item = (PublicKey, MultiSignature)>,
+        C: IntoIterator<Item = (Identity, MultiSignature)>,
     {
         let mut components = components.into_iter().collect::<Vec<_>>();
         components.sort_by_key(|component| component.0);
@@ -29,7 +28,7 @@ impl Certificate {
                 .next()
                 .expect("Called `Certificate::aggregate` with a foreign component");
 
-            if *replica == member.root() {
+            if *replica == member.identity() {
                 signers.set(index, true);
             }
         }

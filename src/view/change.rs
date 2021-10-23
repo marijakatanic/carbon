@@ -2,12 +2,12 @@ use serde::{Deserialize, Serialize};
 
 use std::hash::Hash;
 
-use talk::crypto::primitives::sign::PublicKey;
+use talk::crypto::Identity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub(crate) enum Change {
-    Join(PublicKey),
-    Leave(PublicKey),
+    Join(Identity),
+    Leave(Identity),
 }
 
 impl Change {
