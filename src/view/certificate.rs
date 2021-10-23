@@ -21,16 +21,17 @@ impl Certificate {
         components.sort_by_key(|component| component.0);
 
         let mut signers = BitVec::from_elem(view.members().len(), false);
-        let mut members = view.members().iter().enumerate();
+        let mut signer_ids = components.iter().map(|component| component.0).peekable();
 
-        for (replica, _) in components.iter() {
-            let (index, member) = members
-                .next()
-                .expect("Called `Certificate::aggregate` with a foreign component");
-
-            if *replica == member.identity() {
+        for (index, member) in view.members().iter().enumerate() {
+            if signer_ids.peek() == Some(&member.identity()) {
                 signers.set(index, true);
+                signer_ids.next().unwrap();
             }
+        }
+
+        if signer_ids.next().is_some() {
+            panic!("Called `Certificate::aggregate` with a foreign component");
         }
 
         let signatures = components.into_iter().map(|component| component.1);
