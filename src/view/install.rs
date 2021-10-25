@@ -41,7 +41,16 @@ impl Install {
 
         self.certificate
             .verify_plurality(&source, &self.payload)
-            .pot(InstallError::CertificateInvalid, here!())
+            .pot(InstallError::CertificateInvalid, here!())?;
+
+        #[cfg(debug_assertions)]
+        {
+            if self.payload.increments.len() == 0 {
+                panic!("An `Install` message was generated with no increments");
+            }
+        }
+
+        Ok(())
     }
 }
 
