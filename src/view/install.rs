@@ -1,6 +1,6 @@
 use crate::{
     crypto::Header,
-    view::{Certificate, Increment, View},
+    view::{Certificate, Increment, Transition, View},
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
@@ -34,6 +34,10 @@ pub(crate) enum InstallError {
 }
 
 impl Install {
+    pub async fn into_transition(self) -> Transition {
+        Transition::new(self.payload.source, self.payload.increments).await
+    }
+
     fn check(&self) -> Result<(), Top<InstallError>> {
         let source = View::get(self.payload.source)
             .ok_or(InstallError::SourceUnknown.into_top())
