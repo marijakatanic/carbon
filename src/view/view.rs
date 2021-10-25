@@ -8,6 +8,7 @@ use talk::crypto::KeyCard;
 use zebra::database::{Collection, CollectionTransaction};
 use zebra::Commitment;
 
+#[derive(Clone)]
 pub(crate) struct View {
     data: Arc<Data>,
 }
