@@ -15,6 +15,7 @@ pub(crate) struct View {
 }
 
 struct Data {
+    height: usize,
     changes: Collection<Change>,
     members: Vec<KeyCard>,
 }
@@ -42,6 +43,8 @@ impl View {
             }
         }
 
+        let height = members.len();
+
         let updates = members
             .clone()
             .into_iter()
@@ -58,7 +61,12 @@ impl View {
 
         let identifier = changes.commit();
 
-        let data = Arc::new(Data { changes, members });
+        let data = Arc::new(Data {
+            height,
+            changes,
+            members,
+        });
+
         let view = View { data };
 
         match VIEWS.lock().unwrap().entry(identifier) {
@@ -121,6 +129,8 @@ impl View {
             }
         }
 
+        let height = self.data.height + updates.len();
+
         let mut changes = self.data.changes.clone();
         let mut transaction = CollectionTransaction::new();
 
@@ -153,7 +163,12 @@ impl View {
         let mut members = members.into_iter().collect::<Vec<_>>();
         members.sort_by_key(KeyCard::identity);
 
-        let data = Arc::new(Data { changes, members });
+        let data = Arc::new(Data {
+            height,
+            changes,
+            members,
+        });
+
         let view = View { data };
 
         match VIEWS.lock().unwrap().entry(identifier) {
@@ -168,6 +183,10 @@ impl View {
 
     pub fn identifier(&self) -> Commitment {
         self.data.changes.commit()
+    }
+
+    pub fn height(&self) -> usize {
+        self.data.height
     }
 
     pub fn plurality(&self) -> usize {
