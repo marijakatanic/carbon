@@ -28,6 +28,8 @@ impl View {
 
         #[cfg(debug_assertions)]
         {
+            // Verify that all `members` are distinct, and sufficiently many for Byzantine resilience.
+
             let members_set = members.clone().into_iter().collect::<HashSet<_>>();
 
             if members_set.len() > members.len() {
@@ -68,6 +70,12 @@ impl View {
 
         #[cfg(debug_assertions)]
         {
+            // Verify that no element of `updates` is already in `self.data.changes`,
+            // and that all negative changes of `updates` are matched by a corresponding
+            // positive change in `self.data.changes`.
+            //
+            // (Note that all identities in `updates` are already guaranteed to be distinct)
+
             use std::collections::HashMap;
 
             let requirements = updates
@@ -75,7 +83,7 @@ impl View {
                 .filter_map(Change::requirement)
                 .collect::<Vec<_>>();
 
-            // These are all guaranteed to be disjoint: indeed, all identities in `updates`
+            // These are all guaranteed to be distinct: indeed, all identities in `updates`
             // are distinct, and `requirements` is a mirror of a subsequence in `updates`
             // (`Change::Leave`s are mapped onto corresponding `Change::Join`s).
             let queries = updates.clone().into_iter().chain(requirements.into_iter());
@@ -97,10 +105,12 @@ impl View {
                 .collect::<HashMap<_, _>>();
 
             for update in updates.iter() {
+                // Verify that `update` is not already in `self.data.changes`
                 if response[update] {
                     panic!("called `View::extend` with a pre-existing `Change`");
                 }
 
+                // Verify that, if `update` is negative, its positive mirror is in `self.data.changes`
                 if let Some(requirement) = update.requirement() {
                     if !response[&requirement] {
                         panic!("called `View::extend` with an unsatisfied requirement (unmatched `Change::Leave`)");
