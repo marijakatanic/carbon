@@ -7,14 +7,14 @@ use talk::crypto::{Identity, KeyCard};
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub(crate) enum Change {
     Join(KeyCard),
-    Leave(KeyCard),
+    Leave(KeyCard), // TODO: Refactor to `Leave(Identity)`
 }
 
 impl Change {
-    pub fn mirror(self) -> Self {
+    pub fn requirement(&self) -> Option<Self> {
         match self {
-            Change::Join(replica) => Change::Leave(replica),
-            Change::Leave(replica) => Change::Join(replica),
+            Change::Join(_) => None,
+            Change::Leave(replica) => Some(Change::Join(replica.clone())),
         }
     }
 

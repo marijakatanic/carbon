@@ -2,8 +2,6 @@ use crate::view::Change;
 
 use serde::{Deserialize, Serialize};
 
-use std::cmp::Ordering;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Increment {
     updates: Vec<Change>,
@@ -16,11 +14,18 @@ impl Increment {
     {
         let mut updates = updates.into_iter().collect::<Vec<_>>();
 
-        updates.sort_by(|lho, rho| match (lho, rho) {
-            (Change::Join(_), Change::Leave(_)) => Ordering::Greater,
-            (Change::Leave(_), Change::Join(_)) => Ordering::Less,
-            (lho, rho) => lho.identity().cmp(&rho.identity()),
-        });
+        #[cfg(debug_assertions)]
+        {
+            use std::collections::HashSet;
+
+            let identities = updates.iter().map(Change::identity).collect::<HashSet<_>>();
+
+            if identities.len() < updates.len() {
+                panic!("Called `Increment::new` with non-distinct identities");
+            }
+        }
+
+        updates.sort_by_key(Change::identity);
 
         Increment { updates }
     }

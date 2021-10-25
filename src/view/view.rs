@@ -70,30 +70,19 @@ impl View {
         {
             use std::collections::HashMap;
 
-            let updates_set = updates.clone().into_iter().collect::<HashSet<_>>();
-
-            if updates_set.len() > updates.len() {
-                panic!("called `View::extend` with non-distinct `updates`");
-            }
-
-            let positive_updates = updates.iter().filter(|update| update.is_join()).cloned();
-            let negative_updates = updates.iter().filter(|update| update.is_leave()).cloned();
-
-            let matching_updates = updates
+            let requirements = updates
                 .iter()
-                .filter(|update| update.is_leave())
-                .cloned()
-                .map(Change::mirror);
+                .filter_map(Change::requirement)
+                .collect::<Vec<_>>();
 
-            let queries = positive_updates
-                .chain(negative_updates)
-                .chain(matching_updates)
-                .collect::<HashSet<_>>();
+            // These are all guaranteed to be disjoint: indeed, all identities in `updates`
+            // are distinct, and `requirements` is a mirror of a subsequence in `updates`
+            // (`Change::Leave`s are mapped onto corresponding `Change::Join`s).
+            let queries = updates.clone().into_iter().chain(requirements.into_iter());
 
             let mut transaction = CollectionTransaction::new();
 
             let queries = queries
-                .into_iter()
                 .map(|change| {
                     let query = transaction.contains(&change).unwrap();
                     (change, query)
@@ -112,13 +101,9 @@ impl View {
                     panic!("called `View::extend` with a pre-existing `Change`");
                 }
 
-                if update.is_leave() {
-                    let mirror = update.clone().mirror();
-
-                    // Joining and leaving within the same extension is unsafe and not allowed:
-                    // this is why we don't look for `mirror` in `updates_set`
-                    if !response[&mirror] {
-                        panic!("called `View::extend` with an unmatched `Change::Leave`");
+                if let Some(requirement) = update.requirement() {
+                    if !response[&requirement] {
+                        panic!("called `View::extend` with an unsatisfied requirement (unmatched `Change::Leave`)");
                     }
                 }
             }
