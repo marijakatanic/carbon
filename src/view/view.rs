@@ -114,7 +114,9 @@ impl View {
                 if update.is_leave() {
                     let mirror = update.clone().mirror();
 
-                    if !updates_set.contains(&mirror) && !response[&mirror] {
+                    // Joining and leaving within the same extension is unsafe and not allowed:
+                    // this is why we don't look for `mirror` in `updates_set`
+                    if !response[&mirror] {
                         panic!("called `View::extend` with an unmatched `Change::Leave`");
                     }
                 }
