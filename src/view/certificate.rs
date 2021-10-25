@@ -57,6 +57,38 @@ impl Certificate {
         Certificate { signers, signature }
     }
 
+    pub fn aggregate_plurality<C>(view: &View, components: C) -> Self
+    where
+        C: IntoIterator<Item = (Identity, MultiSignature)>,
+    {
+        let certificate = Self::aggregate(view, components);
+
+        #[cfg(debug_assertions)]
+        {
+            if certificate.power() < view.plurality() {
+                panic!("Called `Certificate::aggregate` with an insufficient number of signers for a plurality");
+            }
+        }
+
+        certificate
+    }
+
+    pub fn aggregate_quorum<C>(view: &View, components: C) -> Self
+    where
+        C: IntoIterator<Item = (Identity, MultiSignature)>,
+    {
+        let certificate = Self::aggregate(view, components);
+
+        #[cfg(debug_assertions)]
+        {
+            if certificate.power() < view.quorum() {
+                panic!("Called `Certificate::aggregate` with an insufficient number of signers for a quorum");
+            }
+        }
+
+        certificate
+    }
+
     pub fn power(&self) -> usize {
         self.signers.iter().filter(|mask| *mask).count()
     }
@@ -91,10 +123,8 @@ impl Certificate {
     where
         S: Statement,
     {
-        self.verify(view, message)?;
-
         if self.power() >= threshold {
-            Ok(())
+            self.verify(view, message)
         } else {
             CertificateError::NotEnoughSigners.fail()
         }

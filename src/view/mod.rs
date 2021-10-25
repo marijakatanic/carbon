@@ -6,9 +6,8 @@ mod store;
 mod transition;
 mod view;
 
-use store::CHANGES;
 use store::FAMILY;
-use store::MEMBERS;
+use store::VIEWS;
 
 pub(crate) use certificate::Certificate;
 pub(crate) use change::Change;

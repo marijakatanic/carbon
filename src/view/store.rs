@@ -1,13 +1,11 @@
-use crate::view::Change;
+use crate::view::{Change, View};
 
 use lazy_static::lazy_static;
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
-use talk::crypto::KeyCard;
-
-use zebra::database::{Collection, Family};
+use zebra::database::Family;
 use zebra::Commitment;
 
 lazy_static! {
@@ -15,11 +13,6 @@ lazy_static! {
 }
 
 lazy_static! {
-    pub(in crate::view) static ref CHANGES: Arc<Mutex<HashMap<Commitment, Collection<Change>>>> =
-        Arc::new(Mutex::new(HashMap::new()));
-}
-
-lazy_static! {
-    pub(in crate::view) static ref MEMBERS: Arc<Mutex<HashMap<Commitment, Vec<KeyCard>>>> =
-        Arc::new(Mutex::new(HashMap::new()));
+    pub(in crate::view) static ref VIEWS: Mutex<HashMap<Commitment, View>> =
+        Mutex::new(HashMap::new());
 }

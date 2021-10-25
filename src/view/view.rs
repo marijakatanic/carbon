@@ -1,5 +1,6 @@
-use crate::view::{Change, Increment, CHANGES, FAMILY, MEMBERS};
+use crate::view::{Change, Increment, FAMILY, VIEWS};
 
+use std::collections::hash_map::Entry;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -57,12 +58,13 @@ impl View {
 
         let identifier = changes.commit();
 
-        CHANGES.lock().unwrap().insert(identifier, changes.clone());
-        MEMBERS.lock().unwrap().insert(identifier, members.clone());
-
         let data = Arc::new(Data { changes, members });
+        let view = View { data };
 
-        View { data }
+        match VIEWS.lock().unwrap().entry(identifier) {
+            Entry::Occupied(entry) => entry.get().clone(),
+            Entry::Vacant(entry) => entry.insert(view).clone(),
+        }
     }
 
     pub async fn extend(&self, increment: Increment) -> Self {
@@ -151,25 +153,17 @@ impl View {
         let mut members = members.into_iter().collect::<Vec<_>>();
         members.sort_by_key(KeyCard::identity);
 
-        CHANGES.lock().unwrap().insert(identifier, changes.clone());
-        MEMBERS.lock().unwrap().insert(identifier, members.clone());
-
         let data = Arc::new(Data { changes, members });
+        let view = View { data };
 
-        View { data }
+        match VIEWS.lock().unwrap().entry(identifier) {
+            Entry::Occupied(entry) => entry.get().clone(),
+            Entry::Vacant(entry) => entry.insert(view).clone(),
+        }
     }
 
     pub fn get(identifier: Commitment) -> Option<Self> {
-        let changes = CHANGES.lock().unwrap().get(&identifier).cloned();
-        let members = MEMBERS.lock().unwrap().get(&identifier).cloned();
-
-        match (changes, members) {
-            (Some(changes), Some(members)) => {
-                let data = Arc::new(Data { changes, members });
-                Some(View { data })
-            }
-            _ => None,
-        }
+        VIEWS.lock().unwrap().get(&identifier).cloned()
     }
 
     pub fn identifier(&self) -> Commitment {
