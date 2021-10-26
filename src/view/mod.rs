@@ -8,6 +8,9 @@ mod view;
 use store::FAMILY;
 use store::VIEWS;
 
+#[cfg(test)]
+pub(crate) mod test;
+
 pub(crate) use change::Change;
 pub(crate) use increment::Increment;
 pub(crate) use install::Install;
