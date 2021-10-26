@@ -1,6 +1,6 @@
 use crate::{
-    crypto::Header,
-    view::{Certificate, Increment, Transition, View},
+    crypto::{Certificate, Header},
+    view::{Increment, Transition, View},
 };
 
 use doomstack::{here, Doom, ResultExt, Top};

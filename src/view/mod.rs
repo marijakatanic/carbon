@@ -1,4 +1,3 @@
-mod certificate;
 mod change;
 mod increment;
 mod install;
@@ -9,7 +8,6 @@ mod view;
 use store::FAMILY;
 use store::VIEWS;
 
-pub(crate) use certificate::Certificate;
 pub(crate) use change::Change;
 pub(crate) use increment::Increment;
 pub(crate) use install::Install;
