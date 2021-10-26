@@ -48,7 +48,8 @@ where
         Ok(())
     }
 
-    pub fn finalize(self) -> Certificate {
-        Certificate::aggregate(&self.view, self.components)
+    pub fn finalize(self) -> (S, Certificate) {
+        let certificate = Certificate::aggregate(&self.view, self.components);
+        (self.statement, certificate)
     }
 }
