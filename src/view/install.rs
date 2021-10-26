@@ -83,7 +83,7 @@ impl InstallAggregator {
     }
 
     pub fn finalize(self) -> Install {
-        let (statement, certificate) = self.0.finalize();
+        let (statement, certificate) = self.0.finalize_plurality();
 
         Install {
             statement,
