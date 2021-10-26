@@ -29,6 +29,7 @@ impl Frame {
 
     async fn update(&self, install: Install) -> Option<Frame> {
         let transition = install.clone().into_transition().await;
+
         if self.can_grow_by(&transition) || self.can_improve_by(&transition) {
             Some(self.acquire(install, transition))
         } else {
@@ -73,7 +74,9 @@ impl Frame {
             }
         }
 
-        while lookup.len() < self.top() {
+        let top = metadata.last().unwrap().destination_height;
+
+        while lookup.len() < top {
             lookup.push(last_tailless);
         }
 
@@ -118,5 +121,47 @@ impl Frame {
         self.metadata
             .binary_search_by_key(&height, |metadata| metadata.destination_height)
             .ok()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::view::test::InstallGenerator;
+
+    #[tokio::test]
+    async fn develop() {
+        let generator = InstallGenerator::new(50);
+        let genesis = generator.view(10).await;
+
+        let frame = Frame::genesis(genesis);
+
+        let i0 = generator.install(10, 15, [16]).await;
+        let f0 = frame.update(i0).await.unwrap();
+
+        let i1 = generator.install(15, 20, [21]).await;
+        let f1 = f0.update(i1).await.unwrap();
+
+        let i2 = generator.install(20, 25, []).await;
+        let f2 = f1.update(i2).await.unwrap();
+
+        let i3 = generator.install(25, 30, [31]).await;
+        let f3 = f2.update(i3).await.unwrap();
+
+        let i4 = generator.install(30, 35, []).await;
+        let f4 = f3.update(i4).await.unwrap();
+
+        let i5 = generator.install(35, 40, []).await;
+        let f5 = f4.update(i5).await.unwrap();
+
+        let expected = &[
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 5, 5, 5, 5,
+            5,
+        ];
+
+        for (index, expected) in expected.into_iter().enumerate() {
+            assert_eq!(f5.lookup[10 + index], *expected);
+        }
     }
 }

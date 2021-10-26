@@ -2,8 +2,6 @@ use crate::view::{Change, Increment, Install, InstallAggregator, View};
 
 use talk::crypto::{KeyCard, KeyChain};
 
-use zebra::Commitment;
-
 pub(crate) struct InstallGenerator {
     keychains: Vec<KeyChain>,
     keycards: Vec<KeyCard>,
