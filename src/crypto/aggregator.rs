@@ -52,4 +52,14 @@ where
         let certificate = Certificate::aggregate(&self.view, self.components);
         (self.statement, certificate)
     }
+
+    pub fn finalize_plurality(self) -> (S, Certificate) {
+        let certificate = Certificate::aggregate_plurality(&self.view, self.components);
+        (self.statement, certificate)
+    }
+
+    pub fn finalize_quorum(self) -> (S, Certificate) {
+        let certificate = Certificate::aggregate_quorum(&self.view, self.components);
+        (self.statement, certificate)
+    }
 }
