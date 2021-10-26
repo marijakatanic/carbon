@@ -8,7 +8,7 @@ pub(crate) struct Increment {
 }
 
 impl Increment {
-    pub fn new<C>(&self, updates: C) -> Self
+    pub fn new<C>(updates: C) -> Self
     where
         C: IntoIterator<Item = Change>,
     {
