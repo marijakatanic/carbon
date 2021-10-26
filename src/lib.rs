@@ -8,4 +8,7 @@ mod data;
 mod directory;
 
 #[allow(dead_code)]
+mod discovery;
+
+#[allow(dead_code)]
 mod view;
