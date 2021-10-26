@@ -9,7 +9,7 @@ use serde::de;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use talk::crypto::primitives::multi::{MultiError, Signature as MultiSignature};
-use talk::crypto::{KeyCard, Statement as CryptoStatement};
+use talk::crypto::{KeyCard, KeyChain, Statement as CryptoStatement};
 
 use zebra::Commitment;
 
@@ -37,6 +37,22 @@ pub(crate) enum InstallError {
 }
 
 impl Install {
+    pub fn certify<I>(keychain: &KeyChain, source: &View, increments: I) -> MultiSignature
+    where
+        I: IntoIterator<Item = Increment>,
+    {
+        let increments = increments.into_iter().collect::<Vec<_>>();
+
+        let statement = Statement {
+            source: source.identifier(),
+            increments,
+        };
+
+        keychain
+            .multisign(&statement)
+            .expect("Panic at `Install::certify`: unexpected error from `keychain.multisign`")
+    }
+
     pub async fn into_transition(self) -> Transition {
         Transition::new(self.statement.source, self.statement.increments).await
     }
