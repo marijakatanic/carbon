@@ -12,14 +12,14 @@ use talk::crypto::Statement;
 
 use zebra::Commitment;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(remote = "Self")]
 pub(crate) struct Install {
     payload: Payload,
     certificate: Certificate,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 struct Payload {
     source: Commitment,
     increments: Vec<Increment>,
