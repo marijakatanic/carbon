@@ -37,4 +37,16 @@ impl Transition {
             tail,
         }
     }
+
+    pub fn source(&self) -> &View {
+        &self.source
+    }
+
+    pub fn destination(&self) -> &View {
+        &self.destination
+    }
+
+    pub fn tail(&self) -> &[View] {
+        self.tail.as_slice()
+    }
 }
