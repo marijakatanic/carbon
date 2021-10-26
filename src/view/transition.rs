@@ -49,4 +49,8 @@ impl Transition {
     pub fn tail(&self) -> &[View] {
         self.tail.as_slice()
     }
+
+    pub fn tailless(&self) -> bool {
+        self.tail.len() == 0
+    }
 }
