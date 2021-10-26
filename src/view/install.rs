@@ -1,5 +1,5 @@
 use crate::{
-    crypto::{Certificate, Header},
+    crypto::{Aggregator, Certificate, Header},
     view::{Increment, Transition, View},
 };
 
@@ -8,19 +8,22 @@ use doomstack::{here, Doom, ResultExt, Top};
 use serde::de;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use talk::crypto::Statement;
+use talk::crypto::primitives::multi::{MultiError, Signature as MultiSignature};
+use talk::crypto::{KeyCard, Statement as CryptoStatement};
 
 use zebra::Commitment;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(remote = "Self")]
 pub(crate) struct Install {
-    payload: Payload,
+    statement: Statement,
     certificate: Certificate,
 }
 
+pub(crate) struct InstallAggregator(Aggregator<Statement>);
+
 #[derive(Clone, Serialize, Deserialize)]
-struct Payload {
+struct Statement {
     source: Commitment,
     increments: Vec<Increment>,
 }
@@ -35,26 +38,57 @@ pub(crate) enum InstallError {
 
 impl Install {
     pub async fn into_transition(self) -> Transition {
-        Transition::new(self.payload.source, self.payload.increments).await
+        Transition::new(self.statement.source, self.statement.increments).await
     }
 
     fn check(&self) -> Result<(), Top<InstallError>> {
-        let source = View::get(self.payload.source)
+        let source = View::get(self.statement.source)
             .ok_or(InstallError::SourceUnknown.into_top())
             .spot(here!())?;
 
         self.certificate
-            .verify_plurality(&source, &self.payload)
+            .verify_plurality(&source, &self.statement)
             .pot(InstallError::CertificateInvalid, here!())?;
 
         #[cfg(debug_assertions)]
         {
-            if self.payload.increments.len() == 0 {
+            if self.statement.increments.len() == 0 {
                 panic!("An `Install` message was generated with no increments");
             }
         }
 
         Ok(())
+    }
+}
+
+impl InstallAggregator {
+    pub fn new<I>(source: View, increments: I) -> Self
+    where
+        I: IntoIterator<Item = Increment>,
+    {
+        let statement = Statement {
+            source: source.identifier(),
+            increments: increments.into_iter().collect::<Vec<_>>(),
+        };
+
+        InstallAggregator(Aggregator::new(source, statement))
+    }
+
+    pub fn add(
+        &mut self,
+        keycard: &KeyCard,
+        signature: MultiSignature,
+    ) -> Result<(), Top<MultiError>> {
+        self.0.add(keycard, signature)
+    }
+
+    pub fn finalize(self) -> Install {
+        let (statement, certificate) = self.0.finalize();
+
+        Install {
+            statement,
+            certificate,
+        }
     }
 }
 
@@ -78,7 +112,7 @@ impl<'de> Deserialize<'de> for Install {
     }
 }
 
-impl Statement for Payload {
+impl CryptoStatement for Statement {
     type Header = Header;
     const HEADER: Header = Header::Install;
 }
