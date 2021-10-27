@@ -14,6 +14,7 @@ pub(crate) mod test;
 pub(crate) use change::Change;
 pub(crate) use increment::Increment;
 pub(crate) use install::Install;
+#[allow(unused_imports)]
 pub(crate) use install::InstallAggregator;
 pub(crate) use transition::Transition;
 pub(crate) use view::View;
