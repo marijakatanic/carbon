@@ -18,7 +18,7 @@ struct Metadata {
 }
 
 impl Frame {
-    fn genesis(genesis: View) -> Frame {
+    pub fn genesis(genesis: View) -> Frame {
         Frame {
             base: genesis.height(),
             highway: Vec::new(),
@@ -27,7 +27,7 @@ impl Frame {
         }
     }
 
-    async fn update(&self, install: Install) -> Option<Frame> {
+    pub async fn update(&self, install: Install) -> Option<Frame> {
         let transition = install.clone().into_transition().await;
 
         if self.can_grow_by(&transition) || self.can_improve_by(&transition) {
