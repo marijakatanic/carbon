@@ -37,6 +37,23 @@ impl Frame {
         }
     }
 
+    pub fn top(&self) -> usize {
+        self.metadata
+            .last()
+            .map(|metadata| metadata.destination_height)
+            .unwrap_or(self.base)
+    }
+
+    pub fn lookup(&self, height: usize) -> Vec<Install> {
+        let height = height.clamp(self.base, self.top());
+
+        if height < self.top() {
+            self.highway[self.lookup[height]..].to_vec()
+        } else {
+            vec![]
+        }
+    }
+
     fn acquire(&self, install: Install, transition: Transition) -> Frame {
         let base = self.base;
 
@@ -102,13 +119,6 @@ impl Frame {
         } else {
             false
         }
-    }
-
-    fn top(&self) -> usize {
-        self.metadata
-            .last()
-            .map(|metadata| metadata.destination_height)
-            .unwrap_or(self.base)
     }
 
     fn locate_by_source(&self, height: usize) -> Option<usize> {
