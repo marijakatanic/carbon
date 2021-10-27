@@ -53,6 +53,14 @@ impl Install {
             .expect("Panic at `Install::certify`: unexpected error from `keychain.multisign`")
     }
 
+    pub fn source(&self) -> Commitment {
+        self.statement.source
+    }
+
+    pub fn increments(&self) -> &Vec<Increment> {
+        &self.statement.increments
+    }
+
     pub async fn into_transition(self) -> Transition {
         Transition::new(self.statement.source, self.statement.increments).await
     }

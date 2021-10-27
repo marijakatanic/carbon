@@ -87,7 +87,7 @@ impl Server {
 
         let database = Arc::new(Mutex::new(Database { views }));
 
-        let frame = Arc::new(Frame::genesis(genesis));
+        let frame = Arc::new(Frame::genesis(&genesis));
 
         let (install_inlet, install_outlet) = mpsc::channel(32); // TODO: Add settings
         let (update_inlet, update_outlet) = mpsc::unbounded_channel();

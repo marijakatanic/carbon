@@ -18,7 +18,7 @@ struct Metadata {
 }
 
 impl Frame {
-    pub fn genesis(genesis: View) -> Frame {
+    pub fn genesis(genesis: &View) -> Frame {
         Frame {
             base: genesis.height(),
             highway: Vec::new(),
@@ -140,25 +140,92 @@ mod tests {
 
     use crate::view::test::InstallGenerator;
 
-    async fn setup(genesis: usize, added_views: usize) -> (Frame, InstallGenerator) {
+    async fn setup(genesis: usize, added_views: usize) -> (View, Frame, InstallGenerator) {
         let generator = InstallGenerator::new(genesis + added_views);
         let genesis = generator.view(genesis).await;
-        let frame = Frame::genesis(genesis);
+        let frame = Frame::genesis(&genesis);
 
-        (frame, generator)
+        (genesis, frame, generator)
     }
 
-    fn check(frame: &Frame, genesis: usize, expected: &[usize]) {
-        println!("");
+    fn check_lookup(frame: &Frame, genesis: &View, expected: &[usize]) {
         for (index, expected) in expected.into_iter().enumerate() {
-            //print!("{}", frame.lookup[genesis + index]);
-            assert_eq!(frame.lookup[genesis + index], *expected);
+            assert_eq!(frame.lookup[genesis.height() + index], *expected);
+        }
+    }
+
+    struct Client {
+        last_installable: View,
+        current: View,
+    }
+
+    impl Client {
+        fn new(last_installable: View, current: View) -> Self {
+            Self {
+                last_installable,
+                current,
+            }
+        }
+
+        async fn update(&mut self, installs: Vec<Install>) {
+            self.current = self.last_installable.clone();
+            for install in installs {
+                assert_eq!(self.current.identifier(), install.source());
+                assert!(install.increments().len() > 0);
+                let increment = install.increments()[0].clone();
+                self.current = self.current.extend(increment).await;
+                if install.increments().len() == 1 {
+                    self.last_installable = self.current.clone();
+                }
+            }
+        }
+
+        fn last_installable(&self) -> &View {
+            &self.last_installable
+        }
+
+        fn current(&self) -> &View {
+            &self.current
+        }
+    }
+
+    async fn check_frame<I>(
+        frame: &Frame,
+        genesis_height: usize,
+        added_views: usize,
+        installable: I,
+        generator: &InstallGenerator,
+    ) where
+        I: IntoIterator<Item = usize>,
+    {
+        let mut installable = installable.into_iter().peekable();
+        let mut last_installable = genesis_height;
+        for base in genesis_height..added_views {
+            if installable.peek().is_some() && base == *installable.peek().unwrap() {
+                last_installable = installable.next().unwrap();
+            }
+            let mut client = Client::new(
+                generator.view(last_installable).await,
+                generator.view(base).await,
+            );
+            let installs = frame.lookup(base);
+            client.update(installs).await;
+
+            assert_eq!(
+                client.current().identifier(),
+                generator.view(frame.top()).await.identifier()
+            );
+
+            assert_eq!(
+                client.last_installable().identifier(),
+                frame.lookup(frame.top() - 1).remove(0).source()
+            )
         }
     }
 
     #[tokio::test]
     async fn develop() {
-        let (frame, generator) = setup(10, 40).await;
+        let (genesis, frame, generator) = setup(10, 40).await;
 
         let i0 = generator.install(10, 15, [16]).await;
         let f0 = frame.update(i0).await.unwrap();
@@ -183,71 +250,67 @@ mod tests {
             5,
         ];
 
-        check(&f5, 10, expected);
+        check_lookup(&f5, &genesis, expected);
     }
 
     #[tokio::test]
-    async fn basic() {
-        let (mut frame, generator) = setup(10, 10).await;
+    async fn all_tailless() {
+        let (genesis, mut frame, generator) = setup(10, 10).await;
 
         for i in 10..20 {
-            let install = generator.install(i, i+1, []).await;
+            let install = generator.install(i, i + 1, []).await;
             frame = frame.update(install).await.unwrap();
         }
 
-        let expected = &[
-            0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-        ];
+        let expected = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-        check(&frame, 10, expected);
+        check_lookup(&frame, &genesis, expected);
+        check_frame(&frame, 10, 10, 10..20, &generator).await;
     }
 
     #[tokio::test]
-    async fn no_installs() {
-        let (mut frame, generator) = setup(10, 11).await;
+    async fn no_tailless() {
+        let (genesis, mut frame, generator) = setup(10, 11).await;
 
         for i in 10..20 {
-            let install = generator.install(i, i+1, [i+2]).await;
+            let install = generator.install(i, i + 1, [i + 2]).await;
             frame = frame.update(install).await.unwrap();
         }
 
-        let expected = &[
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        ];
+        let expected = &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-        check(&frame, 10, expected);
+        check_lookup(&frame, &genesis, expected);
+        check_frame(&frame, 10, 10, [], &generator).await;
     }
 
     #[tokio::test]
-    async fn new_installs() {
-        let (mut frame, generator) = setup(10, 11).await;
+    async fn new_tailless() {
+        let (genesis, mut frame, generator) = setup(10, 11).await;
 
         for i in 10..20 {
-            let install = generator.install(i, i+1, [i+2]).await;
+            let install = generator.install(i, i + 1, [i + 2]).await;
             frame = frame.update(install).await.unwrap();
         }
 
-        let expected = &[
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        ];
+        let expected = &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-        check(&frame, 10, expected);
+        check_lookup(&frame, &genesis, expected);
+        check_frame(&frame, 10, 11, [], &generator).await;
 
         for i in [15, 17] {
-            let install = generator.install(i-1, i, []).await;
+            let install = generator.install(i - 1, i, []).await;
             frame = frame.update(install).await.unwrap();
         }
 
-        let expected = &[
-            0, 0, 0, 0, 0, 5, 5, 7, 7, 7
-        ];
+        let expected = &[0, 0, 0, 0, 0, 5, 5, 7, 7, 7];
 
-        check(&frame, 10, expected);
+        check_lookup(&frame, &genesis, expected);
+        check_frame(&frame, 10, 11, [15, 17], &generator).await;
     }
 
     #[tokio::test]
-    async fn shortcut() {
-        let (mut frame, generator) = setup(10, 11).await;
+    async fn shortcut_tailless() {
+        let (genesis, mut frame, generator) = setup(10, 11).await;
 
         let i0 = generator.install(10, 11, [12, 13]).await;
         frame = frame.update(i0).await.unwrap();
@@ -255,19 +318,53 @@ mod tests {
         let i1 = generator.install(11, 12, [13]).await;
         frame = frame.update(i1).await.unwrap();
 
-        let expected = &[
-            0, 0,
-        ];
-
-        check(&frame, 10, expected);
-
-        let i2 = generator.install(10, 12, []).await;
+        let i2 = generator.install(12, 13, []).await;
         frame = frame.update(i2).await.unwrap();
 
-        let expected = &[
-            0, 0,
-        ];
+        let i3 = generator.install(13, 14, [15]).await;
+        frame = frame.update(i3).await.unwrap();
 
-        check(&frame, 10, expected);
+        let expected = &[0, 0, 0, 3];
+
+        check_lookup(&frame, &genesis, expected);
+        check_frame(&frame, 10, 11, [13], &generator).await;
+
+        let i4 = generator.install(10, 12, []).await;
+        frame = frame.update(i4).await.unwrap();
+
+        let expected = &[0, 0, 1, 2];
+
+        check_lookup(&frame, &genesis, expected);
+        check_frame(&frame, 10, 11, [12, 13], &generator).await;
+    }
+
+    #[tokio::test]
+    async fn shortcut_tails() {
+        let (genesis, mut frame, generator) = setup(10, 11).await;
+
+        let i0 = generator.install(10, 11, [12, 13]).await;
+        frame = frame.update(i0).await.unwrap();
+
+        let i1 = generator.install(11, 12, [13]).await;
+        frame = frame.update(i1).await.unwrap();
+
+        let i2 = generator.install(12, 13, []).await;
+        frame = frame.update(i2).await.unwrap();
+
+        let i3 = generator.install(13, 14, [15]).await;
+        frame = frame.update(i3).await.unwrap();
+
+        let expected = &[0, 0, 0, 3];
+
+        check_lookup(&frame, &genesis, expected);
+        check_frame(&frame, 10, 11, [13], &generator).await;
+
+        let i4 = generator.install(10, 12, [13]).await;
+        frame = frame.update(i4).await.unwrap();
+
+        let expected = &[0, 0, 0, 2];
+
+        check_lookup(&frame, &genesis, expected);
+        check_frame(&frame, 10, 11, [13], &generator).await;
     }
 }
