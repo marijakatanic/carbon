@@ -13,7 +13,7 @@ use talk::crypto::{KeyCard, KeyChain, Statement as CryptoStatement};
 
 use zebra::Commitment;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(remote = "Self")]
 pub(crate) struct Install {
     statement: Statement,
@@ -22,7 +22,7 @@ pub(crate) struct Install {
 
 pub(crate) struct InstallAggregator(Aggregator<Statement>);
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct Statement {
     source: Commitment,
     increments: Vec<Increment>,
