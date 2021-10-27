@@ -18,7 +18,7 @@ struct Metadata {
 }
 
 impl Frame {
-    fn genesis(genesis: View) -> Frame {
+    pub fn genesis(genesis: View) -> Frame {
         Frame {
             base: genesis.height(),
             highway: Vec::new(),
@@ -27,13 +27,30 @@ impl Frame {
         }
     }
 
-    async fn update(&self, install: Install) -> Option<Frame> {
+    pub async fn update(&self, install: Install) -> Option<Frame> {
         let transition = install.clone().into_transition().await;
 
         if self.can_grow_by(&transition) || self.can_improve_by(&transition) {
             Some(self.acquire(install, transition))
         } else {
             None
+        }
+    }
+
+    pub fn top(&self) -> usize {
+        self.metadata
+            .last()
+            .map(|metadata| metadata.destination_height)
+            .unwrap_or(self.base)
+    }
+
+    pub fn lookup(&self, height: usize) -> Vec<Install> {
+        let height = height.clamp(self.base, self.top());
+
+        if height < self.top() {
+            self.highway[self.lookup[height]..].to_vec()
+        } else {
+            vec![]
         }
     }
 
@@ -102,13 +119,6 @@ impl Frame {
         } else {
             false
         }
-    }
-
-    fn top(&self) -> usize {
-        self.metadata
-            .last()
-            .map(|metadata| metadata.destination_height)
-            .unwrap_or(self.base)
     }
 
     fn locate_by_source(&self, height: usize) -> Option<usize> {
