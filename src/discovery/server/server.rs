@@ -1,5 +1,5 @@
 use crate::{
-    discovery::server::{Frame, Request, Response},
+    discovery::server::{Frame, Request, Response, ServerSettings},
     view::{Install, View},
 };
 
@@ -72,7 +72,11 @@ enum UpdateError {
 }
 
 impl Server {
-    pub async fn new<A>(address: A, genesis: View) -> Result<Self, Top<ServerError>>
+    pub async fn new<A>(
+        address: A,
+        genesis: View,
+        settings: ServerSettings,
+    ) -> Result<Self, Top<ServerError>>
     where
         A: ToSocketAddrs,
     {
@@ -89,7 +93,7 @@ impl Server {
 
         let frame = Arc::new(Frame::genesis(&genesis));
 
-        let (install_inlet, install_outlet) = mpsc::channel(32); // TODO: Add settings
+        let (install_inlet, install_outlet) = mpsc::channel(settings.install_channel_capacity);
         let (update_inlet, update_outlet) = mpsc::unbounded_channel();
 
         let fuse = Fuse::new();
@@ -113,6 +117,7 @@ impl Server {
                     frame,
                     install_inlet,
                     update_outlet,
+                    settings,
                     relay,
                 )
                 .await;
@@ -128,9 +133,11 @@ impl Server {
         mut frame: Arc<Frame>,
         install_inlet: InstallInlet,
         mut update_outlet: UpdateOutlet,
+        settings: ServerSettings,
         mut relay: Relay,
     ) -> Result<(), Top<ListenError>> {
-        let (frame_inlet, _frame_outlet) = broadcast::channel(32); // TODO: Add settings
+        // Q: Why keep the _frame_outlet at all?
+        let (frame_inlet, _frame_outlet) = broadcast::channel(settings.frame_channel_capacity);
 
         let fuse = Fuse::new();
 
@@ -185,7 +192,10 @@ impl Server {
 
         match request {
             Request::Subscribe(height) => {
-                Server::serve_subscribe(connection, height as usize, frame, frame_outlet, relay) // TODO: Solve `u64` / `usize` conflict
+                // This server cannot handle view height values greater than usize::MAX"
+                assert!(height <= usize::MAX as u64);
+
+                Server::serve_subscribe(connection, height as usize, frame, frame_outlet, relay)
                     .await
             }
             Request::Publish(install) => {
@@ -232,7 +242,10 @@ impl Server {
 
                     match request {
                         Request::KeepAlive => {
-                            relay.map(connection.send(&Response::KeepAlive)).await.pot(ServeError::ServeInterrupted, here!())?.pot(ServeError::ConnectionError, here!())?;
+                            relay.map(connection.send(&Response::KeepAlive))
+                                .await
+                                .pot(ServeError::ServeInterrupted, here!())?
+                                .pot(ServeError::ConnectionError, here!())?;
                         }
                         _ => return ServeError::UnexpectedRequest.fail().spot(here!())
                     }
