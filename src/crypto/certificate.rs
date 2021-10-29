@@ -152,6 +152,6 @@ mod test {
     impl Certificate {
         pub fn new(signers: BitVec, signature: MultiSignature) -> Self {
             Certificate { signers, signature }
-        }    
+        }
     }
 }
