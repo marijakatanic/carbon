@@ -137,9 +137,7 @@ impl Frame {
 mod tests {
     use super::*;
 
-    use crate::view::test::InstallGenerator;
-
-    use rand::seq::IteratorRandom;
+    use crate::view::test::{generate_installs, Client, InstallGenerator};
 
     async fn setup(genesis_height: usize, max_height: usize) -> (Frame, InstallGenerator) {
         let generator = InstallGenerator::new(max_height);
@@ -147,47 +145,6 @@ mod tests {
         let frame = Frame::genesis(&genesis);
 
         (frame, generator)
-    }
-    struct Client {
-        last_installable: View,
-        current: View,
-    }
-
-    impl Client {
-        fn new(last_installable: View, current: View) -> Self {
-            Self {
-                last_installable, // Only installable views *that the Frame has knowledge about*
-                current,          // The client's current view
-            }
-        }
-
-        async fn update(&mut self, installs: Vec<Install>) {
-            let mut current = self.last_installable.clone();
-
-            for install in installs {
-                assert_eq!(current.identifier(), install.source());
-                assert!(install.increments().len() > 0);
-
-                let increment = install.increments()[0].clone();
-                current = current.extend(increment).await;
-
-                if install.increments().len() == 1 {
-                    self.last_installable = current.clone();
-                }
-            }
-
-            if self.current.height() < current.height() {
-                self.current = current;
-            }
-        }
-
-        fn last_installable(&self) -> &View {
-            &self.last_installable
-        }
-
-        fn current(&self) -> &View {
-            &self.current
-        }
     }
 
     fn last_installable<I>(genesis_height: usize, max_height: usize, tailless: I) -> Vec<usize>
@@ -241,67 +198,6 @@ mod tests {
 
             assert!(client.current().height() >= frame.top());
         }
-    }
-
-    async fn generate_installs(
-        genesis_height: usize,
-        max_height: usize,
-        unskippable_count: usize,
-        installable_count: usize,
-    ) -> Vec<(usize, usize, Vec<usize>)> {
-        assert!(installable_count <= unskippable_count && unskippable_count <= max_height - 1);
-
-        let mut rng = rand::thread_rng();
-
-        let mut unskippable = (genesis_height + 1..=max_height - 2)
-            .choose_multiple(&mut rng, unskippable_count)
-            .into_iter()
-            .enumerate()
-            .map(|(i, height)| (height, i < installable_count))
-            .collect::<Vec<_>>();
-
-        unskippable.sort_by_key(|(a, _)| *a);
-
-        unskippable.push((max_height - 1, false));
-
-        let mut installs = Vec::new();
-        let mut current_unskippable = genesis_height;
-
-        // Generate installs between all unskippable views (this includes the last view)
-
-        for (next_unskippable, is_installable) in unskippable {
-            let tail = if is_installable {
-                vec![]
-            } else {
-                vec![next_unskippable + 1]
-            };
-
-            installs.push((current_unskippable, next_unskippable, tail));
-
-            let mut must_include = Vec::new();
-
-            for to_include in (current_unskippable + 1..next_unskippable)
-                .choose_multiple(&mut rng, next_unskippable - current_unskippable - 1)
-            {
-                must_include.push(to_include);
-                must_include.sort();
-
-                let mut v = must_include
-                    .clone()
-                    .into_iter()
-                    .chain(vec![next_unskippable].into_iter());
-
-                installs.push((
-                    current_unskippable,
-                    v.next().unwrap(),
-                    v.collect::<Vec<_>>(),
-                ));
-            }
-
-            current_unskippable = next_unskippable;
-        }
-
-        installs
     }
 
     #[tokio::test]
