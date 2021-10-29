@@ -18,6 +18,10 @@ impl InstallGenerator {
         }
     }
 
+    pub fn max_height(&self) -> usize {
+        self.keychains.len()
+    }
+
     pub async fn view(&self, height: usize) -> View {
         let members = self.keycards[0..height].iter().cloned().collect::<Vec<_>>();
         View::genesis(members).await
@@ -57,5 +61,35 @@ impl InstallGenerator {
         }
 
         aggregator.finalize()
+    }
+
+    pub async fn install_dummy_certificate<T>(
+        &self,
+        source: usize,
+        destination: usize,
+        tail: T,
+    ) -> Install
+    where
+        T: IntoIterator<Item = usize>,
+    {
+        let mut heights = vec![source, destination];
+        heights.extend(tail);
+
+        let increments = heights
+            .windows(2)
+            .map(|window| {
+                Increment::new(
+                    self.keycards[window[0]..window[1]]
+                        .iter()
+                        .cloned()
+                        .map(|replica| Change::Join(replica))
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let source = self.view(source).await;
+
+        Install::with_dummy_certificate(&self.keychains[0], &source, increments)
     }
 }

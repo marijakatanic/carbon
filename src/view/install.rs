@@ -140,3 +140,37 @@ impl CryptoStatement for Statement {
     type Header = Header;
     const HEADER: Header = Header::Install;
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    impl Install {
+        pub fn with_dummy_certificate<I>(
+            keychain: &KeyChain,
+            source: &View,
+            increments: I,
+        ) -> Install
+        where
+            I: IntoIterator<Item = Increment>,
+        {
+            use bit_vec::BitVec;
+
+            let increments = increments.into_iter().collect::<Vec<_>>();
+
+            let statement = Statement {
+                source: source.identifier(),
+                increments,
+            };
+
+            let signature = keychain
+                .multisign(&statement)
+                .expect("Panic at `Install::certify`: unexpected error from `keychain.multisign`");
+
+            Install {
+                statement: statement,
+                certificate: Certificate::new(BitVec::new(), signature),
+            }
+        }
+    }
+}

@@ -17,3 +17,6 @@ lazy_static = "1.4.0"
 talk = { git = "https://github.com/Distributed-EPFL/talk" }
 zebra = { git = "https://github.com/Distributed-EPFL/zebra" }
 doomstack = { git = "https://github.com/Distributed-EPFL/doomstack" }
+
+[dev-dependencies]
+rand = { version = "0.8" }

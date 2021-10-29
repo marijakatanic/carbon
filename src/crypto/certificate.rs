@@ -144,3 +144,14 @@ impl Certificate {
         self.verify_threshold(view, message, view.quorum())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    impl Certificate {
+        pub fn new(signers: BitVec, signature: MultiSignature) -> Self {
+            Certificate { signers, signature }
+        }    
+    }
+}
