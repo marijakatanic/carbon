@@ -137,7 +137,7 @@ impl Frame {
 mod tests {
     use super::*;
 
-    use crate::view::test::{generate_installs, Client, InstallGenerator};
+    use crate::view::test::{generate_installs, last_installable, Client, InstallGenerator};
 
     async fn setup(genesis_height: usize, max_height: usize) -> (Frame, InstallGenerator) {
         let generator = InstallGenerator::new(max_height);
@@ -145,26 +145,6 @@ mod tests {
         let frame = Frame::genesis(&genesis);
 
         (frame, generator)
-    }
-
-    fn last_installable<I>(genesis_height: usize, max_height: usize, tailless: I) -> Vec<usize>
-    where
-        I: IntoIterator<Item = usize>,
-    {
-        let mut last_installable = Vec::new();
-        let mut current_height = genesis_height;
-
-        for next_height in tailless.into_iter() {
-            while last_installable.len() < next_height {
-                last_installable.push(current_height);
-            }
-            current_height = next_height;
-        }
-        while last_installable.len() < max_height {
-            last_installable.push(current_height);
-        }
-
-        last_installable
     }
 
     fn check_lookup(frame: &Frame, genesis_height: usize, expected: &[usize]) {

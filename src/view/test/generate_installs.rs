@@ -60,3 +60,27 @@ pub(crate) async fn generate_installs(
 
     installs
 }
+
+pub(crate) fn last_installable<I>(
+    genesis_height: usize,
+    max_height: usize,
+    tailless: I,
+) -> Vec<usize>
+where
+    I: IntoIterator<Item = usize>,
+{
+    let mut last_installable = Vec::new();
+    let mut current_height = genesis_height;
+
+    for next_height in tailless.into_iter() {
+        while last_installable.len() < next_height {
+            last_installable.push(current_height);
+        }
+        current_height = next_height;
+    }
+    while last_installable.len() < max_height {
+        last_installable.push(current_height);
+    }
+
+    last_installable
+}

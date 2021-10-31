@@ -6,6 +6,7 @@ use crate::{
 use doomstack::{here, Doom, ResultExt, Top};
 
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use talk::net::PlainConnection;
@@ -34,6 +35,7 @@ type FrameOutlet = BroadcastReceiver<Arc<Frame>>;
 
 pub(crate) struct Server {
     _fuse: Fuse,
+    address: SocketAddr,
 }
 
 struct Database {
@@ -86,6 +88,12 @@ impl Server {
             .map_err(Doom::into_top)
             .spot(here!())?;
 
+        let address = listener
+            .local_addr()
+            .map_err(ServerError::initialize_failed)
+            .map_err(Doom::into_top)
+            .spot(here!())?;
+
         let mut views = HashMap::new();
         views.insert(genesis.identifier(), genesis.clone());
 
@@ -124,7 +132,14 @@ impl Server {
             });
         }
 
-        Ok(Server { _fuse: fuse })
+        Ok(Server {
+            _fuse: fuse,
+            address: address,
+        })
+    }
+
+    pub(crate) fn address(&self) -> SocketAddr {
+        self.address
     }
 
     async fn listen(
@@ -169,7 +184,7 @@ impl Server {
                     let relay = fuse.relay();
 
                     tokio::spawn(async move {
-                        let _ = Server::serve(database, connection, frame, install_inlet, frame_outlet, relay);
+                        let _ = Server::serve(database, connection, frame, install_inlet, frame_outlet, relay).await;
                     });
                 }
             }
@@ -262,34 +277,35 @@ impl Server {
         mut relay: Relay,
     ) -> Result<(), Top<ServeError>> {
         let transition = install.clone().into_transition().await;
-        let mut database = database.lock().unwrap();
 
-        if database
-            .views
-            .contains_key(&transition.source().identifier())
         {
-            database.views.insert(
-                transition.destination().identifier(),
-                transition.destination().clone(),
-            );
+            let mut database = database.lock().unwrap();
 
-            drop(database);
-
-            // Because `install_inlet` is unbounded, this can only fail if the
-            // corresponding `install_outlet` is dropped, in which case the
-            // `Server` is shutting down and we don't care about the error
-            let _ = install_inlet.send(install);
-
-            relay
-                .map(connection.send(&Response::AcknowledgePublish))
-                .await
-                .pot(ServeError::ServeInterrupted, here!())?
-                .pot(ServeError::ConnectionError, here!())?;
-
-            Ok(())
-        } else {
-            ServeError::UnknownView.fail().spot(here!())
+            if database
+                .views
+                .contains_key(&transition.source().identifier())
+            {
+                database.views.insert(
+                    transition.destination().identifier(),
+                    transition.destination().clone(),
+                );
+            } else {
+                ServeError::UnknownView.fail().spot(here!())?
+            }
         }
+
+        // Because `install_inlet` is unbounded, this can only fail if the
+        // corresponding `install_outlet` is dropped, in which case the
+        // `Server` is shutting down and we don't care about the error
+        let _ = install_inlet.send(install).await;
+
+        relay
+            .map(connection.send(&Response::AcknowledgePublish))
+            .await
+            .pot(ServeError::ServeInterrupted, here!())?
+            .pot(ServeError::ConnectionError, here!())?;
+
+        Ok(())
     }
 
     async fn update(
@@ -309,6 +325,161 @@ impl Server {
                     let _ = update_inlet.send(frame.clone());
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use crate::view::test::{generate_installs, last_installable, Client, InstallGenerator};
+
+    use std::net::Ipv4Addr;
+
+    use talk::net::PlainConnection;
+
+    use tokio::net::TcpStream;
+
+    async fn setup(genesis_height: usize, max_height: usize) -> (Server, InstallGenerator) {
+        let generator = InstallGenerator::new(max_height);
+        let genesis = generator.view(genesis_height).await;
+        let server = Server::new((Ipv4Addr::UNSPECIFIED, 0), genesis, Default::default())
+            .await
+            .unwrap();
+
+        (server, generator)
+    }
+
+    async fn check_server<I>(
+        address: SocketAddr,
+        genesis_height: usize,
+        expected_server_top: usize,
+        tailless: I,
+        generator: &InstallGenerator,
+    ) where
+        I: IntoIterator<Item = usize>,
+    {
+        for (current, last_installable) in
+            last_installable(genesis_height, generator.max_height(), tailless)
+                .into_iter()
+                .enumerate()
+                .filter(|(i, _)| *i >= genesis_height)
+        {
+            let mut client = Client::new(
+                generator.view(last_installable).await,
+                generator.view(current).await,
+            );
+
+            let mut client_connection: PlainConnection =
+                TcpStream::connect(address).await.unwrap().into();
+
+            client_connection
+                .send(&Request::Subscribe(client.current().height() as u64))
+                .await
+                .unwrap();
+
+            let response: Response = client_connection.receive().await.unwrap();
+            let installs = match response {
+                Response::Update(installs) => installs,
+                Response::AcknowledgePublish => panic!("Unexpected second AcknowledgePublish"),
+                Response::KeepAlive => panic!("Unexpected KeepAlive when none was sent"),
+            };
+
+            client.update(installs.clone()).await;
+
+            assert!(client.current().height() >= expected_server_top);
+        }
+    }
+
+    #[tokio::test]
+    async fn client_update_stress_light_checks() {
+        const GENESIS_HEIGHT: usize = 10;
+        const MAX_HEIGHT: usize = 100;
+
+        let (server, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
+        let installs =
+            generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15).await;
+
+        let mut tailless = Vec::new();
+        for (source, destination, tail) in installs {
+            let mut replica_connection: PlainConnection =
+                TcpStream::connect(server.address()).await.unwrap().into();
+
+            if tail.len() == 0 {
+                tailless.push(destination);
+            }
+            let install = generator.install(source, destination, tail).await;
+
+            replica_connection
+                .send(&Request::Publish(install))
+                .await
+                .unwrap();
+
+            let response: Response = replica_connection.receive().await.unwrap();
+            match response {
+                Response::AcknowledgePublish => (),
+                _ => panic!("Unexpected response"),
+            }
+
+            drop(replica_connection);
+        }
+
+        check_server(
+            server.address(),
+            GENESIS_HEIGHT,
+            MAX_HEIGHT - 1,
+            tailless,
+            &generator,
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn client_update_stress_heavy_checks() {
+        const GENESIS_HEIGHT: usize = 10;
+        const MAX_HEIGHT: usize = 30;
+
+        let (server, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
+        let installs =
+            generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15).await;
+
+        let mut tailless = Vec::new();
+        let mut expected_top = GENESIS_HEIGHT;
+        for (source, destination, tail) in installs {
+            let mut replica_connection: PlainConnection =
+                TcpStream::connect(server.address()).await.unwrap().into();
+
+            if tail.len() == 0 {
+                tailless.push(destination);
+            }
+            let install = generator.install(source, destination, tail.clone()).await;
+
+            replica_connection
+                .send(&Request::Publish(install))
+                .await
+                .unwrap();
+
+            let response: Response = replica_connection.receive().await.unwrap();
+            match response {
+                Response::AcknowledgePublish => (),
+                _ => panic!("Unexpected response"),
+            }
+
+            drop(replica_connection);
+
+            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+
+            expected_top = std::cmp::max(expected_top, destination);
+
+            check_server(
+                server.address(),
+                GENESIS_HEIGHT,
+                expected_top,
+                tailless.clone(),
+                &generator,
+            )
+            .await;
         }
     }
 }
