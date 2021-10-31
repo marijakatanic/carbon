@@ -1,5 +1,5 @@
 use crate::{
-    discovery::server::{Frame, Request, Response, ServerSettings},
+    discovery::{Frame, Request, Response, ServerSettings},
     view::{Install, View},
 };
 

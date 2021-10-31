@@ -3,7 +3,7 @@ use crate::{
     view::{Install, Transition, View},
 };
 
-pub(in crate::discovery::server) struct Frame {
+pub(in crate::discovery) struct Frame {
     base: usize,
     highway: Vec<Install>,
     metadata: Vec<Metadata>,
