@@ -150,14 +150,14 @@ mod test {
     use talk::crypto::KeyChain;
 
     impl Install {
-        /// This creates an install message for the provided source and 
-        /// increments with a random certificate. This certificate does not 
+        /// This creates an install message for the provided source and
+        /// increments with a random certificate. This certificate does not
         /// correctly verify for the provided source and view, but is generated
         /// in O(1) time instead of O(N), where N is the number of view members.
-        /// 
-        /// This method is ONLY supposed to be used for testing functionality 
+        ///
+        /// This method is ONLY supposed to be used for testing functionality
         /// that assumes that install messages were correctly produced.
-        /// Since functionality that (De)serializes Install messages will 
+        /// Since functionality that (De)serializes Install messages will
         /// automatically check their correctness, this cannot (and should not)
         /// be used to test it.
         pub fn dummy<I>(source: &View, increments: I) -> Install
