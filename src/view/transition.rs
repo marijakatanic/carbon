@@ -2,6 +2,7 @@ use crate::view::{Increment, View};
 
 use zebra::Commitment;
 
+#[derive(Clone)]
 pub(crate) struct Transition {
     source: View,
     destination: View,
