@@ -31,23 +31,9 @@ impl InstallGenerator {
     where
         T: IntoIterator<Item = usize>,
     {
-        let mut heights = vec![source, destination];
-        heights.extend(tail);
-
-        let increments = heights
-            .windows(2)
-            .map(|window| {
-                Increment::new(
-                    self.keycards[window[0]..window[1]]
-                        .iter()
-                        .cloned()
-                        .map(|replica| Change::Join(replica))
-                        .collect::<Vec<_>>(),
-                )
-            })
-            .collect::<Vec<_>>();
-
+        let increments = self.increments(source, destination, tail);
         let source = self.view(source).await;
+
         let mut aggregator = InstallAggregator::new(source.clone(), increments.clone());
 
         for (keychain, keycard) in self
@@ -63,12 +49,27 @@ impl InstallGenerator {
         aggregator.finalize()
     }
 
-    pub async fn install_dummy_certificate<T>(
-        &self,
-        source: usize,
-        destination: usize,
-        tail: T,
-    ) -> Install
+    /// This creates an install message with an invalid certificate
+    /// in O(1) time instead of O(N), where N is the number of view members.
+    /// 
+    /// `InstallGenerator::install` should be preferred for small N or small
+    /// number of calls to the method (small total complexity).
+    /// 
+    /// This method is ONLY supposed to be used for testing functionality 
+    /// that assumes that install messages were correctly produced.
+    /// Otherwise, it will likely result in a panic. See `Install::dummy` for
+    /// more information.
+    pub async fn install_dummy<T>(&self, source: usize, destination: usize, tail: T) -> Install
+    where
+        T: IntoIterator<Item = usize>,
+    {
+        let increments = self.increments(source, destination, tail);
+        let source = self.view(source).await;
+
+        Install::dummy(&source, increments)
+    }
+
+    fn increments<T>(&self, source: usize, destination: usize, tail: T) -> Vec<Increment>
     where
         T: IntoIterator<Item = usize>,
     {
@@ -88,8 +89,6 @@ impl InstallGenerator {
             })
             .collect::<Vec<_>>();
 
-        let source = self.view(source).await;
-
-        Install::with_dummy_certificate(&self.keychains[0], &source, increments)
+        increments
     }
 }

@@ -145,17 +145,25 @@ impl CryptoStatement for Statement {
 mod test {
     use super::*;
 
+    use bit_vec::BitVec;
+
+    use talk::crypto::KeyChain;
+
     impl Install {
-        pub fn with_dummy_certificate<I>(
-            keychain: &KeyChain,
-            source: &View,
-            increments: I,
-        ) -> Install
+        /// This creates an install message for the provided source and 
+        /// increments with a random certificate. This certificate does not 
+        /// correctly verify for the provided source and view, but is generated
+        /// in O(1) time instead of O(N), where N is the number of view members.
+        /// 
+        /// This method is ONLY supposed to be used for testing functionality 
+        /// that assumes that install messages were correctly produced.
+        /// Since functionality that (De)serializes Install messages will 
+        /// automatically check their correctness, this cannot (and should not)
+        /// be used to test it.
+        pub fn dummy<I>(source: &View, increments: I) -> Install
         where
             I: IntoIterator<Item = Increment>,
         {
-            use bit_vec::BitVec;
-
             let increments = increments.into_iter().collect::<Vec<_>>();
 
             let statement = Statement {
@@ -163,7 +171,7 @@ mod test {
                 increments,
             };
 
-            let signature = keychain
+            let signature = KeyChain::random()
                 .multisign(&statement)
                 .expect("Panic at `Install::certify`: unexpected error from `keychain.multisign`");
 

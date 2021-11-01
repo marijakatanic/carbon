@@ -358,9 +358,7 @@ mod tests {
             if tail.len() == 0 {
                 tailless.push(destination);
             }
-            let install = generator
-                .install_dummy_certificate(source, destination, tail)
-                .await;
+            let install = generator.install_dummy(source, destination, tail).await;
 
             if let Some(new) = frame.update(install).await {
                 frame = new;
@@ -386,9 +384,7 @@ mod tests {
             if tail.len() == 0 {
                 tailless.push(destination);
             }
-            let install = generator
-                .install_dummy_certificate(source, destination, tail)
-                .await;
+            let install = generator.install_dummy(source, destination, tail).await;
 
             if let Some(new) = frame.update(install).await {
                 frame = new;
