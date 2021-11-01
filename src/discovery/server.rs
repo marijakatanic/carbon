@@ -393,7 +393,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn client_update_stress_light_checks() {
+    async fn client_continuously_updating() {
         const GENESIS_HEIGHT: usize = 10;
         const MAX_HEIGHT: usize = 100;
 
@@ -401,7 +401,28 @@ mod test {
         let installs =
             generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15).await;
 
+        let mut client = Client::new(
+            generator.view(GENESIS_HEIGHT).await,
+            generator.view(GENESIS_HEIGHT).await,
+        );
+
+        let mut client_connection: PlainConnection =
+            TcpStream::connect(server.address()).await.unwrap().into();
+
+        client_connection
+            .send(&Request::Subscribe(client.current().height() as u64))
+            .await
+            .unwrap();
+
+        let response: Response = client_connection.receive().await.unwrap();
+        match response {
+            Response::Update(installs) => assert_eq!(installs.len(), 0),
+            Response::AcknowledgePublish => panic!("Unexpected second AcknowledgePublish"),
+            Response::KeepAlive => panic!("Unexpected KeepAlive when none was sent"),
+        };
+
         let mut tailless = Vec::new();
+        let mut expected_top = GENESIS_HEIGHT;
         for (source, destination, tail) in installs {
             let mut replica_connection: PlainConnection =
                 TcpStream::connect(server.address()).await.unwrap().into();
@@ -423,6 +444,73 @@ mod test {
             }
 
             drop(replica_connection);
+
+            if destination > expected_top {
+                expected_top = destination;
+
+                let response: Response = client_connection.receive().await.unwrap();
+                let installs = match response {
+                    Response::Update(installs) => installs,
+                    Response::AcknowledgePublish => panic!("Unexpected second AcknowledgePublish"),
+                    Response::KeepAlive => panic!("Unexpected KeepAlive when none was sent"),
+                };
+
+                client.update(installs).await;
+
+                assert_eq!(client.current().height(), expected_top);
+            }
+        }
+
+        assert_eq!(client.current().height(), MAX_HEIGHT - 1);
+    }
+
+    #[tokio::test]
+    async fn client_update_stress_light_checks() {
+        const GENESIS_HEIGHT: usize = 10;
+        const MAX_HEIGHT: usize = 30;
+
+        let (server, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
+        let installs =
+            generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15).await;
+
+        let mut client_connection: PlainConnection =
+            TcpStream::connect(server.address()).await.unwrap().into();
+
+        client_connection
+            .send(&Request::Subscribe(GENESIS_HEIGHT as u64))
+            .await
+            .unwrap();
+
+        let _response: Response = client_connection.receive().await.unwrap();
+
+        let mut tailless = Vec::new();
+        let mut expected_top = GENESIS_HEIGHT;
+        for (source, destination, tail) in installs {
+            let mut replica_connection: PlainConnection =
+                TcpStream::connect(server.address()).await.unwrap().into();
+
+            if tail.len() == 0 {
+                tailless.push(destination);
+            }
+            let install = generator.install(source, destination, tail).await;
+
+            replica_connection
+                .send(&Request::Publish(install))
+                .await
+                .unwrap();
+
+            let response: Response = replica_connection.receive().await.unwrap();
+            match response {
+                Response::AcknowledgePublish => (),
+                _ => panic!("Unexpected response"),
+            }
+
+            drop(replica_connection);
+
+            if destination > expected_top {
+                expected_top = destination;
+                let _response: Response = client_connection.receive().await.unwrap();
+            }
         }
 
         check_server(
@@ -443,6 +531,16 @@ mod test {
         let (server, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
         let installs =
             generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15).await;
+
+        let mut client_connection: PlainConnection =
+            TcpStream::connect(server.address()).await.unwrap().into();
+
+        client_connection
+            .send(&Request::Subscribe(GENESIS_HEIGHT as u64))
+            .await
+            .unwrap();
+
+        let _response: Response = client_connection.receive().await.unwrap();
 
         let mut tailless = Vec::new();
         let mut expected_top = GENESIS_HEIGHT;
@@ -468,9 +566,12 @@ mod test {
 
             drop(replica_connection);
 
-            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
-            expected_top = std::cmp::max(expected_top, destination);
+            if destination > expected_top {
+                expected_top = destination;
+                let _response: Response = client_connection.receive().await.unwrap();
+            }
 
             check_server(
                 server.address(),

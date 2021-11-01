@@ -345,10 +345,9 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn stress_light_checks() {
         const GENESIS_HEIGHT: usize = 10;
-        const MAX_HEIGHT: usize = 100; // 100 ~= 2 seconds, 500 ~= 65 seconds
+        const MAX_HEIGHT: usize = 50; // 100 ~= 2 seconds, 500 ~= 65 seconds
 
         let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
         let installs =
