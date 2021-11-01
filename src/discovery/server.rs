@@ -414,8 +414,7 @@ mod test {
             .await
             .unwrap();
 
-        let response: Response = client_connection.receive().await.unwrap();
-        match response {
+        match client_connection.receive().await.unwrap() {
             Response::Update(installs) => assert_eq!(installs.len(), 0),
             Response::AcknowledgePublish => panic!("Unexpected second AcknowledgePublish"),
             Response::KeepAlive => panic!("Unexpected KeepAlive when none was sent"),
@@ -448,8 +447,7 @@ mod test {
             if destination > expected_top {
                 expected_top = destination;
 
-                let response: Response = client_connection.receive().await.unwrap();
-                let installs = match response {
+                let installs = match client_connection.receive().await.unwrap() {
                     Response::Update(installs) => installs,
                     Response::AcknowledgePublish => panic!("Unexpected second AcknowledgePublish"),
                     Response::KeepAlive => panic!("Unexpected KeepAlive when none was sent"),
@@ -499,8 +497,7 @@ mod test {
                 .await
                 .unwrap();
 
-            let response: Response = replica_connection.receive().await.unwrap();
-            match response {
+            match replica_connection.receive().await.unwrap() {
                 Response::AcknowledgePublish => (),
                 _ => panic!("Unexpected response"),
             }
@@ -558,8 +555,7 @@ mod test {
                 .await
                 .unwrap();
 
-            let response: Response = replica_connection.receive().await.unwrap();
-            match response {
+            match replica_connection.receive().await.unwrap() {
                 Response::AcknowledgePublish => (),
                 _ => panic!("Unexpected response"),
             }
