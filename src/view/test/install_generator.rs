@@ -51,11 +51,11 @@ impl InstallGenerator {
 
     /// This creates an install message with an invalid certificate
     /// in O(1) time instead of O(N), where N is the number of view members.
-    /// 
+    ///
     /// `InstallGenerator::install` should be preferred for small N or small
     /// number of calls to the method (small total complexity).
-    /// 
-    /// This method is ONLY supposed to be used for testing functionality 
+    ///
+    /// This method is ONLY supposed to be used for testing functionality
     /// that assumes that install messages were correctly produced.
     /// Otherwise, it will likely result in a panic. See `Install::dummy` for
     /// more information.

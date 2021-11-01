@@ -1,6 +1,6 @@
 use crate::{
     discovery::{ClientSettings, Request, Response},
-    view::{Transition, View},
+    view::{Install, Transition, View},
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
@@ -23,7 +23,9 @@ type TransitionInlet = Sender<Option<Transition>>;
 type TransitionOutlet = Receiver<Option<Transition>>;
 
 pub(crate) struct Client {
+    server: Box<dyn TcpConnect>,
     transition_outlet: TransitionOutlet,
+    settings: ClientSettings,
     _fuse: Fuse,
 }
 
@@ -33,15 +35,26 @@ struct Database {
 }
 
 #[derive(Doom)]
-enum RunError {
-    #[doom(description("`run` interrupted"))]
-    RunInterrupted,
+enum PublishAttemptError {
+    #[doom(description("Failed to connect: {}", source))]
+    #[doom(wrap(connect_failed))]
+    ConnectFailed { source: io::Error },
+    #[doom(description("Connection error"))]
+    ConnectionError,
+    #[doom(description("Unexpected response"))]
+    UnexpectedResponse,
 }
 
 #[derive(Doom)]
-enum AttemptError {
-    #[doom(description("`attempt` interrupted"))]
-    AttemptInterrupted,
+enum SubscribeError {
+    #[doom(description("`subscribe` interrupted"))]
+    SubscribeInterrupted,
+}
+
+#[derive(Doom)]
+enum SubscribeAttemptError {
+    #[doom(description("`subscribe_attempt` interrupted"))]
+    SubscribeAttemptInterrupted,
     #[doom(description("Failed to connect: {}", source))]
     #[doom(wrap(connect_failed))]
     ConnectFailed { source: io::Error },
@@ -64,7 +77,7 @@ enum KeepAliveError {
 impl Client {
     pub(crate) fn new<T>(server: T, genesis: View, settings: ClientSettings) -> Self
     where
-        T: 'static + TcpConnect,
+        T: 'static + Clone + TcpConnect,
     {
         let top = genesis.height();
 
@@ -76,14 +89,25 @@ impl Client {
         let (transition_inlet, transition_outlet) = watch::channel(None);
 
         let fuse = Fuse::new();
-        let relay = fuse.relay();
 
-        tokio::spawn(async move {
-            let _ = Client::run(server, settings, database, transition_inlet, relay).await;
-        });
+        {
+            let server = server.clone();
+            let settings = settings.clone();
+
+            let relay = fuse.relay();
+
+            tokio::spawn(async move {
+                let _ =
+                    Client::subscribe(server, settings, database, transition_inlet, relay).await;
+            });
+        }
+
+        let server = Box::new(server);
 
         Client {
+            server,
             transition_outlet,
+            settings,
             _fuse: fuse,
         }
     }
@@ -113,20 +137,56 @@ impl Client {
         }
     }
 
-    async fn run<T>(
+    pub(crate) async fn publish(&self, install: Install) {
+        let mut sleep_agent = self.settings.retry_schedule.agent();
+
+        loop {
+            if self.publish_attempt(install.clone()).await.is_ok() {
+                return;
+            }
+
+            sleep_agent.step().await;
+        }
+    }
+
+    async fn publish_attempt(&self, install: Install) -> Result<(), Top<PublishAttemptError>> {
+        let mut connection = self
+            .server
+            .connect()
+            .await
+            .map_err(PublishAttemptError::connect_failed)
+            .map_err(Doom::into_top)
+            .spot(here!())?;
+
+        connection
+            .send(&Request::Publish(install))
+            .await
+            .pot(PublishAttemptError::ConnectionError, here!())?;
+
+        match connection
+            .receive()
+            .await
+            .pot(PublishAttemptError::ConnectionError, here!())?
+        {
+            Response::AcknowledgePublish => Ok(()),
+            _ => PublishAttemptError::UnexpectedResponse.fail(),
+        }
+    }
+
+    async fn subscribe<T>(
         server: T,
         settings: ClientSettings,
         mut database: Database,
         mut transition_inlet: TransitionInlet,
         mut relay: Relay,
-    ) -> Result<(), Top<RunError>>
+    ) -> Result<(), Top<SubscribeError>>
     where
         T: 'static + TcpConnect,
     {
         let mut sleep_agent = settings.retry_schedule.agent();
 
         loop {
-            let error = Client::attempt(
+            let error = Client::subscribe_attempt(
                 &server,
                 &settings,
                 &mut database,
@@ -137,8 +197,8 @@ impl Client {
             .unwrap_err();
 
             match error.top() {
-                AttemptError::AttemptInterrupted => {
-                    return Err(error.pot(RunError::RunInterrupted, here!()));
+                SubscribeAttemptError::SubscribeAttemptInterrupted => {
+                    return Err(error.pot(SubscribeError::SubscribeInterrupted, here!()));
                 }
                 error => {
                     if error.progress() {
@@ -151,13 +211,13 @@ impl Client {
         }
     }
 
-    async fn attempt<T>(
+    async fn subscribe_attempt<T>(
         server: &T,
         settings: &ClientSettings,
         database: &mut Database,
         transition_inlet: &mut TransitionInlet,
         relay: &mut Relay,
-    ) -> Result<(), Top<AttemptError>>
+    ) -> Result<(), Top<SubscribeAttemptError>>
     where
         T: 'static + TcpConnect,
     {
@@ -166,16 +226,16 @@ impl Client {
         let mut connection = relay
             .map(server.connect())
             .await
-            .pot(AttemptError::AttemptInterrupted, here!())?
-            .map_err(AttemptError::connect_failed)
+            .pot(SubscribeAttemptError::SubscribeAttemptInterrupted, here!())?
+            .map_err(SubscribeAttemptError::connect_failed)
             .map_err(Doom::into_top)
             .spot(here!())?;
 
         relay
             .map(connection.send(&Request::Subscribe(database.top as u64)))
             .await
-            .pot(AttemptError::AttemptInterrupted, here!())?
-            .pot(AttemptError::ConnectionError { progress }, here!())?;
+            .pot(SubscribeAttemptError::SubscribeAttemptInterrupted, here!())?
+            .pot(SubscribeAttemptError::ConnectionError { progress }, here!())?;
 
         let (sender, mut receiver) = connection.split();
 
@@ -194,8 +254,8 @@ impl Client {
             let response = relay
                 .map(receiver.receive())
                 .await
-                .pot(AttemptError::AttemptInterrupted, here!())?
-                .pot(AttemptError::ConnectionError { progress }, here!())?;
+                .pot(SubscribeAttemptError::SubscribeAttemptInterrupted, here!())?
+                .pot(SubscribeAttemptError::ConnectionError { progress }, here!())?;
 
             match response {
                 Response::Update(update) => {
@@ -222,14 +282,14 @@ impl Client {
                         } else {
                             // This is a sign of misbehaviour: should this error be handled
                             // more seriously than just re-establishing the connection?
-                            return AttemptError::InvalidInstall { progress }.fail();
+                            return SubscribeAttemptError::InvalidInstall { progress }.fail();
                         }
                     }
                 }
                 Response::KeepAlive => {}
                 _ => {
                     // This is also technically misbehaviour
-                    return AttemptError::UnexpectedResponse { progress }.fail();
+                    return SubscribeAttemptError::UnexpectedResponse { progress }.fail();
                 }
             }
 
@@ -257,13 +317,14 @@ impl Client {
     }
 }
 
-impl AttemptError {
+impl SubscribeAttemptError {
     fn progress(&self) -> bool {
         match self {
-            AttemptError::AttemptInterrupted | AttemptError::ConnectFailed { .. } => false,
-            AttemptError::ConnectionError { progress }
-            | AttemptError::UnexpectedResponse { progress }
-            | AttemptError::InvalidInstall { progress } => *progress,
+            SubscribeAttemptError::SubscribeAttemptInterrupted
+            | SubscribeAttemptError::ConnectFailed { .. } => false,
+            SubscribeAttemptError::ConnectionError { progress }
+            | SubscribeAttemptError::UnexpectedResponse { progress }
+            | SubscribeAttemptError::InvalidInstall { progress } => *progress,
         }
     }
 }
