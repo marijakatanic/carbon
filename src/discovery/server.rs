@@ -344,6 +344,7 @@ mod test {
     async fn setup(genesis_height: usize, max_height: usize) -> (Server, InstallGenerator) {
         let generator = InstallGenerator::new(max_height);
         let genesis = generator.view(genesis_height).await;
+
         let server = Server::new((Ipv4Addr::UNSPECIFIED, 0), genesis, Default::default())
             .await
             .unwrap();
@@ -367,8 +368,8 @@ mod test {
                 .filter(|(i, _)| *i >= genesis_height)
         {
             let mut client = Client::new(
-                generator.view(last_installable).await,
                 generator.view(current).await,
+                generator.view(last_installable).await,
             );
 
             let mut client_connection: PlainConnection =
@@ -380,6 +381,7 @@ mod test {
                 .unwrap();
 
             let response: Response = client_connection.receive().await.unwrap();
+
             let installs = match response {
                 Response::Update(installs) => installs,
                 Response::AcknowledgePublish => panic!("Unexpected second AcknowledgePublish"),
@@ -422,22 +424,23 @@ mod test {
 
         let mut tailless = Vec::new();
         let mut expected_top = GENESIS_HEIGHT;
-        for (source, destination, tail) in installs {
-            let mut replica_connection: PlainConnection =
-                TcpStream::connect(server.address()).await.unwrap().into();
 
+        for (source, destination, tail) in installs {
             if tail.len() == 0 {
                 tailless.push(destination);
             }
+
             let install = generator.install(source, destination, tail).await;
+
+            let mut replica_connection: PlainConnection =
+                TcpStream::connect(server.address()).await.unwrap().into();
 
             replica_connection
                 .send(&Request::Publish(install))
                 .await
                 .unwrap();
 
-            let response: Response = replica_connection.receive().await.unwrap();
-            match response {
+            match replica_connection.receive().await.unwrap() {
                 Response::AcknowledgePublish => (),
                 _ => panic!("Unexpected response"),
             }
@@ -468,6 +471,7 @@ mod test {
         const MAX_HEIGHT: usize = 30;
 
         let (server, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
+
         let installs =
             generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15).await;
 
@@ -483,6 +487,7 @@ mod test {
 
         let mut tailless = Vec::new();
         let mut expected_top = GENESIS_HEIGHT;
+
         for (source, destination, tail) in installs {
             let mut replica_connection: PlainConnection =
                 TcpStream::connect(server.address()).await.unwrap().into();
@@ -490,6 +495,7 @@ mod test {
             if tail.len() == 0 {
                 tailless.push(destination);
             }
+
             let install = generator.install(source, destination, tail).await;
 
             replica_connection
@@ -526,6 +532,7 @@ mod test {
         const MAX_HEIGHT: usize = 30;
 
         let (server, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
+
         let installs =
             generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15).await;
 
@@ -541,6 +548,7 @@ mod test {
 
         let mut tailless = Vec::new();
         let mut expected_top = GENESIS_HEIGHT;
+
         for (source, destination, tail) in installs {
             let mut replica_connection: PlainConnection =
                 TcpStream::connect(server.address()).await.unwrap().into();
@@ -548,6 +556,7 @@ mod test {
             if tail.len() == 0 {
                 tailless.push(destination);
             }
+
             let install = generator.install(source, destination, tail.clone()).await;
 
             replica_connection

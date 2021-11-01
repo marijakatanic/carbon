@@ -1,15 +1,15 @@
 use crate::view::{Install, View};
 
 pub(crate) struct Client {
-    last_installable: View,
     current: View,
+    last_installable: View,
 }
 
 impl Client {
-    pub(crate) fn new(last_installable: View, current: View) -> Self {
+    pub(crate) fn new(current: View, last_installable: View) -> Self {
         Self {
-            last_installable, // Only installable views *that the Frame has knowledge about*
             current,          // The client's current view
+            last_installable, // Only installable views *that the remote has knowledge about*
         }
     }
 
@@ -24,6 +24,7 @@ impl Client {
             current = current.extend(increment).await;
 
             if install.increments().len() == 1 {
+                // `install` is tailless
                 self.last_installable = current.clone();
             }
         }
@@ -33,11 +34,11 @@ impl Client {
         }
     }
 
-    pub(crate) fn last_installable(&self) -> &View {
-        &self.last_installable
-    }
-
     pub(crate) fn current(&self) -> &View {
         &self.current
+    }
+
+    pub(crate) fn last_installable(&self) -> &View {
+        &self.last_installable
     }
 }

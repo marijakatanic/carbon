@@ -157,9 +157,9 @@ mod test {
         ///
         /// This method is ONLY supposed to be used for testing functionality
         /// that assumes that install messages were correctly produced.
-        /// Since functionality that (De)serializes Install messages will
+        /// Since functionality that (de)serializes Install messages will
         /// automatically check their correctness, this cannot (and should not)
-        /// be used to test it.
+        /// be used to test it (it will panic).
         pub fn dummy<I>(source: &View, increments: I) -> Install
         where
             I: IntoIterator<Item = Increment>,

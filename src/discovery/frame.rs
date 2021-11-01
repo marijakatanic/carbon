@@ -165,15 +165,14 @@ mod tests {
             last_installable(genesis_height, generator.max_height(), tailless)
                 .into_iter()
                 .enumerate()
-                .filter(|(i, _)| *i >= genesis_height)
+                .filter(|(height, _)| *height >= genesis_height)
         {
             let mut client = Client::new(
-                generator.view(last_installable).await,
                 generator.view(current).await,
+                generator.view(last_installable).await,
             );
 
             let installs = frame.lookup(current);
-
             client.update(installs).await;
 
             assert!(client.current().height() >= frame.top());
@@ -181,7 +180,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn develop() {
+    async fn manual() {
         const GENESIS_HEIGHT: usize = 10;
         const MAX_HEIGHT: usize = 50;
 
@@ -221,7 +220,7 @@ mod tests {
 
         let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
 
-        for i in 10..20 {
+        for i in GENESIS_HEIGHT..MAX_HEIGHT {
             let install = generator.install(i, i + 1, []).await;
             frame = frame.update(install).await.unwrap();
         }
@@ -239,7 +238,7 @@ mod tests {
 
         let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
 
-        for i in 10..20 {
+        for i in GENESIS_HEIGHT..(MAX_HEIGHT - 1) {
             let install = generator.install(i, i + 1, [i + 2]).await;
             frame = frame.update(install).await.unwrap();
         }
@@ -257,7 +256,7 @@ mod tests {
 
         let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
 
-        for i in 10..20 {
+        for i in GENESIS_HEIGHT..(MAX_HEIGHT - 1) {
             let install = generator.install(i, i + 1, [i + 2]).await;
             frame = frame.update(install).await.unwrap();
         }
@@ -350,14 +349,17 @@ mod tests {
         const MAX_HEIGHT: usize = 50; // 100 ~= 2 seconds, 500 ~= 65 seconds
 
         let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
+
         let installs =
             generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15).await;
 
         let mut tailless = Vec::new();
+
         for (source, destination, tail) in installs.into_iter() {
             if tail.len() == 0 {
                 tailless.push(destination);
             }
+
             let install = generator.install_dummy(source, destination, tail).await;
 
             if let Some(new) = frame.update(install).await {
@@ -376,6 +378,7 @@ mod tests {
         const MAX_HEIGHT: usize = 100; // 100 ~= 14 seconds
 
         let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
+
         let installs =
             generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15).await;
 
@@ -384,6 +387,7 @@ mod tests {
             if tail.len() == 0 {
                 tailless.push(destination);
             }
+
             let install = generator.install_dummy(source, destination, tail).await;
 
             if let Some(new) = frame.update(install).await {
