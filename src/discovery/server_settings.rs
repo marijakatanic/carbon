@@ -1,5 +1,5 @@
 #[derive(Debug, Clone)]
-pub struct ServerSettings {
+pub(crate) struct ServerSettings {
     pub install_channel_capacity: usize,
     pub frame_channel_capacity: usize,
 }
