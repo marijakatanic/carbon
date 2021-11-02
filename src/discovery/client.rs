@@ -7,16 +7,20 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use std::collections::HashMap;
 use std::io;
+use std::sync::Arc;
 use std::time::Duration;
 
+use talk::crypto::primitives::hash;
+use talk::crypto::primitives::hash::Hash;
 use talk::net::traits::TcpConnect;
 use talk::net::PlainSender;
 use talk::sync::fuse::{Fuse, Relay};
 
-use tokio::sync::watch;
 use tokio::sync::watch::{Receiver, Sender};
+use tokio::sync::{watch, Mutex};
 use tokio::time;
 
+use zebra::database::{Collection, CollectionTransaction, Family};
 use zebra::Commitment;
 
 type TransitionInlet = Sender<Option<Transition>>;
@@ -32,6 +36,8 @@ pub(crate) struct Client {
 struct Database {
     top: usize,
     views: HashMap<Commitment, View>,
+    discovered: Collection<Hash>,
+    installs: HashMap<Hash, Install>,
 }
 
 #[derive(Doom)]
@@ -62,8 +68,8 @@ enum SubscribeAttemptError {
     ConnectionError { progress: bool },
     #[doom(description("Unexpected response"))]
     UnexpectedResponse { progress: bool },
-    #[doom(description("Invalid install message"))]
-    InvalidInstall { progress: bool },
+    #[doom(description("Error while acquiring install message"))]
+    AcquireError { progress: bool },
 }
 
 #[derive(Doom)]
@@ -72,6 +78,14 @@ enum KeepAliveError {
     KeepAliveInterrupted,
     #[doom(description("Connection error"))]
     ConnectionError,
+}
+
+#[derive(Doom)]
+enum AcquireError {
+    #[doom(description("Invalid install message"))]
+    InvalidInstall,
+    #[doom(description("Unexpected install message"))]
+    UnexpectedInstall,
 }
 
 impl Client {
@@ -84,7 +98,17 @@ impl Client {
         let mut views = HashMap::new();
         views.insert(genesis.identifier(), genesis);
 
-        let database = Database { top, views };
+        let family = Family::new();
+        let discovered = family.empty_collection();
+
+        let installs = HashMap::new();
+
+        let database = Arc::new(Mutex::new(Database {
+            top,
+            views,
+            discovered,
+            installs,
+        }));
 
         let (transition_inlet, transition_outlet) = watch::channel(None);
 
@@ -93,6 +117,7 @@ impl Client {
         {
             let server = server.clone();
             let settings = settings.clone();
+            let database = database.clone();
 
             let relay = fuse.relay();
 
@@ -176,7 +201,7 @@ impl Client {
     async fn subscribe<T>(
         server: T,
         settings: ClientSettings,
-        mut database: Database,
+        database: Arc<Mutex<Database>>,
         mut transition_inlet: TransitionInlet,
         mut relay: Relay,
     ) -> Result<(), Top<SubscribeError>>
@@ -189,7 +214,7 @@ impl Client {
             let error = Client::subscribe_attempt(
                 &server,
                 &settings,
-                &mut database,
+                &database,
                 &mut transition_inlet,
                 &mut relay,
             )
@@ -214,7 +239,7 @@ impl Client {
     async fn subscribe_attempt<T>(
         server: &T,
         settings: &ClientSettings,
-        database: &mut Database,
+        database: &Arc<Mutex<Database>>,
         transition_inlet: &mut TransitionInlet,
         relay: &mut Relay,
     ) -> Result<(), Top<SubscribeAttemptError>>
@@ -231,8 +256,10 @@ impl Client {
             .map_err(Doom::into_top)
             .spot(here!())?;
 
+        let top = database.lock().await.top;
+
         relay
-            .map(connection.send(&Request::Subscribe(database.top as u64)))
+            .map(connection.send(&Request::Subscribe(top as u64)))
             .await
             .pot(SubscribeAttemptError::SubscribeAttemptInterrupted, here!())?
             .pot(SubscribeAttemptError::ConnectionError { progress }, here!())?;
@@ -259,32 +286,9 @@ impl Client {
 
             match response {
                 Response::Update(update) => {
-                    for install in update {
-                        let transition = install.clone().into_transition().await;
-
-                        if database
-                            .views
-                            .contains_key(&transition.source().identifier())
-                        {
-                            database.views.insert(
-                                transition.destination().identifier(),
-                                transition.destination().clone(),
-                            );
-
-                            if transition.destination().height() > database.top {
-                                database.top = transition.destination().height();
-
-                                // This fails only if the corresponding `transition_outlet` is dropped,
-                                // in which case the whole `Client` is being dropped, and losing
-                                // `transition` is irrelevant.
-                                let _ = transition_inlet.send(Some(transition));
-                            }
-                        } else {
-                            // This is a sign of misbehaviour: should this error be handled
-                            // more seriously than just re-establishing the connection?
-                            return SubscribeAttemptError::InvalidInstall { progress }.fail();
-                        }
-                    }
+                    Client::acquire(database, transition_inlet, update)
+                        .await
+                        .pot(SubscribeAttemptError::AcquireError { progress }, here!())?;
                 }
                 Response::KeepAlive => {}
                 _ => {
@@ -295,6 +299,53 @@ impl Client {
 
             progress = true;
         }
+    }
+
+    async fn acquire(
+        database: &Arc<Mutex<Database>>,
+        transition_inlet: &mut TransitionInlet,
+        update: Vec<Install>,
+    ) -> Result<(), Top<AcquireError>> {
+        let mut database = database.lock().await;
+
+        for install in update {
+            let transition = install.clone().into_transition().await;
+
+            if database
+                .views
+                .contains_key(&transition.source().identifier())
+            {
+                database.views.insert(
+                    transition.destination().identifier(),
+                    transition.destination().clone(),
+                );
+
+                let hash = hash::hash(&install).unwrap();
+
+                let mut transaction = CollectionTransaction::new();
+                transaction
+                    .insert(hash)
+                    .pot(AcquireError::UnexpectedInstall, here!())?;
+
+                database.discovered.execute(transaction).await;
+                database.installs.insert(hash, install);
+
+                if transition.destination().height() > database.top {
+                    database.top = transition.destination().height();
+
+                    // This fails only if the corresponding `transition_outlet` is dropped,
+                    // in which case the whole `Client` is being dropped, and losing
+                    // `transition` is irrelevant.
+                    let _ = transition_inlet.send(Some(transition));
+                }
+            } else {
+                // This is a sign of misbehaviour: should this error be handled
+                // more seriously than just re-establishing the connection?
+                return AcquireError::InvalidInstall.fail();
+            }
+        }
+
+        Ok(())
     }
 
     async fn keep_alive(
@@ -310,7 +361,7 @@ impl Client {
                 .pot(KeepAliveError::ConnectionError, here!())?;
 
             relay
-                .map(time::sleep(interval)) // TODO: Add settings
+                .map(time::sleep(interval))
                 .await
                 .pot(KeepAliveError::KeepAliveInterrupted, here!())?;
         }
@@ -324,7 +375,7 @@ impl SubscribeAttemptError {
             | SubscribeAttemptError::ConnectFailed { .. } => false,
             SubscribeAttemptError::ConnectionError { progress }
             | SubscribeAttemptError::UnexpectedResponse { progress }
-            | SubscribeAttemptError::InvalidInstall { progress } => *progress,
+            | SubscribeAttemptError::AcquireError { progress } => *progress,
         }
     }
 }
