@@ -7,22 +7,31 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex as StdMutex};
 
+use talk::crypto::primitives::hash;
+use talk::crypto::primitives::hash::Hash;
 use talk::net::PlainConnection;
 use talk::sync::fuse::{Fuse, Relay};
 
 use tokio::io;
 use tokio::net::{TcpListener, ToSocketAddrs};
+use tokio::sync::broadcast;
+use tokio::sync::broadcast::{Receiver as BroadcastReceiver, Sender as BroadcastSender};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver as MpscReceiver, Sender as MpscSender};
 use tokio::sync::watch;
 use tokio::sync::watch::{Receiver as WatchReceiver, Sender as WatchSender};
+use tokio::sync::Mutex as TokioMutex;
 
+use zebra::database::{Collection, CollectionStatus, CollectionTransaction, Family, Question};
 use zebra::Commitment;
 
-type InstallInlet = MpscSender<Install>;
-type InstallOutlet = MpscReceiver<Install>;
+type PublicationInlet = MpscSender<Install>;
+type PublicationOutlet = MpscReceiver<Install>;
+
+type UpdateInlet = BroadcastSender<Install>;
+type UpdateOutlet = BroadcastReceiver<Install>;
 
 type FrameInlet = WatchSender<Arc<Frame>>;
 type FrameOutlet = WatchReceiver<Arc<Frame>>;
@@ -34,6 +43,13 @@ pub(crate) struct Server {
 
 struct Database {
     views: HashMap<Commitment, View>,
+    installs: HashMap<Hash, Install>,
+}
+
+struct Sync {
+    family: Family<Hash>,
+    discovered: Collection<Hash>,
+    update_inlet: UpdateInlet,
 }
 
 #[derive(Doom)]
@@ -57,6 +73,8 @@ enum ServeError {
     ConnectionError,
     #[doom(description("Unexpected request"))]
     UnexpectedRequest,
+    #[doom(description("Malformed `Answer`"))]
+    MalformedAnswer,
     #[doom(description("Unknown view"))]
     UnknownView,
     #[doom(description("Height overflow"))]
@@ -93,29 +111,56 @@ impl Server {
         let mut views = HashMap::new();
         views.insert(genesis.identifier(), genesis.clone());
 
-        let database = Arc::new(Mutex::new(Database { views }));
+        let installs = HashMap::new();
+
+        let database = Arc::new(StdMutex::new(Database { views, installs }));
+
+        let family = Family::new();
+        let discovered = family.empty_collection();
+
+        let (update_inlet, _) = broadcast::channel(32); // TODO: Add settings
+
+        let sync = Arc::new(TokioMutex::new(Sync {
+            family,
+            discovered,
+            update_inlet,
+        }));
 
         let frame = Arc::new(Frame::genesis(&genesis));
 
-        let (install_inlet, install_outlet) = mpsc::channel(settings.install_channel_capacity);
+        let (publication_inlet, publication_outlet) =
+            mpsc::channel(settings.install_channel_capacity);
+
         let (frame_inlet, frame_outlet) = watch::channel(frame.clone());
 
         let fuse = Fuse::new();
 
         {
+            let sync = sync.clone();
+
             let relay = fuse.relay();
 
             tokio::spawn(async move {
-                let _ = Server::update(frame, install_outlet, frame_inlet, relay).await;
+                let _ = Server::update(sync, frame, publication_outlet, frame_inlet, relay).await;
             });
         }
 
         {
+            let database = database.clone();
+            let sync = sync.clone();
+
             let relay = fuse.relay();
 
             tokio::spawn(async move {
-                let _ =
-                    Server::listen(listener, database, install_inlet, frame_outlet, relay).await;
+                let _ = Server::listen(
+                    listener,
+                    database,
+                    sync,
+                    publication_inlet,
+                    frame_outlet,
+                    relay,
+                )
+                .await;
             });
         }
 
@@ -131,8 +176,9 @@ impl Server {
 
     async fn listen(
         listener: TcpListener,
-        database: Arc<Mutex<Database>>,
-        install_inlet: InstallInlet,
+        database: Arc<StdMutex<Database>>,
+        sync: Arc<TokioMutex<Sync>>,
+        publication_inlet: PublicationInlet,
         frame_outlet: FrameOutlet,
         mut relay: Relay,
     ) -> Result<(), Top<ListenError>> {
@@ -147,24 +193,33 @@ impl Server {
                 let connection: PlainConnection = stream.into();
 
                 let database = database.clone();
+                let sync = sync.clone();
 
-                let install_inlet = install_inlet.clone();
+                let publication_inlet = publication_inlet.clone();
                 let frame_outlet = frame_outlet.clone();
 
                 let relay = fuse.relay();
 
                 tokio::spawn(async move {
-                    let _ = Server::serve(database, connection, install_inlet, frame_outlet, relay)
-                        .await;
+                    let _ = Server::serve(
+                        database,
+                        sync,
+                        connection,
+                        publication_inlet,
+                        frame_outlet,
+                        relay,
+                    )
+                    .await;
                 });
             }
         }
     }
 
     async fn serve(
-        database: Arc<Mutex<Database>>,
+        database: Arc<StdMutex<Database>>,
+        sync: Arc<TokioMutex<Sync>>,
         mut connection: PlainConnection,
-        install_inlet: InstallInlet,
+        publication_inlet: PublicationInlet,
         frame_outlet: FrameOutlet,
         mut relay: Relay,
     ) -> Result<(), Top<ServeError>> {
@@ -183,8 +238,9 @@ impl Server {
                     ServeError::HeightOverflow.fail().spot(here!())
                 }
             }
+            Request::FullSubscribe => Server::serve_full_subscribe(connection, sync, relay).await,
             Request::Publish(install) => {
-                Server::serve_publish(database, connection, install, install_inlet, relay).await
+                Server::serve_publish(database, connection, install, publication_inlet, relay).await
             }
             _ => ServeError::UnexpectedRequest.fail().spot(here!()),
         }
@@ -240,11 +296,72 @@ impl Server {
         }
     }
 
+    async fn serve_full_subscribe(
+        mut connection: PlainConnection,
+        sync: Arc<TokioMutex<Sync>>,
+        mut relay: Relay,
+    ) -> Result<(), Top<ServeError>> {
+        let (mut receiver, local_discovered, update_outlet) = {
+            let sync = sync.lock().await;
+
+            (
+                sync.family.receive(),
+                sync.discovered.clone(),
+                sync.update_inlet.subscribe(),
+            )
+        };
+
+        let remote_discovered = loop {
+            let answer = relay
+                .map(connection.receive())
+                .await
+                .pot(ServeError::ServeInterrupted, here!())?
+                .pot(ServeError::ConnectionError, here!())?;
+
+            let next = match receiver
+                .learn(answer)
+                .pot(ServeError::MalformedAnswer, here!())?
+            {
+                CollectionStatus::Complete(table) => break table,
+                CollectionStatus::Incomplete(receiver, question) => (receiver, question),
+            };
+
+            receiver = next.0;
+            let question = next.1;
+
+            relay
+                .map(connection.send(&Some(question)))
+                .await
+                .pot(ServeError::ServeInterrupted, here!())?
+                .pot(ServeError::ConnectionError, here!())?;
+        };
+
+        relay
+            .map(connection.send::<Option<Question>>(&None))
+            .await
+            .pot(ServeError::ServeInterrupted, here!())?
+            .pot(ServeError::ConnectionError, here!())?;
+
+        // TODO:
+        // 1) Compute diff between `local_discovered` and `remote_discovered`
+        // 2) Query `database` to get appropriate install messages
+        // 3) Sort install messages by increasing source height
+        // 4) Send all install messages in a Vec
+        // 5) Loop over a `select!` similar to the one in `subscribe`, receiving
+        //    updates from `update_outlet` and responding to `KeepAlive`s. Updates
+        //    must always be sent in `Vec`s; in order to maximize efficiency, we can
+        //    always follow up each `update_outlet.recv()` with a sequence of
+        //    `update_outlet.try_recv()`, querying for all available `Install`s
+        //    to put in a batch `Vec`.
+
+        todo!()
+    }
+
     async fn serve_publish(
-        database: Arc<Mutex<Database>>,
+        database: Arc<StdMutex<Database>>,
         mut connection: PlainConnection,
         install: Install,
-        install_inlet: InstallInlet,
+        publication_inlet: PublicationInlet,
         mut relay: Relay,
     ) -> Result<(), Top<ServeError>> {
         let transition = install.clone().into_transition().await;
@@ -260,15 +377,18 @@ impl Server {
                     transition.destination().identifier(),
                     transition.destination().clone(),
                 );
+
+                let hash = hash::hash(&install).unwrap();
+                database.installs.insert(hash, install.clone());
             } else {
                 ServeError::UnknownView.fail().spot(here!())?
             }
         }
 
-        // Because `install_inlet` is unbounded, this can only fail if the
-        // corresponding `install_outlet` is dropped, in which case the
+        // Because `publication_inlet` is unbounded, this can only fail if the
+        // corresponding `publication_outlet` is dropped, in which case the
         // `Server` is shutting down and we don't care about the error
-        let _ = install_inlet.send(install).await;
+        let _ = publication_inlet.send(install).await;
 
         relay
             .map(connection.send(&Response::AcknowledgePublish))
@@ -280,23 +400,40 @@ impl Server {
     }
 
     async fn update(
+        sync: Arc<TokioMutex<Sync>>,
         mut frame: Arc<Frame>,
-        mut install_outlet: InstallOutlet,
+        mut publication_outlet: PublicationOutlet,
         frame_inlet: FrameInlet,
         mut relay: Relay,
     ) -> Result<(), Top<UpdateError>> {
         loop {
             if let Some(install) = relay
-                .map(install_outlet.recv())
+                .map(publication_outlet.recv())
                 .await
                 .pot(UpdateError::UpdateInterrupted, here!())?
             {
-                if let Some(update) = frame.update(install).await {
+                if let Some(update) = frame.update(install.clone()).await {
                     frame = Arc::new(update);
 
                     // The corresponding `frame_outlet` is held by listen, so this
                     // never returns an error until the server is shutting down
                     let _ = frame_inlet.send(frame.clone());
+                }
+
+                let hash = hash::hash(&install).unwrap();
+
+                let mut sync = sync.lock().await;
+
+                let mut transaction = CollectionTransaction::new();
+                let query = transaction.contains(&hash).unwrap();
+                let response = sync.discovered.execute(transaction).await;
+
+                if !response.contains(&query) {
+                    let mut transaction = CollectionTransaction::new();
+                    transaction.insert(hash).unwrap();
+                    sync.discovered.execute(transaction).await;
+
+                    let _ = sync.update_inlet.send(install);
                 }
             }
         }
