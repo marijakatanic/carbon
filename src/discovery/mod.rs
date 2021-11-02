@@ -1,6 +1,7 @@
 mod client;
 mod client_settings;
 mod frame;
+mod mode;
 mod request;
 mod response;
 mod server;
@@ -13,11 +14,10 @@ use response::Response;
 #[allow(unused_imports)]
 pub(crate) use client::Client;
 
-#[allow(unused_imports)]
 pub(crate) use client_settings::ClientSettings;
+pub(crate) use mode::Mode;
 
 #[allow(unused_imports)]
 pub(crate) use server::Server;
 
-#[allow(unused_imports)]
 pub(crate) use server_settings::ServerSettings;

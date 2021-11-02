@@ -1,5 +1,5 @@
 use crate::{
-    discovery::{ClientSettings, Request, Response},
+    discovery::{ClientSettings, Mode, Request, Response},
     view::{Install, Transition, View},
 };
 
@@ -10,11 +10,11 @@ use std::io;
 use std::sync::Arc;
 use std::time::Duration;
 
-use talk::crypto::primitives::hash;
 use talk::crypto::primitives::hash::Hash;
 use talk::net::traits::TcpConnect;
 use talk::net::PlainSender;
 use talk::sync::fuse::{Fuse, Relay};
+use talk::{crypto::primitives::hash, net::PlainConnection};
 
 use tokio::sync::watch::{Receiver, Sender};
 use tokio::sync::{watch, Mutex};
@@ -59,11 +59,11 @@ enum SubscribeError {
 
 #[derive(Doom)]
 enum SubscribeAttemptError {
-    #[doom(description("`subscribe_attempt` interrupted"))]
-    SubscribeAttemptInterrupted,
     #[doom(description("Failed to connect: {}", source))]
     #[doom(wrap(connect_failed))]
     ConnectFailed { source: io::Error },
+    #[doom(description("Error while handshaking"))]
+    HandshakeError,
     #[doom(description("Connection error"))]
     ConnectionError { progress: bool },
     #[doom(description("Unexpected response"))]
@@ -73,11 +73,11 @@ enum SubscribeAttemptError {
 }
 
 #[derive(Doom)]
-enum KeepAliveError {
-    #[doom(description("`keep_alive` interrupted"))]
-    KeepAliveInterrupted,
+enum HandshakeError {
     #[doom(description("Connection error"))]
     ConnectionError,
+    #[doom(description("Malformed `Question`"))]
+    MalformedQuestion,
 }
 
 #[derive(Doom)]
@@ -86,6 +86,14 @@ enum AcquireError {
     InvalidInstall,
     #[doom(description("Unexpected install message"))]
     UnexpectedInstall,
+}
+
+#[derive(Doom)]
+enum KeepAliveError {
+    #[doom(description("`keep_alive` interrupted"))]
+    KeepAliveInterrupted,
+    #[doom(description("Connection error"))]
+    ConnectionError,
 }
 
 impl Client {
@@ -211,28 +219,25 @@ impl Client {
         let mut sleep_agent = settings.retry_schedule.agent();
 
         loop {
-            let error = Client::subscribe_attempt(
-                &server,
-                &settings,
-                &database,
-                &mut transition_inlet,
-                &mut relay,
-            )
-            .await
-            .unwrap_err();
+            let error = relay
+                .map(Client::subscribe_attempt(
+                    &server,
+                    &settings,
+                    &database,
+                    &mut transition_inlet,
+                ))
+                .await
+                .pot(SubscribeError::SubscribeInterrupted, here!())?
+                .unwrap_err();
 
-            match error.top() {
-                SubscribeAttemptError::SubscribeAttemptInterrupted => {
-                    return Err(error.pot(SubscribeError::SubscribeInterrupted, here!()));
-                }
-                error => {
-                    if error.progress() {
-                        sleep_agent = settings.retry_schedule.agent();
-                    }
-                }
+            if error.top().progress() {
+                sleep_agent = settings.retry_schedule.agent();
             }
 
-            sleep_agent.step().await;
+            relay
+                .map(sleep_agent.step())
+                .await
+                .pot(SubscribeError::SubscribeInterrupted, here!())?;
         }
     }
 
@@ -241,28 +246,31 @@ impl Client {
         settings: &ClientSettings,
         database: &Arc<Mutex<Database>>,
         transition_inlet: &mut TransitionInlet,
-        relay: &mut Relay,
     ) -> Result<(), Top<SubscribeAttemptError>>
     where
         T: 'static + TcpConnect,
     {
         let mut progress = false;
 
-        let mut connection = relay
-            .map(server.connect())
+        let mut connection = server
+            .connect()
             .await
-            .pot(SubscribeAttemptError::SubscribeAttemptInterrupted, here!())?
             .map_err(SubscribeAttemptError::connect_failed)
             .map_err(Doom::into_top)
             .spot(here!())?;
 
-        let top = database.lock().await.top;
-
-        relay
-            .map(connection.send(&Request::Subscribe(top as u64)))
-            .await
-            .pot(SubscribeAttemptError::SubscribeAttemptInterrupted, here!())?
-            .pot(SubscribeAttemptError::ConnectionError { progress }, here!())?;
+        match &settings.mode {
+            Mode::Light => {
+                Client::light_handshake(database, &mut connection)
+                    .await
+                    .pot(SubscribeAttemptError::HandshakeError, here!())?;
+            }
+            Mode::Full => {
+                Client::full_handshake(database, &mut connection)
+                    .await
+                    .pot(SubscribeAttemptError::HandshakeError, here!())?;
+            }
+        }
 
         let (sender, mut receiver) = connection.split();
 
@@ -278,10 +286,9 @@ impl Client {
         }
 
         loop {
-            let response = relay
-                .map(receiver.receive())
+            let response = receiver
+                .receive()
                 .await
-                .pot(SubscribeAttemptError::SubscribeAttemptInterrupted, here!())?
                 .pot(SubscribeAttemptError::ConnectionError { progress }, here!())?;
 
             match response {
@@ -298,6 +305,53 @@ impl Client {
             }
 
             progress = true;
+        }
+    }
+
+    async fn light_handshake(
+        database: &Arc<Mutex<Database>>,
+        connection: &mut PlainConnection,
+    ) -> Result<(), Top<HandshakeError>> {
+        let top = database.lock().await.top;
+
+        connection
+            .send(&Request::Subscribe(top as u64))
+            .await
+            .pot(HandshakeError::ConnectionError, here!())
+    }
+
+    async fn full_handshake(
+        database: &Arc<Mutex<Database>>,
+        connection: &mut PlainConnection,
+    ) -> Result<(), Top<HandshakeError>> {
+        connection
+            .send(&Request::FullSubscribe)
+            .await
+            .pot(HandshakeError::ConnectionError, here!())?;
+
+        let discovered = database.lock().await.discovered.clone();
+        let mut sender = discovered.send();
+
+        let mut answer = sender.hello();
+
+        loop {
+            connection
+                .send(&answer)
+                .await
+                .pot(HandshakeError::ConnectionError, here!())?;
+
+            let question = connection
+                .receive()
+                .await
+                .pot(HandshakeError::ConnectionError, here!())?;
+
+            if let Some(question) = question {
+                answer = sender
+                    .answer(&question)
+                    .pot(HandshakeError::MalformedQuestion, here!())?;
+            } else {
+                return Ok(());
+            }
         }
     }
 
@@ -371,8 +425,9 @@ impl Client {
 impl SubscribeAttemptError {
     fn progress(&self) -> bool {
         match self {
-            SubscribeAttemptError::SubscribeAttemptInterrupted
-            | SubscribeAttemptError::ConnectFailed { .. } => false,
+            SubscribeAttemptError::ConnectFailed { .. } | SubscribeAttemptError::HandshakeError => {
+                false
+            }
             SubscribeAttemptError::ConnectionError { progress }
             | SubscribeAttemptError::UnexpectedResponse { progress }
             | SubscribeAttemptError::AcquireError { progress } => *progress,
