@@ -28,6 +28,7 @@ type TransitionOutlet = Receiver<Option<Transition>>;
 
 pub(crate) struct Client {
     server: Box<dyn TcpConnect>,
+    database: Arc<Mutex<Database>>,
     transition_outlet: TransitionOutlet,
     settings: ClientSettings,
     _fuse: Fuse,
@@ -139,10 +140,19 @@ impl Client {
 
         Client {
             server,
+            database,
             transition_outlet,
             settings,
             _fuse: fuse,
         }
+    }
+
+    pub(crate) async fn view(&self, identifier: &Commitment) -> Option<View> {
+        self.database.lock().await.views.get(identifier).cloned()
+    }
+
+    pub(crate) async fn install(&self, hash: &Hash) -> Option<Install> {
+        self.database.lock().await.installs.get(hash).cloned()
     }
 
     pub(crate) async fn next(&mut self) -> Transition {
