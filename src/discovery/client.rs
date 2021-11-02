@@ -387,6 +387,7 @@ impl Client {
                 let hash = hash::hash(&install).unwrap();
 
                 let mut transaction = CollectionTransaction::new();
+
                 transaction
                     .insert(hash)
                     .pot(AcquireError::UnexpectedInstall, here!())?;
