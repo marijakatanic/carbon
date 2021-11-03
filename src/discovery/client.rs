@@ -98,7 +98,7 @@ enum AcquireError {
 }
 
 impl Client {
-    pub(crate) fn new<T>(server: T, genesis: View, settings: ClientSettings) -> Self
+    pub(crate) fn new<T>(genesis: View, server: T, settings: ClientSettings) -> Self
     where
         T: 'static + Clone + TcpConnect,
     {
@@ -130,7 +130,7 @@ impl Client {
             let database = database.clone();
 
             fuse.spawn(async move {
-                let _ = Client::subscribe(server, settings, database, transition_inlet).await;
+                let _ = Client::subscribe(server, database, transition_inlet, settings).await;
             });
         }
 
@@ -187,11 +187,7 @@ impl Client {
     pub(crate) async fn publish(&self, install: Install) {
         let mut sleep_agent = self.settings.retry_schedule.agent();
 
-        loop {
-            if self.publish_attempt(install.clone()).await.is_ok() {
-                return;
-            }
-
+        while self.publish_attempt(install.clone()).await.is_err() {
             sleep_agent.step().await;
         }
     }
@@ -222,9 +218,9 @@ impl Client {
 
     async fn subscribe<T>(
         server: T,
-        settings: ClientSettings,
         database: Arc<Mutex<Database>>,
         mut transition_inlet: TransitionInlet,
+        settings: ClientSettings,
     ) where
         T: 'static + TcpConnect,
     {
@@ -235,9 +231,9 @@ impl Client {
 
             let _ = Client::subscribe_attempt(
                 &server,
-                &settings,
-                &database,
+                &*database,
                 &mut transition_inlet,
+                &settings,
                 &mut progress,
             )
             .await;
@@ -252,9 +248,9 @@ impl Client {
 
     async fn subscribe_attempt<T>(
         server: &T,
-        settings: &ClientSettings,
-        database: &Arc<Mutex<Database>>,
+        database: &Mutex<Database>,
         transition_inlet: &mut TransitionInlet,
+        settings: &ClientSettings,
         progress: &mut bool,
     ) -> Result<(), Top<SubscribeAttemptError>>
     where
@@ -269,12 +265,12 @@ impl Client {
 
         match &settings.mode {
             Mode::Light => {
-                Client::light_handshake(database, &mut connection)
+                Client::light_handshake(&mut connection, database)
                     .await
                     .pot(SubscribeAttemptError::HandshakeError, here!())?;
             }
             Mode::Full => {
-                Client::full_handshake(database, &mut connection)
+                Client::full_handshake(&mut connection, database)
                     .await
                     .pot(SubscribeAttemptError::HandshakeError, here!())?;
             }
@@ -284,23 +280,23 @@ impl Client {
 
         let result = tokio::try_join!(
             async {
+                Client::listen(receiver, database, transition_inlet, progress)
+                    .await
+                    .pot(SubscribeAttemptError::ListenFailed, here!())
+            },
+            async {
                 Client::keep_alive(sender, settings.keepalive_interval)
                     .await
                     .pot(SubscribeAttemptError::KeepAliveFailed, here!())
             },
-            async {
-                Client::listen(database, receiver, transition_inlet, progress)
-                    .await
-                    .pot(SubscribeAttemptError::ListenFailed, here!())
-            }
         );
 
         result.map(|_| ())
     }
 
     async fn light_handshake(
-        database: &Arc<Mutex<Database>>,
         connection: &mut PlainConnection,
+        database: &Mutex<Database>,
     ) -> Result<(), Top<HandshakeError>> {
         let top = database.lock().await.top;
 
@@ -311,8 +307,8 @@ impl Client {
     }
 
     async fn full_handshake(
-        database: &Arc<Mutex<Database>>,
         connection: &mut PlainConnection,
+        database: &Mutex<Database>,
     ) -> Result<(), Top<HandshakeError>> {
         connection
             .send(&Request::FullSubscribe)
@@ -346,8 +342,8 @@ impl Client {
     }
 
     async fn listen(
-        database: &Arc<Mutex<Database>>,
         mut receiver: PlainReceiver,
+        database: &Mutex<Database>,
         transition_inlet: &mut TransitionInlet,
         progress: &mut bool,
     ) -> Result<(), Top<ListenError>> {
@@ -389,7 +385,7 @@ impl Client {
     }
 
     async fn acquire(
-        database: &Arc<Mutex<Database>>,
+        database: &Mutex<Database>,
         transition_inlet: &mut TransitionInlet,
         update: Vec<Install>,
     ) -> Result<(), Top<AcquireError>> {
