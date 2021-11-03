@@ -17,7 +17,10 @@ use talk::sync::fuse::{Fuse, Relay};
 use tokio::io;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::sync::broadcast;
-use tokio::sync::broadcast::{Receiver as BroadcastReceiver, Sender as BroadcastSender};
+use tokio::sync::broadcast::{
+    error::RecvError as BroadcastRecvError, Receiver as BroadcastReceiver,
+    Sender as BroadcastSender,
+};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver as MpscReceiver, Sender as MpscSender};
 use tokio::sync::watch;
@@ -79,6 +82,9 @@ enum ServeError {
     UnknownView,
     #[doom(description("Height overflow"))]
     HeightOverflow,
+    #[doom(description("Update channel error (shutdown or lagged behind)"))]
+    #[doom(wrap(update_error))]
+    UpdateError { source: BroadcastRecvError },
 }
 
 #[derive(Doom)]
@@ -238,7 +244,9 @@ impl Server {
                     ServeError::HeightOverflow.fail().spot(here!())
                 }
             }
-            Request::FullSubscribe => Server::serve_full_subscribe(connection, sync, relay).await,
+            Request::FullSubscribe => {
+                Server::serve_full_subscribe(connection, database, sync, relay).await
+            }
             Request::Publish(install) => {
                 Server::serve_publish(database, connection, install, publication_inlet, relay).await
             }
@@ -298,10 +306,11 @@ impl Server {
 
     async fn serve_full_subscribe(
         mut connection: PlainConnection,
+        database: Arc<StdMutex<Database>>,
         sync: Arc<TokioMutex<Sync>>,
         mut relay: Relay,
     ) -> Result<(), Top<ServeError>> {
-        let (mut receiver, local_discovered, update_outlet) = {
+        let (mut receiver, mut local_discovered, mut update_outlet) = {
             let sync = sync.lock().await;
 
             (
@@ -311,7 +320,7 @@ impl Server {
             )
         };
 
-        let remote_discovered = loop {
+        let mut remote_discovered: Collection<Hash> = loop {
             let answer = relay
                 .map(connection.receive())
                 .await
@@ -342,19 +351,77 @@ impl Server {
             .pot(ServeError::ServeInterrupted, here!())?
             .pot(ServeError::ConnectionError, here!())?;
 
-        // TODO:
-        // 1) Compute diff between `local_discovered` and `remote_discovered`
-        // 2) Query `database` to get appropriate install messages
-        // 3) Sort install messages by increasing source height
-        // 4) Send all install messages in a Vec
-        // 5) Loop over a `select!` similar to the one in `subscribe`, receiving
-        //    updates from `update_outlet` and responding to `KeepAlive`s. Updates
-        //    must always be sent in `Vec`s; in order to maximize efficiency, we can
-        //    always follow up each `update_outlet.recv()` with a sequence of
-        //    `update_outlet.try_recv()`, querying for all available `Install`s
-        //    to put in a batch `Vec`.
+        // Compute diff between `local_discovered` and `remote_discovered`
 
-        todo!()
+        let diffs = Collection::diff(&mut local_discovered, &mut remote_discovered)
+            .await
+            .0;
+
+        // Query `database` to get appropriate `Install` messages
+
+        let mut installs_with_height = {
+            let database = database.lock().unwrap();
+
+            diffs
+                .into_iter()
+                .map(|diff| {
+                    let install = database.installs.get(&diff).unwrap().clone();
+                    let height = database.views.get(&install.source()).unwrap().height();
+                    (install, height)
+                })
+                .collect::<Vec<_>>()
+        };
+
+        // Sort `Install` messages by increasing source height
+
+        installs_with_height.sort_by_key(|(_, height)| *height);
+        let installs = installs_with_height
+            .into_iter()
+            .map(|(install, _)| install)
+            .collect::<Vec<_>>();
+
+        // Send all install messages in a `Vec`
+
+        relay
+            .map(connection.send::<Vec<Install>>(&installs))
+            .await
+            .pot(ServeError::ServeInterrupted, here!())?
+            .pot(ServeError::ConnectionError, here!())?;
+
+        // Serve updates
+
+        loop {
+            tokio::select! {
+                biased;
+
+                _ = relay.wait() => {
+                    return ServeError::ServeInterrupted.fail().spot(here!())
+                },
+
+                update = update_outlet.recv() => {
+                    let install = update.map_err(ServeError::update_error).map_err(Doom::into_top).spot(here!())?;
+
+                    relay.map(connection.send(&vec![install]))
+                                .await
+                                .pot(ServeError::ServeInterrupted, here!())?
+                                .pot(ServeError::ConnectionError, here!())?;
+                }
+
+                request = connection.receive() => {
+                    let request = request.pot(ServeError::ConnectionError, here!())?;
+
+                    match request {
+                        Request::KeepAlive => {
+                            relay.map(connection.send(&Response::KeepAlive))
+                                .await
+                                .pot(ServeError::ServeInterrupted, here!())?
+                                .pot(ServeError::ConnectionError, here!())?;
+                        }
+                        _ => return ServeError::UnexpectedRequest.fail().spot(here!())
+                    }
+                }
+            }
+        }
     }
 
     async fn serve_publish(
