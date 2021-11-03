@@ -236,29 +236,45 @@ impl Server {
             .pot(ServeError::ConnectionError, here!())?;
 
         match request {
-            Request::Subscribe(height) => {
+            Request::LightSubscribe(height) => {
                 // This server cannot handle view height values greater than usize::MAX"
                 if height <= usize::MAX as u64 {
-                    Server::serve_subscribe(connection, height as usize, frame_outlet, relay).await
+                    relay
+                        .map(Server::serve_light_subscribe(
+                            connection,
+                            height as usize,
+                            frame_outlet,
+                        ))
+                        .await
+                        .pot(ServeError::ServeInterrupted, here!())?
                 } else {
                     ServeError::HeightOverflow.fail().spot(here!())
                 }
             }
-            Request::FullSubscribe => {
-                Server::serve_full_subscribe(connection, database, sync, relay).await
-            }
-            Request::Publish(install) => {
-                Server::serve_publish(database, connection, install, publication_inlet, relay).await
-            }
+
+            Request::FullSubscribe => relay
+                .map(Server::serve_full_subscribe(connection, database, sync))
+                .await
+                .pot(ServeError::ServeInterrupted, here!())?,
+
+            Request::Publish(install) => relay
+                .map(Server::serve_publish(
+                    database,
+                    connection,
+                    install,
+                    publication_inlet,
+                ))
+                .await
+                .pot(ServeError::ServeInterrupted, here!())?,
+
             _ => ServeError::UnexpectedRequest.fail().spot(here!()),
         }
     }
 
-    async fn serve_subscribe(
+    async fn serve_light_subscribe(
         mut connection: PlainConnection,
         mut height: usize,
         mut frame_outlet: FrameOutlet,
-        mut relay: Relay,
     ) -> Result<(), Top<ServeError>> {
         let mut frame = Some(frame_outlet.borrow_and_update().clone());
 
@@ -267,19 +283,13 @@ impl Server {
                 let installs = frame.lookup(height);
                 height = frame.top();
 
-                relay
-                    .map(connection.send(&Response::Update(installs)))
+                connection.send(&Response::Update(installs))
                     .await
-                    .pot(ServeError::ServeInterrupted, here!())?
                     .pot(ServeError::ConnectionError, here!())?;
             }
 
             tokio::select! {
                 biased;
-
-                _ = relay.wait() => {
-                    return ServeError::ServeInterrupted.fail().spot(here!())
-                },
 
                 // `frame_outlet.changed()` returns error only if the `frame_inlet` is closed,
                 // in which case the `relay.wait()` will trigger
@@ -292,9 +302,8 @@ impl Server {
 
                     match request {
                         Request::KeepAlive => {
-                            relay.map(connection.send(&Response::KeepAlive))
+                            connection.send(&Response::KeepAlive)
                                 .await
-                                .pot(ServeError::ServeInterrupted, here!())?
                                 .pot(ServeError::ConnectionError, here!())?;
                         }
                         _ => return ServeError::UnexpectedRequest.fail().spot(here!())
@@ -308,7 +317,6 @@ impl Server {
         mut connection: PlainConnection,
         database: Arc<StdMutex<Database>>,
         sync: Arc<TokioMutex<Sync>>,
-        mut relay: Relay,
     ) -> Result<(), Top<ServeError>> {
         let (mut receiver, mut local_discovered, mut update_outlet) = {
             let sync = sync.lock().await;
@@ -321,10 +329,8 @@ impl Server {
         };
 
         let mut remote_discovered: Collection<Hash> = loop {
-            let answer = relay
-                .map(connection.receive())
+            let answer = connection.receive()
                 .await
-                .pot(ServeError::ServeInterrupted, here!())?
                 .pot(ServeError::ConnectionError, here!())?;
 
             let next = match receiver
@@ -338,17 +344,13 @@ impl Server {
             receiver = next.0;
             let question = next.1;
 
-            relay
-                .map(connection.send(&Some(question)))
+            connection.send(&Some(question))
                 .await
-                .pot(ServeError::ServeInterrupted, here!())?
                 .pot(ServeError::ConnectionError, here!())?;
         };
 
-        relay
-            .map(connection.send::<Option<Question>>(&None))
+        connection.send::<Option<Question>>(&None)
             .await
-            .pot(ServeError::ServeInterrupted, here!())?
             .pot(ServeError::ConnectionError, here!())?;
 
         // Compute diff between `local_discovered` and `remote_discovered`
@@ -382,10 +384,8 @@ impl Server {
 
         // Send all install messages in a `Vec`
 
-        relay
-            .map(connection.send::<Vec<Install>>(&installs))
+        connection.send::<Vec<Install>>(&installs)
             .await
-            .pot(ServeError::ServeInterrupted, here!())?
             .pot(ServeError::ConnectionError, here!())?;
 
         // Serve updates
@@ -394,17 +394,12 @@ impl Server {
             tokio::select! {
                 biased;
 
-                _ = relay.wait() => {
-                    return ServeError::ServeInterrupted.fail().spot(here!())
-                },
-
                 update = update_outlet.recv() => {
                     let install = update.map_err(ServeError::update_error).map_err(Doom::into_top).spot(here!())?;
 
-                    relay.map(connection.send(&vec![install]))
-                                .await
-                                .pot(ServeError::ServeInterrupted, here!())?
-                                .pot(ServeError::ConnectionError, here!())?;
+                    connection.send(&vec![install])
+                        .await
+                        .pot(ServeError::ConnectionError, here!())?;
                 }
 
                 request = connection.receive() => {
@@ -412,9 +407,8 @@ impl Server {
 
                     match request {
                         Request::KeepAlive => {
-                            relay.map(connection.send(&Response::KeepAlive))
+                            connection.send(&Response::KeepAlive)
                                 .await
-                                .pot(ServeError::ServeInterrupted, here!())?
                                 .pot(ServeError::ConnectionError, here!())?;
                         }
                         _ => return ServeError::UnexpectedRequest.fail().spot(here!())
@@ -429,7 +423,6 @@ impl Server {
         mut connection: PlainConnection,
         install: Install,
         publication_inlet: PublicationInlet,
-        mut relay: Relay,
     ) -> Result<(), Top<ServeError>> {
         let transition = install.clone().into_transition().await;
 
@@ -457,10 +450,8 @@ impl Server {
         // `Server` is shutting down and we don't care about the error
         let _ = publication_inlet.send(install).await;
 
-        relay
-            .map(connection.send(&Response::AcknowledgePublish))
+        connection.send(&Response::AcknowledgePublish)
             .await
-            .pot(ServeError::ServeInterrupted, here!())?
             .pot(ServeError::ConnectionError, here!())?;
 
         Ok(())
@@ -554,7 +545,7 @@ mod test {
                 TcpStream::connect(address).await.unwrap().into();
 
             client_connection
-                .send(&Request::Subscribe(client.current().height() as u64))
+                .send(&Request::LightSubscribe(client.current().height() as u64))
                 .await
                 .unwrap();
 
@@ -590,7 +581,7 @@ mod test {
             TcpStream::connect(server.address()).await.unwrap().into();
 
         client_connection
-            .send(&Request::Subscribe(client.current().height() as u64))
+            .send(&Request::LightSubscribe(client.current().height() as u64))
             .await
             .unwrap();
 
@@ -657,7 +648,7 @@ mod test {
             TcpStream::connect(server.address()).await.unwrap().into();
 
         client_connection
-            .send(&Request::Subscribe(GENESIS_HEIGHT as u64))
+            .send(&Request::LightSubscribe(GENESIS_HEIGHT as u64))
             .await
             .unwrap();
 
@@ -718,7 +709,7 @@ mod test {
             TcpStream::connect(server.address()).await.unwrap().into();
 
         client_connection
-            .send(&Request::Subscribe(GENESIS_HEIGHT as u64))
+            .send(&Request::LightSubscribe(GENESIS_HEIGHT as u64))
             .await
             .unwrap();
 

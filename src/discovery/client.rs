@@ -325,7 +325,7 @@ impl Client {
         let top = database.lock().await.top;
 
         connection
-            .send(&Request::Subscribe(top as u64))
+            .send(&Request::LightSubscribe(top as u64))
             .await
             .pot(HandshakeError::ConnectionError, here!())
     }
