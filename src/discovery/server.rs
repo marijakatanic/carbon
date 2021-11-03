@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex as StdMutex};
 use talk::crypto::primitives::hash;
 use talk::crypto::primitives::hash::Hash;
 use talk::net::PlainConnection;
-use talk::sync::fuse::{Fuse, Relay};
+use talk::sync::fuse::Fuse;
 
 use tokio::io;
 use tokio::net::{TcpListener, ToSocketAddrs};
@@ -63,15 +63,7 @@ pub(crate) enum ServerError {
 }
 
 #[derive(Doom)]
-enum ListenError {
-    #[doom(description("`listen` interrupted"))]
-    ListenInterrupted,
-}
-
-#[derive(Doom)]
 enum ServeError {
-    #[doom(description("`serve` interrupted"))]
-    ServeInterrupted,
     #[doom(description("Connection error"))]
     ConnectionError,
     #[doom(description("Unexpected request"))]
@@ -85,12 +77,6 @@ enum ServeError {
     #[doom(description("Update channel error (shutdown or lagged behind)"))]
     #[doom(wrap(update_error))]
     UpdateError { source: BroadcastRecvError },
-}
-
-#[derive(Doom)]
-enum UpdateError {
-    #[doom(description("`update` interrupted"))]
-    UpdateInterrupted,
 }
 
 impl Server {
@@ -144,10 +130,8 @@ impl Server {
         {
             let sync = sync.clone();
 
-            let relay = fuse.relay();
-
-            tokio::spawn(async move {
-                let _ = Server::update(sync, frame, publication_outlet, frame_inlet, relay).await;
+            fuse.spawn(async move {
+                let _ = Server::update(sync, frame, publication_outlet, frame_inlet).await;
             });
         }
 
@@ -155,18 +139,9 @@ impl Server {
             let database = database.clone();
             let sync = sync.clone();
 
-            let relay = fuse.relay();
-
             tokio::spawn(async move {
-                let _ = Server::listen(
-                    listener,
-                    database,
-                    sync,
-                    publication_inlet,
-                    frame_outlet,
-                    relay,
-                )
-                .await;
+                let _ =
+                    Server::listen(listener, database, sync, publication_inlet, frame_outlet).await;
             });
         }
 
@@ -186,16 +161,11 @@ impl Server {
         sync: Arc<TokioMutex<Sync>>,
         publication_inlet: PublicationInlet,
         frame_outlet: FrameOutlet,
-        mut relay: Relay,
-    ) -> Result<(), Top<ListenError>> {
+    ) {
         let fuse = Fuse::new();
 
         loop {
-            if let Ok((stream, _)) = relay
-                .map(listener.accept())
-                .await
-                .pot(ListenError::ListenInterrupted, here!())?
-            {
+            if let Ok((stream, _)) = listener.accept().await {
                 let connection: PlainConnection = stream.into();
 
                 let database = database.clone();
@@ -204,18 +174,10 @@ impl Server {
                 let publication_inlet = publication_inlet.clone();
                 let frame_outlet = frame_outlet.clone();
 
-                let relay = fuse.relay();
-
-                tokio::spawn(async move {
-                    let _ = Server::serve(
-                        database,
-                        sync,
-                        connection,
-                        publication_inlet,
-                        frame_outlet,
-                        relay,
-                    )
-                    .await;
+                fuse.spawn(async move {
+                    let _ =
+                        Server::serve(database, sync, connection, publication_inlet, frame_outlet)
+                            .await;
                 });
             }
         }
@@ -227,46 +189,29 @@ impl Server {
         mut connection: PlainConnection,
         publication_inlet: PublicationInlet,
         frame_outlet: FrameOutlet,
-        mut relay: Relay,
     ) -> Result<(), Top<ServeError>> {
-        let request: Request = relay
-            .map(connection.receive())
+        let request: Request = connection
+            .receive()
             .await
-            .pot(ServeError::ServeInterrupted, here!())?
             .pot(ServeError::ConnectionError, here!())?;
 
         match request {
             Request::LightSubscribe(height) => {
                 // This server cannot handle view height values greater than usize::MAX"
                 if height <= usize::MAX as u64 {
-                    relay
-                        .map(Server::serve_light_subscribe(
-                            connection,
-                            height as usize,
-                            frame_outlet,
-                        ))
-                        .await
-                        .pot(ServeError::ServeInterrupted, here!())?
+                    Server::serve_light_subscribe(connection, height as usize, frame_outlet).await
                 } else {
                     ServeError::HeightOverflow.fail().spot(here!())
                 }
             }
 
-            Request::FullSubscribe => relay
-                .map(Server::serve_full_subscribe(connection, database, sync))
-                .await
-                .pot(ServeError::ServeInterrupted, here!())?,
+            Request::FullSubscribe => {
+                Server::serve_full_subscribe(connection, database, sync).await
+            }
 
-            Request::Publish(install) => relay
-                .map(Server::serve_publish(
-                    database,
-                    connection,
-                    install,
-                    publication_inlet,
-                ))
-                .await
-                .pot(ServeError::ServeInterrupted, here!())?,
-
+            Request::Publish(install) => {
+                Server::serve_publish(database, connection, install, publication_inlet).await
+            }
             _ => ServeError::UnexpectedRequest.fail().spot(here!()),
         }
     }
@@ -468,14 +413,9 @@ impl Server {
         mut frame: Arc<Frame>,
         mut publication_outlet: PublicationOutlet,
         frame_inlet: FrameInlet,
-        mut relay: Relay,
-    ) -> Result<(), Top<UpdateError>> {
+    ) {
         loop {
-            if let Some(install) = relay
-                .map(publication_outlet.recv())
-                .await
-                .pot(UpdateError::UpdateInterrupted, here!())?
-            {
+            if let Some(install) = publication_outlet.recv().await {
                 if let Some(update) = frame.update(install.clone()).await {
                     frame = Arc::new(update);
 
