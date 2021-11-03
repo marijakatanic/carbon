@@ -283,7 +283,8 @@ impl Server {
                 let installs = frame.lookup(height);
                 height = frame.top();
 
-                connection.send(&Response::Update(installs))
+                connection
+                    .send(&Response::Update(installs))
                     .await
                     .pot(ServeError::ConnectionError, here!())?;
             }
@@ -329,7 +330,8 @@ impl Server {
         };
 
         let mut remote_discovered: Collection<Hash> = loop {
-            let answer = connection.receive()
+            let answer = connection
+                .receive()
                 .await
                 .pot(ServeError::ConnectionError, here!())?;
 
@@ -344,12 +346,14 @@ impl Server {
             receiver = next.0;
             let question = next.1;
 
-            connection.send(&Some(question))
+            connection
+                .send(&Some(question))
                 .await
                 .pot(ServeError::ConnectionError, here!())?;
         };
 
-        connection.send::<Option<Question>>(&None)
+        connection
+            .send::<Option<Question>>(&None)
             .await
             .pot(ServeError::ConnectionError, here!())?;
 
@@ -384,7 +388,8 @@ impl Server {
 
         // Send all install messages in a `Vec`
 
-        connection.send::<Vec<Install>>(&installs)
+        connection
+            .send::<Vec<Install>>(&installs)
             .await
             .pot(ServeError::ConnectionError, here!())?;
 
@@ -450,7 +455,8 @@ impl Server {
         // `Server` is shutting down and we don't care about the error
         let _ = publication_inlet.send(install).await;
 
-        connection.send(&Response::AcknowledgePublish)
+        connection
+            .send(&Response::AcknowledgePublish)
             .await
             .pot(ServeError::ConnectionError, here!())?;
 
