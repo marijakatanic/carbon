@@ -14,6 +14,7 @@ use talk::crypto::primitives::hash::Hash;
 use talk::net::traits::TcpConnect;
 use talk::net::{PlainReceiver, PlainSender};
 use talk::sync::fuse::Fuse;
+use talk::sync::lenders::Lender;
 use talk::{crypto::primitives::hash, net::PlainConnection};
 
 use tokio::sync::watch::{Receiver, Sender};
@@ -35,10 +36,13 @@ pub(crate) struct Client {
 }
 
 struct Database {
-    top: usize,
     views: HashMap<Commitment, View>,
-    discovered: Collection<Hash>,
     installs: HashMap<Hash, Install>,
+}
+
+struct Sync {
+    top: usize,
+    discovered: Lender<Collection<Hash>>,
 }
 
 #[derive(Doom)]
@@ -107,17 +111,14 @@ impl Client {
         let mut views = HashMap::new();
         views.insert(genesis.identifier(), genesis);
 
-        let family = Family::new();
-        let discovered = family.empty_collection();
-
         let installs = HashMap::new();
 
-        let database = Arc::new(Mutex::new(Database {
-            top,
-            views,
-            discovered,
-            installs,
-        }));
+        let family = Family::new();
+        let discovered = Lender::new(family.empty_collection());
+
+        let database = Arc::new(Mutex::new(Database { views, installs }));
+
+        let sync = Sync { top, discovered };
 
         let (transition_inlet, transition_outlet) = watch::channel(None);
         let transition_outlet = Mutex::new(transition_outlet);
@@ -126,11 +127,11 @@ impl Client {
 
         {
             let server = server.clone();
-            let settings = settings.clone();
             let database = database.clone();
+            let settings = settings.clone();
 
             fuse.spawn(async move {
-                let _ = Client::subscribe(server, database, transition_inlet, settings).await;
+                let _ = Client::subscribe(server, database, sync, transition_inlet, settings).await;
             });
         }
 
@@ -219,6 +220,7 @@ impl Client {
     async fn subscribe<T>(
         server: T,
         database: Arc<Mutex<Database>>,
+        mut sync: Sync,
         mut transition_inlet: TransitionInlet,
         settings: ClientSettings,
     ) where
@@ -232,6 +234,7 @@ impl Client {
             let _ = Client::subscribe_attempt(
                 &server,
                 &*database,
+                &mut sync,
                 &mut transition_inlet,
                 &settings,
                 &mut progress,
@@ -249,6 +252,7 @@ impl Client {
     async fn subscribe_attempt<T>(
         server: &T,
         database: &Mutex<Database>,
+        sync: &mut Sync,
         transition_inlet: &mut TransitionInlet,
         settings: &ClientSettings,
         progress: &mut bool,
@@ -265,12 +269,12 @@ impl Client {
 
         match &settings.mode {
             Mode::Light => {
-                Client::light_handshake(&mut connection, database)
+                Client::light_handshake(&mut connection, sync)
                     .await
                     .pot(SubscribeAttemptError::HandshakeError, here!())?;
             }
             Mode::Full => {
-                Client::full_handshake(&mut connection, database)
+                Client::full_handshake(&mut connection, sync)
                     .await
                     .pot(SubscribeAttemptError::HandshakeError, here!())?;
             }
@@ -280,7 +284,7 @@ impl Client {
 
         let result = tokio::try_join!(
             async {
-                Client::listen(receiver, database, transition_inlet, progress)
+                Client::listen(receiver, database, sync, transition_inlet, progress)
                     .await
                     .pot(SubscribeAttemptError::ListenFailed, here!())
             },
@@ -296,54 +300,61 @@ impl Client {
 
     async fn light_handshake(
         connection: &mut PlainConnection,
-        database: &Mutex<Database>,
+        sync: &Sync,
     ) -> Result<(), Top<HandshakeError>> {
-        let top = database.lock().await.top;
-
         connection
-            .send(&Request::LightSubscribe(top as u64))
+            .send(&Request::LightSubscribe(sync.top as u64))
             .await
             .pot(HandshakeError::ConnectionError, here!())
     }
 
     async fn full_handshake(
         connection: &mut PlainConnection,
-        database: &Mutex<Database>,
+        sync: &mut Sync,
     ) -> Result<(), Top<HandshakeError>> {
         connection
             .send(&Request::FullSubscribe)
             .await
             .pot(HandshakeError::ConnectionError, here!())?;
 
-        let discovered = database.lock().await.discovered.clone();
+        let discovered = sync.discovered.take();
         let mut sender = discovered.send();
 
-        let mut answer = sender.hello();
+        let result = async {
+            let mut answer = sender.hello();
 
-        loop {
-            connection
-                .send(&answer)
-                .await
-                .pot(HandshakeError::ConnectionError, here!())?;
+            loop {
+                connection
+                    .send(&answer)
+                    .await
+                    .pot(HandshakeError::ConnectionError, here!())?;
 
-            let question = connection
-                .receive()
-                .await
-                .pot(HandshakeError::ConnectionError, here!())?;
+                let question = connection
+                    .receive()
+                    .await
+                    .pot(HandshakeError::ConnectionError, here!())?;
 
-            if let Some(question) = question {
-                answer = sender
-                    .answer(&question)
-                    .pot(HandshakeError::MalformedQuestion, here!())?;
-            } else {
-                return Ok(());
+                if let Some(question) = question {
+                    answer = sender
+                        .answer(&question)
+                        .pot(HandshakeError::MalformedQuestion, here!())?;
+                } else {
+                    return Ok(());
+                }
             }
         }
+        .await;
+
+        let discovered = sender.end();
+        sync.discovered.restore(discovered);
+
+        result
     }
 
     async fn listen(
         mut receiver: PlainReceiver,
         database: &Mutex<Database>,
+        sync: &mut Sync,
         transition_inlet: &mut TransitionInlet,
         progress: &mut bool,
     ) -> Result<(), Top<ListenError>> {
@@ -355,7 +366,7 @@ impl Client {
 
             match response {
                 Response::Update(update) => {
-                    Client::acquire(database, transition_inlet, update)
+                    Client::acquire(database, sync, transition_inlet, update)
                         .await
                         .pot(ListenError::AcquireError, here!())?;
                 }
@@ -386,6 +397,7 @@ impl Client {
 
     async fn acquire(
         database: &Mutex<Database>,
+        sync: &mut Sync,
         transition_inlet: &mut TransitionInlet,
         update: Vec<Install>,
     ) -> Result<(), Top<AcquireError>> {
@@ -404,6 +416,7 @@ impl Client {
                 );
 
                 let hash = hash::hash(&install).unwrap();
+                database.installs.insert(hash, install);
 
                 let mut transaction = CollectionTransaction::new();
 
@@ -411,11 +424,12 @@ impl Client {
                     .insert(hash)
                     .pot(AcquireError::UnexpectedInstall, here!())?;
 
-                database.discovered.execute(transaction).await;
-                database.installs.insert(hash, install);
+                let mut discovered = sync.discovered.take();
+                discovered.execute(transaction).await;
+                sync.discovered.restore(discovered);
 
-                if transition.destination().height() > database.top {
-                    database.top = transition.destination().height();
+                if transition.destination().height() > sync.top {
+                    sync.top = transition.destination().height();
 
                     // This fails only if the corresponding `transition_outlet` is dropped,
                     // in which case the whole `Client` is being dropped, and losing
