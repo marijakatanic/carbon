@@ -29,7 +29,7 @@ type TransitionOutlet = Receiver<Option<Transition>>;
 pub(crate) struct Client {
     server: Box<dyn TcpConnect>,
     database: Arc<Mutex<Database>>,
-    transition_outlet: TransitionOutlet,
+    transition_outlet: Mutex<TransitionOutlet>,
     settings: ClientSettings,
     _fuse: Fuse,
 }
@@ -120,6 +120,7 @@ impl Client {
         }));
 
         let (transition_inlet, transition_outlet) = watch::channel(None);
+        let transition_outlet = Mutex::new(transition_outlet);
 
         let fuse = Fuse::new();
 
@@ -155,28 +156,34 @@ impl Client {
         self.database.lock().await.installs.get(hash).cloned()
     }
 
-    pub(crate) async fn next(&mut self) -> Transition {
+    pub(crate) async fn next(&self) -> Transition {
+        let mut transition_outlet = self.transition_outlet.lock().await;
+
         // This cannot fail: the corresponding `transition_inlet` is
         // held by `run`, which returns only when `self._fuse` drops:
         // if `self.transition_outlet.changed()` returned an error,
         // `self` would have been dropped, which would make it impossible
         // to call `self.next()`.
-        self.transition_outlet.changed().await.unwrap();
+        transition_outlet.changed().await.unwrap();
 
         // This cannot fail, as `attempt` only feeds `Some(..)` into `transition_inlet`.
-        self.transition_outlet.borrow().clone().unwrap()
+        let transition = transition_outlet.borrow_and_update().clone().unwrap();
+
+        transition
     }
 
-    pub(crate) async fn beyond(&mut self, height: usize) -> Transition {
+    pub(crate) async fn beyond(&self, height: usize) -> Transition {
+        let mut transition_outlet = self.transition_outlet.lock().await;
+
         loop {
-            if let Some(transition) = &*self.transition_outlet.borrow() {
+            if let Some(transition) = &*transition_outlet.borrow_and_update() {
                 if transition.destination().height() > height {
                     return transition.clone();
                 }
             }
 
             // This cannot fail (see `next`)
-            self.transition_outlet.changed().await.unwrap();
+            transition_outlet.changed().await.unwrap();
         }
     }
 
