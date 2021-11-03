@@ -110,7 +110,7 @@ impl Server {
         let family = Family::new();
         let discovered = family.empty_collection();
 
-        let (update_inlet, _) = broadcast::channel(32); // TODO: Add settings
+        let (update_inlet, _) = broadcast::channel(settings.update_channel_capacity);
 
         let sync = Arc::new(TokioMutex::new(Sync {
             family,
