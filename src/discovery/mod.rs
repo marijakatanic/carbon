@@ -7,6 +7,9 @@ mod response;
 mod server;
 mod server_settings;
 
+#[cfg(test)]
+pub(crate) mod test;
+
 use frame::Frame;
 use request::Request;
 use response::Response;
