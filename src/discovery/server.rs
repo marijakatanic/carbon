@@ -81,8 +81,8 @@ enum ServeError {
 
 impl Server {
     pub async fn new<A>(
-        address: A,
         genesis: View,
+        address: A,
         settings: ServerSettings,
     ) -> Result<Self, Top<ServerError>>
     where
@@ -176,7 +176,7 @@ impl Server {
 
                 fuse.spawn(async move {
                     let _ =
-                        Server::serve(database, sync, connection, publication_inlet, frame_outlet)
+                        Server::serve(connection, database, sync, publication_inlet, frame_outlet)
                             .await;
                 });
             }
@@ -184,9 +184,9 @@ impl Server {
     }
 
     async fn serve(
+        mut connection: PlainConnection,
         database: Arc<StdMutex<Database>>,
         sync: Arc<TokioMutex<Sync>>,
-        mut connection: PlainConnection,
         publication_inlet: PublicationInlet,
         frame_outlet: FrameOutlet,
     ) -> Result<(), Top<ServeError>> {
@@ -199,7 +199,7 @@ impl Server {
             Request::LightSubscribe(height) => {
                 // This server cannot handle view height values greater than usize::MAX"
                 if height <= usize::MAX as u64 {
-                    Server::serve_light_subscribe(connection, height as usize, frame_outlet).await
+                    Server::serve_light_subscribe(connection, frame_outlet, height as usize).await
                 } else {
                     ServeError::HeightOverflow.fail().spot(here!())
                 }
@@ -210,7 +210,7 @@ impl Server {
             }
 
             Request::Publish(install) => {
-                Server::serve_publish(database, connection, install, publication_inlet).await
+                Server::serve_publish(connection, database, publication_inlet, install).await
             }
             _ => ServeError::UnexpectedRequest.fail().spot(here!()),
         }
@@ -218,8 +218,8 @@ impl Server {
 
     async fn serve_light_subscribe(
         mut connection: PlainConnection,
-        mut height: usize,
         mut frame_outlet: FrameOutlet,
+        mut height: usize,
     ) -> Result<(), Top<ServeError>> {
         let mut frame = Some(frame_outlet.borrow_and_update().clone());
 
@@ -369,10 +369,10 @@ impl Server {
     }
 
     async fn serve_publish(
-        database: Arc<StdMutex<Database>>,
         mut connection: PlainConnection,
-        install: Install,
+        database: Arc<StdMutex<Database>>,
         publication_inlet: PublicationInlet,
+        install: Install,
     ) -> Result<(), Top<ServeError>> {
         let transition = install.clone().into_transition().await;
 
@@ -460,7 +460,7 @@ mod test {
         let generator = InstallGenerator::new(max_height);
         let genesis = generator.view(genesis_height).await;
 
-        let server = Server::new((Ipv4Addr::UNSPECIFIED, 0), genesis, Default::default())
+        let server = Server::new(genesis, (Ipv4Addr::UNSPECIFIED, 0), Default::default())
             .await
             .unwrap();
 
