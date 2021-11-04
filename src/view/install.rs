@@ -8,6 +8,8 @@ use doomstack::{here, Doom, ResultExt, Top};
 use serde::de;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use talk::crypto::primitives::hash;
+use talk::crypto::primitives::hash::Hash;
 use talk::crypto::primitives::multi::{MultiError, Signature as MultiSignature};
 use talk::crypto::{KeyCard, KeyChain, Statement as CryptoStatement};
 
@@ -51,6 +53,10 @@ impl Install {
         keychain
             .multisign(&statement)
             .expect("Panic at `Install::certify`: unexpected error from `keychain.multisign`")
+    }
+
+    pub fn identifier(&self) -> Hash {
+        hash::hash(self).unwrap()
     }
 
     pub fn source(&self) -> Commitment {
