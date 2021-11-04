@@ -3,14 +3,15 @@ use crate::{
     view::test::InstallGenerator,
 };
 
+use std::iter;
+use std::iter::Iterator;
 use std::net::Ipv4Addr;
 
 pub(crate) async fn setup(
     views: usize,
     genesis: usize,
-    clients: usize,
     mode: Mode,
-) -> (InstallGenerator, Server, Vec<Client>) {
+) -> (InstallGenerator, Server, impl Iterator<Item = Client>) {
     let generator = InstallGenerator::new(views);
     let genesis = generator.view(genesis).await;
 
@@ -22,18 +23,18 @@ pub(crate) async fn setup(
     .await
     .unwrap();
 
-    let clients = (0..clients)
-        .map(|_| {
-            Client::new(
-                genesis.clone(),
-                server.address(),
-                ClientSettings {
-                    mode,
-                    ..Default::default()
-                },
-            )
-        })
-        .collect::<Vec<_>>();
+    let address = server.address();
+
+    let clients = iter::repeat_with(move || {
+        Client::new(
+            genesis.clone(),
+            address.clone(),
+            ClientSettings {
+                mode,
+                ..Default::default()
+            },
+        )
+    });
 
     (generator, server, clients)
 }

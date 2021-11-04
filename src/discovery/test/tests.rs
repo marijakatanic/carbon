@@ -8,9 +8,7 @@ async fn setup_single(
     genesis: usize,
     mode: Mode,
 ) -> (InstallGenerator, Server, Client) {
-    let (generator, server, clients) = test::setup(views, genesis, 1, mode).await;
-    let mut clients = clients.into_iter();
-
+    let (generator, server, mut clients) = test::setup(views, genesis, mode).await;
     (generator, server, clients.next().unwrap())
 }
 
@@ -19,8 +17,7 @@ async fn setup_pair(
     genesis: usize,
     mode: Mode,
 ) -> (InstallGenerator, Server, (Client, Client)) {
-    let (generator, server, clients) = test::setup(views, genesis, 2, mode).await;
-    let mut clients = clients.into_iter();
+    let (generator, server, mut clients) = test::setup(views, genesis, mode).await;
 
     (
         generator,
