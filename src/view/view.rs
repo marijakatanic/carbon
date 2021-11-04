@@ -57,7 +57,7 @@ impl View {
             transaction.insert(update).unwrap();
         }
 
-        changes.execute(transaction).await;
+        changes.execute(transaction);
 
         let identifier = changes.commit();
 
@@ -107,7 +107,7 @@ impl View {
                 })
                 .collect::<Vec<_>>();
 
-            let response = self.data.changes.clone().execute(transaction).await;
+            let response = self.data.changes.clone().execute(transaction);
 
             let response = queries
                 .into_iter()
@@ -138,7 +138,7 @@ impl View {
             transaction.insert(update).unwrap();
         }
 
-        changes.execute(transaction).await;
+        changes.execute(transaction);
 
         let identifier = changes.commit();
 

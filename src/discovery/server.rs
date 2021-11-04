@@ -304,31 +304,30 @@ impl Server {
 
         // Compute diff between `local_discovered` and `remote_discovered`
 
-        let diffs = Collection::diff(&mut local_discovered, &mut remote_discovered)
-            .await
-            .0;
+        let gaps = Collection::diff(&mut local_discovered, &mut remote_discovered).0;
 
         // Query `database` to get appropriate `Install` messages
 
-        let mut installs_with_height = {
+        let mut updates = {
             let database = database.lock().unwrap();
 
-            diffs
-                .into_iter()
+            gaps.into_iter()
                 .map(|diff| {
                     let install = database.installs.get(&diff).unwrap().clone();
                     let height = database.views.get(&install.source()).unwrap().height();
-                    (install, height)
+
+                    (height, install)
                 })
                 .collect::<Vec<_>>()
         };
 
         // Sort `Install` messages by increasing source height
 
-        installs_with_height.sort_by_key(|(_, height)| *height);
-        let installs = installs_with_height
+        updates.sort_by_key(|(height, _)| *height);
+
+        let installs = updates
             .into_iter()
-            .map(|(install, _)| install)
+            .map(|(_, install)| install)
             .collect::<Vec<_>>();
 
         // Send all install messages in a `Vec`
@@ -430,12 +429,12 @@ impl Server {
 
                 let mut transaction = CollectionTransaction::new();
                 let query = transaction.contains(&hash).unwrap();
-                let response = sync.discovered.execute(transaction).await;
+                let response = sync.discovered.execute(transaction);
 
                 if !response.contains(&query) {
                     let mut transaction = CollectionTransaction::new();
                     transaction.insert(hash).unwrap();
-                    sync.discovered.execute(transaction).await;
+                    sync.discovered.execute(transaction);
 
                     let _ = sync.update_inlet.send(install);
                 }

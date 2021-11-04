@@ -424,8 +424,9 @@ impl Client {
                     .insert(hash)
                     .pot(AcquireError::UnexpectedInstall, here!())?;
 
+                // TODO: Refactor this to use `borrow_mut`
                 let mut discovered = sync.discovered.take();
-                discovered.execute(transaction).await;
+                discovered.execute(transaction);
                 sync.discovered.restore(discovered);
 
                 if transition.destination().height() > sync.top {
