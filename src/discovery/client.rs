@@ -12,10 +12,10 @@ use std::{borrow::BorrowMut, collections::HashMap};
 
 use talk::crypto::primitives::hash::Hash;
 use talk::net::traits::TcpConnect;
+use talk::net::PlainConnection;
 use talk::net::{PlainReceiver, PlainSender};
 use talk::sync::fuse::Fuse;
 use talk::sync::lenders::Lender;
-use talk::{crypto::primitives::hash, net::PlainConnection};
 
 use tokio::sync::watch::{Receiver, Sender};
 use tokio::sync::{watch, Mutex};
@@ -415,13 +415,13 @@ impl Client {
                     transition.destination().clone(),
                 );
 
-                let hash = hash::hash(&install).unwrap();
-                database.installs.insert(hash, install);
+                let identifier = install.identifier();
+                database.installs.insert(identifier, install);
 
                 let mut transaction = CollectionTransaction::new();
 
                 transaction
-                    .insert(hash)
+                    .insert(identifier)
                     .pot(AcquireError::UnexpectedInstall, here!())?;
 
                 BorrowMut::<Collection<_>>::borrow_mut(&mut sync.discovered).execute(transaction);

@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex as StdMutex};
 
-use talk::crypto::primitives::hash;
 use talk::crypto::primitives::hash::Hash;
 use talk::net::PlainConnection;
 use talk::sync::fuse::Fuse;
@@ -40,8 +39,8 @@ type FrameInlet = WatchSender<Arc<Frame>>;
 type FrameOutlet = WatchReceiver<Arc<Frame>>;
 
 pub(crate) struct Server {
-    _fuse: Fuse,
     address: SocketAddr,
+    _fuse: Fuse,
 }
 
 struct Database {
@@ -70,8 +69,8 @@ enum ServeError {
     UnexpectedRequest,
     #[doom(description("Malformed `Answer`"))]
     MalformedAnswer,
-    #[doom(description("Unknown view"))]
-    UnknownView,
+    #[doom(description("Unknown source view"))]
+    UnknownSource,
     #[doom(description("Height overflow"))]
     HeightOverflow,
     #[doom(description("Update channel error (shutdown or lagged behind)"))]
@@ -118,11 +117,10 @@ impl Server {
             update_inlet,
         }));
 
-        let frame = Arc::new(Frame::genesis(&genesis));
-
         let (publication_inlet, publication_outlet) =
             mpsc::channel(settings.install_channel_capacity);
 
+        let frame = Arc::new(Frame::genesis(&genesis));
         let (frame_inlet, frame_outlet) = watch::channel(frame.clone());
 
         let fuse = Fuse::new();
@@ -131,23 +129,18 @@ impl Server {
             let sync = sync.clone();
 
             fuse.spawn(async move {
-                let _ = Server::update(sync, frame, publication_outlet, frame_inlet).await;
-            });
-        }
-
-        {
-            let database = database.clone();
-            let sync = sync.clone();
-
-            fuse.spawn(async move {
                 let _ =
                     Server::listen(listener, database, sync, publication_inlet, frame_outlet).await;
             });
         }
 
+        fuse.spawn(async move {
+            let _ = Server::update(sync, frame, publication_outlet, frame_inlet).await;
+        });
+
         Ok(Server {
+            address,
             _fuse: fuse,
-            address: address,
         })
     }
 
@@ -196,8 +189,12 @@ impl Server {
             .pot(ServeError::ConnectionError, here!())?;
 
         match request {
+            Request::Publish(install) => {
+                Server::serve_publish(connection, database, publication_inlet, install).await
+            }
+
             Request::LightSubscribe(height) => {
-                // This server cannot handle view height values greater than usize::MAX"
+                // This `Server` cannot handle view height values greater than `usize::MAX`
                 if height <= usize::MAX as u64 {
                     Server::serve_light_subscribe(connection, frame_outlet, height as usize).await
                 } else {
@@ -209,11 +206,48 @@ impl Server {
                 Server::serve_full_subscribe(connection, database, sync).await
             }
 
-            Request::Publish(install) => {
-                Server::serve_publish(connection, database, publication_inlet, install).await
-            }
             _ => ServeError::UnexpectedRequest.fail().spot(here!()),
         }
+    }
+
+    async fn serve_publish(
+        mut connection: PlainConnection,
+        database: Arc<StdMutex<Database>>,
+        publication_inlet: PublicationInlet,
+        install: Install,
+    ) -> Result<(), Top<ServeError>> {
+        let transition = install.clone().into_transition().await;
+
+        {
+            let mut database = database.lock().unwrap();
+
+            if database
+                .views
+                .contains_key(&transition.source().identifier())
+            {
+                database.views.insert(
+                    transition.destination().identifier(),
+                    transition.destination().clone(),
+                );
+
+                let identifier = install.identifier();
+                database.installs.insert(identifier, install.clone());
+            } else {
+                ServeError::UnknownSource.fail().spot(here!())?
+            }
+        }
+
+        // Because `publication_inlet` is unbounded, this can only fail if the
+        // corresponding `publication_outlet` is dropped, in which case the
+        // `Server` is shutting down and we don't care about the error
+        let _ = publication_inlet.send(install).await;
+
+        connection
+            .send(&Response::AcknowledgePublish)
+            .await
+            .pot(ServeError::ConnectionError, here!())?;
+
+        Ok(())
     }
 
     async fn serve_light_subscribe(
@@ -367,46 +401,6 @@ impl Server {
         }
     }
 
-    async fn serve_publish(
-        mut connection: PlainConnection,
-        database: Arc<StdMutex<Database>>,
-        publication_inlet: PublicationInlet,
-        install: Install,
-    ) -> Result<(), Top<ServeError>> {
-        let transition = install.clone().into_transition().await;
-
-        {
-            let mut database = database.lock().unwrap();
-
-            if database
-                .views
-                .contains_key(&transition.source().identifier())
-            {
-                database.views.insert(
-                    transition.destination().identifier(),
-                    transition.destination().clone(),
-                );
-
-                let hash = hash::hash(&install).unwrap();
-                database.installs.insert(hash, install.clone());
-            } else {
-                ServeError::UnknownView.fail().spot(here!())?
-            }
-        }
-
-        // Because `publication_inlet` is unbounded, this can only fail if the
-        // corresponding `publication_outlet` is dropped, in which case the
-        // `Server` is shutting down and we don't care about the error
-        let _ = publication_inlet.send(install).await;
-
-        connection
-            .send(&Response::AcknowledgePublish)
-            .await
-            .pot(ServeError::ConnectionError, here!())?;
-
-        Ok(())
-    }
-
     async fn update(
         sync: Arc<TokioMutex<Sync>>,
         mut frame: Arc<Frame>,
@@ -418,22 +412,22 @@ impl Server {
                 if let Some(update) = frame.update(install.clone()).await {
                     frame = Arc::new(update);
 
-                    // The corresponding `frame_outlet` is held by listen, so this
-                    // never returns an error until the server is shutting down
+                    // The corresponding `frame_outlet` is held by `listen`, so this
+                    // never returns an error until the `Server` is shutting down
                     let _ = frame_inlet.send(frame.clone());
                 }
 
-                let hash = hash::hash(&install).unwrap();
+                let identifier = install.identifier();
 
                 let mut sync = sync.lock().await;
 
                 let mut transaction = CollectionTransaction::new();
-                let query = transaction.contains(&hash).unwrap();
+                let query = transaction.contains(&identifier).unwrap();
                 let response = sync.discovered.execute(transaction);
 
                 if !response.contains(&query) {
                     let mut transaction = CollectionTransaction::new();
-                    transaction.insert(hash).unwrap();
+                    transaction.insert(identifier).unwrap();
                     sync.discovered.execute(transaction);
 
                     let _ = sync.update_inlet.send(install);
