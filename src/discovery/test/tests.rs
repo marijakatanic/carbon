@@ -30,7 +30,10 @@ async fn setup_pair(
 async fn light_single_publish_then_beyond() {
     let (generator, _server, client) = setup_single(32, 8, Mode::Light).await;
 
+    let mut expected_installs = Vec::new();
+
     let install = generator.install(8, 10, []).await;
+    expected_installs.push(install.identifier());
     client.publish(install).await;
 
     let transition = client.beyond(8).await;
@@ -44,16 +47,24 @@ async fn light_single_publish_then_beyond() {
             .await
             .is_some());
     }
+
+    for install in expected_installs {
+        assert!(client.install(&install).await.is_some())
+    }
 }
 
 #[tokio::test]
 async fn light_single_adjacent_publishes_then_beyond() {
     let (generator, _server, client) = setup_single(32, 8, Mode::Light).await;
 
+    let mut expected_installs = Vec::new();
+
     let install = generator.install(8, 10, []).await;
+    expected_installs.push(install.identifier());
     client.publish(install).await;
 
     let install = generator.install(10, 12, []).await;
+    expected_installs.push(install.identifier());
     client.publish(install).await;
 
     let transition = client.beyond(10).await;
@@ -67,16 +78,23 @@ async fn light_single_adjacent_publishes_then_beyond() {
             .await
             .is_some());
     }
+
+    for install in expected_installs {
+        assert!(client.install(&install).await.is_some())
+    }
 }
 
 #[tokio::test]
 async fn light_single_overlapping_publishes_then_beyond() {
     let (generator, _server, client) = setup_single(32, 8, Mode::Light).await;
 
+    let mut expected_installs = Vec::new();
+
     let install = generator.install(8, 10, []).await;
     client.publish(install).await;
 
     let install = generator.install(8, 12, []).await;
+    expected_installs.push(install.identifier());
     client.publish(install).await;
 
     let transition = client.beyond(10).await;
@@ -90,16 +108,24 @@ async fn light_single_overlapping_publishes_then_beyond() {
             .await
             .is_some());
     }
+
+    for install in expected_installs {
+        assert!(client.install(&install).await.is_some())
+    }
 }
 
 #[tokio::test]
 async fn light_single_redundant_publishes_then_beyond() {
     let (generator, _server, client) = setup_single(32, 8, Mode::Light).await;
 
+    let mut expected_installs = Vec::new();
+
     let install = generator.install(8, 10, []).await;
+    expected_installs.push(install.identifier());
     client.publish(install).await;
 
     let install = generator.install(10, 12, []).await;
+    expected_installs.push(install.identifier());
     client.publish(install).await;
 
     let install = generator.install(8, 9, []).await;
@@ -116,13 +142,20 @@ async fn light_single_redundant_publishes_then_beyond() {
             .await
             .is_some());
     }
+
+    for install in expected_installs {
+        assert!(client.install(&install).await.is_some())
+    }
 }
 
 #[tokio::test]
 async fn light_pair_publish_then_beyond() {
     let (generator, _server, (alice, bob)) = setup_pair(32, 8, Mode::Light).await;
 
+    let mut expected_installs = Vec::new();
+
     let install = generator.install(8, 10, []).await;
+    expected_installs.push(install.identifier());
     alice.publish(install).await;
 
     let transition = bob.beyond(8).await;
@@ -136,16 +169,24 @@ async fn light_pair_publish_then_beyond() {
             .await
             .is_some());
     }
+
+    for install in expected_installs {
+        assert!(bob.install(&install).await.is_some())
+    }
 }
 
 #[tokio::test]
 async fn light_pair_cross_publish() {
     let (generator, _server, (alice, bob)) = setup_pair(32, 8, Mode::Light).await;
 
+    let mut expected_installs = Vec::new();
+    
     let install = generator.install(8, 10, []).await;
+    expected_installs.push(install.identifier());
     alice.publish(install).await;
 
     let install = generator.install(10, 12, []).await;
+    expected_installs.push(install.identifier());
     bob.publish(install).await;
 
     let transition = alice.beyond(10).await;
@@ -159,22 +200,32 @@ async fn light_pair_cross_publish() {
             .await
             .is_some());
     }
+
+    for install in expected_installs {
+        assert!(bob.install(&install).await.is_some())
+    }
 }
 
 #[tokio::test]
 async fn light_pair_stream_publish() {
     let (generator, _server, (alice, bob)) = setup_pair(32, 8, Mode::Light).await;
 
+    let mut expected_installs = Vec::new();
+
     let install = generator.install(8, 10, []).await;
+    expected_installs.push(install.identifier());
     alice.publish(install).await;
 
     let install = generator.install(10, 12, []).await;
+    expected_installs.push(install.identifier());
     alice.publish(install).await;
 
     let install = generator.install(12, 14, []).await;
+    expected_installs.push(install.identifier());
     alice.publish(install).await;
 
     let install = generator.install(14, 16, []).await;
+    expected_installs.push(install.identifier());
     alice.publish(install).await;
 
     let transition = bob.beyond(15).await;
@@ -188,11 +239,17 @@ async fn light_pair_stream_publish() {
             .await
             .is_some());
     }
+
+    for install in expected_installs {
+        assert!(bob.install(&install).await.is_some())
+    }
 }
 
 #[tokio::test]
 async fn light_pair_redundant_delayed_join() {
     let (generator, _server, mut clients) = test::setup(32, 8, Mode::Light).await;
+
+    let mut expected_installs = Vec::new();
 
     let alice = clients.next().unwrap();
 
@@ -203,6 +260,7 @@ async fn light_pair_redundant_delayed_join() {
     alice.publish(install).await;
 
     let install = generator.install(8, 14, []).await;
+    expected_installs.push(install.identifier());
     alice.publish(install).await;
 
     alice.beyond(13).await;
@@ -218,5 +276,9 @@ async fn light_pair_redundant_delayed_join() {
             .view(&generator.view(height).await.identifier())
             .await
             .is_some());
+    }
+
+    for install in expected_installs {
+        assert!(bob.install(&install).await.is_some())
     }
 }
