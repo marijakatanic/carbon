@@ -140,3 +140,27 @@ async fn light_pair_stream_publish() {
     assert_eq!(transition.source().height(), 14);
     assert_eq!(transition.destination().height(), 16);
 }
+
+#[tokio::test]
+async fn light_pair_redundant_delayed_join() {
+    let (generator, _server, mut clients) = test::setup(32, 8, Mode::Light).await;
+
+    let alice = clients.next().unwrap();
+
+    let install = generator.install(8, 10, []).await;
+    alice.publish(install).await;
+
+    let install = generator.install(10, 12, []).await;
+    alice.publish(install).await;
+
+    let install = generator.install(8, 14, []).await;
+    alice.publish(install).await;
+
+    alice.beyond(13).await;
+
+    let bob = clients.next().unwrap();
+    let transition = bob.beyond(13).await;
+
+    assert_eq!(transition.source().height(), 8);
+    assert_eq!(transition.destination().height(), 14);
+}
