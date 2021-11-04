@@ -180,7 +180,7 @@ async fn light_pair_cross_publish() {
     let (generator, _server, (alice, bob)) = setup_pair(32, 8, Mode::Light).await;
 
     let mut expected_installs = Vec::new();
-    
+
     let install = generator.install(8, 10, []).await;
     expected_installs.push(install.identifier());
     alice.publish(install).await;
@@ -250,13 +250,16 @@ async fn light_pair_redundant_delayed_join() {
     let (generator, _server, mut clients) = test::setup(32, 8, Mode::Light).await;
 
     let mut expected_installs = Vec::new();
+    let mut excluded_installs = Vec::new();
 
     let alice = clients.next().unwrap();
 
     let install = generator.install(8, 10, []).await;
+    excluded_installs.push(install.identifier());
     alice.publish(install).await;
 
     let install = generator.install(10, 12, []).await;
+    excluded_installs.push(install.identifier());
     alice.publish(install).await;
 
     let install = generator.install(8, 14, []).await;
@@ -280,5 +283,9 @@ async fn light_pair_redundant_delayed_join() {
 
     for install in expected_installs {
         assert!(bob.install(&install).await.is_some())
+    }
+
+    for install in excluded_installs {
+        assert!(bob.install(&install).await.is_none())
     }
 }
