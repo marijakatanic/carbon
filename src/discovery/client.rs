@@ -339,7 +339,7 @@ impl Client {
                         .answer(&question)
                         .pot(HandshakeError::MalformedQuestion, here!())?;
                 } else {
-                    return Ok(());
+                    break Ok(());
                 }
             }
         }
