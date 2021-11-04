@@ -1,31 +1,37 @@
 use crate::{
-    discovery::{Client, ClientSettings, Mode, Server},
+    discovery::{test, Client, Mode, Server},
     view::test::InstallGenerator,
 };
 
-use std::net::Ipv4Addr;
+async fn setup_single(
+    views: usize,
+    genesis: usize,
+    mode: Mode,
+) -> (InstallGenerator, Server, Client) {
+    let (generator, server, clients) = test::setup(views, genesis, 1, mode).await;
+    let mut clients = clients.into_iter();
+
+    (generator, server, clients.next().unwrap())
+}
+
+async fn setup_pair(
+    views: usize,
+    genesis: usize,
+    mode: Mode,
+) -> (InstallGenerator, Server, (Client, Client)) {
+    let (generator, server, clients) = test::setup(views, genesis, 2, mode).await;
+    let mut clients = clients.into_iter();
+
+    (
+        generator,
+        server,
+        (clients.next().unwrap(), clients.next().unwrap()),
+    )
+}
 
 #[tokio::test]
 async fn light_single_publish_then_beyond() {
-    let generator = InstallGenerator::new(32);
-    let genesis = generator.view(8).await;
-
-    let server = Server::new(
-        genesis.clone(),
-        (Ipv4Addr::UNSPECIFIED, 0),
-        Default::default(),
-    )
-    .await
-    .unwrap();
-
-    let client = Client::new(
-        genesis,
-        server.address(),
-        ClientSettings {
-            mode: Mode::Light,
-            ..Default::default()
-        },
-    );
+    let (generator, _server, client) = setup_single(32, 8, Mode::Light).await;
 
     let install = generator.install(8, 10, []).await;
     client.publish(install).await;
@@ -38,25 +44,7 @@ async fn light_single_publish_then_beyond() {
 
 #[tokio::test]
 async fn light_single_adjacent_publishes_then_beyond() {
-    let generator = InstallGenerator::new(32);
-    let genesis = generator.view(8).await;
-
-    let server = Server::new(
-        genesis.clone(),
-        (Ipv4Addr::UNSPECIFIED, 0),
-        Default::default(),
-    )
-    .await
-    .unwrap();
-
-    let client = Client::new(
-        genesis,
-        server.address(),
-        ClientSettings {
-            mode: Mode::Light,
-            ..Default::default()
-        },
-    );
+    let (generator, _server, client) = setup_single(32, 8, Mode::Light).await;
 
     let install = generator.install(8, 10, []).await;
     client.publish(install).await;
@@ -72,25 +60,7 @@ async fn light_single_adjacent_publishes_then_beyond() {
 
 #[tokio::test]
 async fn light_single_overlapping_publishes_then_beyond() {
-    let generator = InstallGenerator::new(32);
-    let genesis = generator.view(8).await;
-
-    let server = Server::new(
-        genesis.clone(),
-        (Ipv4Addr::UNSPECIFIED, 0),
-        Default::default(),
-    )
-    .await
-    .unwrap();
-
-    let client = Client::new(
-        genesis,
-        server.address(),
-        ClientSettings {
-            mode: Mode::Light,
-            ..Default::default()
-        },
-    );
+    let (generator, _server, client) = setup_single(32, 8, Mode::Light).await;
 
     let install = generator.install(8, 10, []).await;
     client.publish(install).await;
@@ -106,25 +76,7 @@ async fn light_single_overlapping_publishes_then_beyond() {
 
 #[tokio::test]
 async fn light_single_redundant_publishes_then_beyond() {
-    let generator = InstallGenerator::new(32);
-    let genesis = generator.view(8).await;
-
-    let server = Server::new(
-        genesis.clone(),
-        (Ipv4Addr::UNSPECIFIED, 0),
-        Default::default(),
-    )
-    .await
-    .unwrap();
-
-    let client = Client::new(
-        genesis,
-        server.address(),
-        ClientSettings {
-            mode: Mode::Light,
-            ..Default::default()
-        },
-    );
+    let (generator, _server, client) = setup_single(32, 8, Mode::Light).await;
 
     let install = generator.install(8, 10, []).await;
     client.publish(install).await;
@@ -143,34 +95,7 @@ async fn light_single_redundant_publishes_then_beyond() {
 
 #[tokio::test]
 async fn light_pair_publish_then_beyond() {
-    let generator = InstallGenerator::new(32);
-    let genesis = generator.view(8).await;
-
-    let server = Server::new(
-        genesis.clone(),
-        (Ipv4Addr::UNSPECIFIED, 0),
-        Default::default(),
-    )
-    .await
-    .unwrap();
-
-    let alice = Client::new(
-        genesis.clone(),
-        server.address(),
-        ClientSettings {
-            mode: Mode::Light,
-            ..Default::default()
-        },
-    );
-
-    let bob = Client::new(
-        genesis,
-        server.address(),
-        ClientSettings {
-            mode: Mode::Light,
-            ..Default::default()
-        },
-    );
+    let (generator, _server, (alice, bob)) = setup_pair(32, 8, Mode::Light).await;
 
     let install = generator.install(8, 10, []).await;
     alice.publish(install).await;
@@ -183,34 +108,7 @@ async fn light_pair_publish_then_beyond() {
 
 #[tokio::test]
 async fn light_pair_cross_publish() {
-    let generator = InstallGenerator::new(32);
-    let genesis = generator.view(8).await;
-
-    let server = Server::new(
-        genesis.clone(),
-        (Ipv4Addr::UNSPECIFIED, 0),
-        Default::default(),
-    )
-    .await
-    .unwrap();
-
-    let alice = Client::new(
-        genesis.clone(),
-        server.address(),
-        ClientSettings {
-            mode: Mode::Light,
-            ..Default::default()
-        },
-    );
-
-    let bob = Client::new(
-        genesis,
-        server.address(),
-        ClientSettings {
-            mode: Mode::Light,
-            ..Default::default()
-        },
-    );
+    let (generator, _server, (alice, bob)) = setup_pair(32, 8, Mode::Light).await;
 
     let install = generator.install(8, 10, []).await;
     alice.publish(install).await;
@@ -226,34 +124,7 @@ async fn light_pair_cross_publish() {
 
 #[tokio::test]
 async fn light_pair_stream_publish() {
-    let generator = InstallGenerator::new(32);
-    let genesis = generator.view(8).await;
-
-    let server = Server::new(
-        genesis.clone(),
-        (Ipv4Addr::UNSPECIFIED, 0),
-        Default::default(),
-    )
-    .await
-    .unwrap();
-
-    let alice = Client::new(
-        genesis.clone(),
-        server.address(),
-        ClientSettings {
-            mode: Mode::Light,
-            ..Default::default()
-        },
-    );
-
-    let bob = Client::new(
-        genesis,
-        server.address(),
-        ClientSettings {
-            mode: Mode::Light,
-            ..Default::default()
-        },
-    );
+    let (generator, _server, (alice, bob)) = setup_pair(32, 8, Mode::Light).await;
 
     let install = generator.install(8, 10, []).await;
     alice.publish(install).await;
