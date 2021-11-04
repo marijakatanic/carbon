@@ -3,7 +3,11 @@ use crate::{
     view::test::InstallGenerator,
 };
 
+use std::time::Duration;
+
 use talk::net::utils::TcpProxy;
+
+use tokio::time;
 
 async fn setup_single(
     views: usize,
@@ -562,6 +566,7 @@ async fn full_pair_redundant_delayed_join() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn full_pair_double_sync() {
     let (generator, _server, mut proxy, mut server_clients, mut proxy_clients) =
         test::setup(32, 8, Mode::Full).await;
@@ -609,6 +614,67 @@ async fn full_pair_double_sync() {
     assert_eq!(transition.destination().height(), 20);
 
     for height in [8, 10, 12, 14, 16, 18, 20] {
+        assert!(bob
+            .view(&generator.view(height).await.identifier())
+            .await
+            .is_some());
+    }
+
+    for install in expected_installs {
+        assert!(bob.install(&install).await.is_some())
+    }
+}
+
+#[tokio::test]
+#[ignore]
+async fn full_pair_double_sync_server_lag() {
+    let (generator, _server, mut proxy, mut server_clients, mut proxy_clients) =
+        test::setup(32, 8, Mode::Full).await;
+
+    let mut expected_installs = Vec::new();
+
+    let alice = server_clients.next().unwrap();
+    let bob = proxy_clients.next().unwrap();
+
+    let install = generator.install(8, 10, [11]).await;
+    expected_installs.push(install.identifier());
+    alice.publish(install).await;
+
+    let install = generator.install(10, 12, [13]).await;
+    expected_installs.push(install.identifier());
+    alice.publish(install).await;
+
+    let install = generator.install(12, 14, [15]).await;
+    expected_installs.push(install.identifier());
+    alice.publish(install).await;
+
+    bob.beyond(12).await;
+
+    proxy.stop().await;
+
+    let address = _server.address();
+    drop(_server);
+
+    time::sleep(Duration::from_millis(500)).await;
+
+    let _server = Server::new(generator.view(8).await, address, Default::default())
+        .await
+        .unwrap();
+
+    let charlie = Client::new(generator.view(8).await, address, Default::default());
+
+    let install = generator.install(8, 16, []).await;
+    charlie.publish(install).await;
+
+    proxy.reset().await;
+    proxy.start().await;
+
+    let transition = bob.beyond(15).await;
+
+    assert_eq!(transition.source().height(), 8);
+    assert_eq!(transition.destination().height(), 16);
+
+    for height in [8, 10, 12, 14, 16] {
         assert!(bob
             .view(&generator.view(height).await.identifier())
             .await
