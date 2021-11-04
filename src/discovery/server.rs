@@ -139,7 +139,7 @@ impl Server {
             let database = database.clone();
             let sync = sync.clone();
 
-            tokio::spawn(async move {
+            fuse.spawn(async move {
                 let _ =
                     Server::listen(listener, database, sync, publication_inlet, frame_outlet).await;
             });
