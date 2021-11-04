@@ -7,11 +7,19 @@ use std::iter;
 use std::iter::Iterator;
 use std::net::Ipv4Addr;
 
+use talk::net::utils::TcpProxy;
+
 pub(crate) async fn setup(
     views: usize,
     genesis: usize,
     mode: Mode,
-) -> (InstallGenerator, Server, impl Iterator<Item = Client>) {
+) -> (
+    InstallGenerator,
+    Server,
+    TcpProxy,
+    impl Iterator<Item = Client>,
+    impl Iterator<Item = Client>,
+) {
     let generator = InstallGenerator::new(views);
     let genesis = generator.view(genesis).await;
 
@@ -23,18 +31,39 @@ pub(crate) async fn setup(
     .await
     .unwrap();
 
-    let address = server.address();
+    let proxy = TcpProxy::new(server.address()).await;
 
-    let clients = iter::repeat_with(move || {
-        Client::new(
-            genesis.clone(),
-            address.clone(),
-            ClientSettings {
-                mode,
-                ..Default::default()
-            },
-        )
-    });
+    let server_clients = {
+        let address = server.address();
+        let genesis = genesis.clone();
 
-    (generator, server, clients)
+        iter::repeat_with(move || {
+            Client::new(
+                genesis.clone(),
+                address.clone(),
+                ClientSettings {
+                    mode,
+                    ..Default::default()
+                },
+            )
+        })
+    };
+
+    let proxy_clients = {
+        let address = proxy.address();
+        let genesis = genesis.clone();
+
+        iter::repeat_with(move || {
+            Client::new(
+                genesis.clone(),
+                address.clone(),
+                ClientSettings {
+                    mode,
+                    ..Default::default()
+                },
+            )
+        })
+    };
+
+    (generator, server, proxy, server_clients, proxy_clients)
 }
