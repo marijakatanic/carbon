@@ -346,7 +346,7 @@ impl Server {
                 update = update_outlet.recv() => {
                     let install = update.map_err(ServeError::update_error).map_err(Doom::into_top).spot(here!())?;
 
-                    connection.send(&vec![install])
+                    connection.send(&Response::Update(vec![install]))
                         .await
                         .pot(ServeError::ConnectionError, here!())?;
                 }
