@@ -5,10 +5,10 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use std::collections::HashMap;
 use std::io;
 use std::sync::Arc;
 use std::time::Duration;
+use std::{borrow::BorrowMut, collections::HashMap};
 
 use talk::crypto::primitives::hash::Hash;
 use talk::net::traits::TcpConnect;
@@ -424,10 +424,7 @@ impl Client {
                     .insert(hash)
                     .pot(AcquireError::UnexpectedInstall, here!())?;
 
-                // TODO: Refactor this to use `borrow_mut`
-                let mut discovered = sync.discovered.take();
-                discovered.execute(transaction);
-                sync.discovered.restore(discovered);
+                BorrowMut::<Collection<_>>::borrow_mut(&mut sync.discovered).execute(transaction);
 
                 if transition.destination().height() > sync.top {
                     sync.top = transition.destination().height();
