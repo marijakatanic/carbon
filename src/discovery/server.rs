@@ -333,7 +333,7 @@ impl Server {
         // Send all install messages in a `Vec`
 
         connection
-            .send::<Vec<Install>>(&installs)
+            .send(&Response::Update(installs))
             .await
             .pot(ServeError::ConnectionError, here!())?;
 

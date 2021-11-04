@@ -289,3 +289,30 @@ async fn light_pair_redundant_delayed_join() {
         assert!(bob.install(&install).await.is_none())
     }
 }
+
+#[tokio::test]
+async fn full_single_publish_then_beyond() {
+    let (generator, _server, client) = setup_single(32, 8, Mode::Full).await;
+
+    let mut expected_installs = Vec::new();
+
+    let install = generator.install(8, 10, []).await;
+    expected_installs.push(install.identifier());
+    client.publish(install).await;
+
+    let transition = client.beyond(8).await;
+
+    assert_eq!(transition.source().height(), 8);
+    assert_eq!(transition.destination().height(), 10);
+
+    for height in [8, 10] {
+        assert!(client
+            .view(&generator.view(height).await.identifier())
+            .await
+            .is_some());
+    }
+
+    for install in expected_installs {
+        assert!(client.install(&install).await.is_some())
+    }
+}
