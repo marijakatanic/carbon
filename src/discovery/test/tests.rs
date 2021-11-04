@@ -37,6 +37,13 @@ async fn light_single_publish_then_beyond() {
 
     assert_eq!(transition.source().height(), 8);
     assert_eq!(transition.destination().height(), 10);
+
+    for height in [8, 10] {
+        assert!(client
+            .view(&generator.view(height).await.identifier())
+            .await
+            .is_some());
+    }
 }
 
 #[tokio::test]
@@ -53,6 +60,13 @@ async fn light_single_adjacent_publishes_then_beyond() {
 
     assert_eq!(transition.source().height(), 10);
     assert_eq!(transition.destination().height(), 12);
+
+    for height in [8, 10, 12] {
+        assert!(client
+            .view(&generator.view(height).await.identifier())
+            .await
+            .is_some());
+    }
 }
 
 #[tokio::test]
@@ -69,6 +83,13 @@ async fn light_single_overlapping_publishes_then_beyond() {
 
     assert_eq!(transition.source().height(), 8);
     assert_eq!(transition.destination().height(), 12);
+
+    for height in [8, 12] {
+        assert!(client
+            .view(&generator.view(height).await.identifier())
+            .await
+            .is_some());
+    }
 }
 
 #[tokio::test]
@@ -88,6 +109,13 @@ async fn light_single_redundant_publishes_then_beyond() {
 
     assert_eq!(transition.source().height(), 10);
     assert_eq!(transition.destination().height(), 12);
+
+    for height in [8, 10, 12] {
+        assert!(client
+            .view(&generator.view(height).await.identifier())
+            .await
+            .is_some());
+    }
 }
 
 #[tokio::test]
@@ -101,6 +129,13 @@ async fn light_pair_publish_then_beyond() {
 
     assert_eq!(transition.source().height(), 8);
     assert_eq!(transition.destination().height(), 10);
+
+    for height in [8, 10] {
+        assert!(bob
+            .view(&generator.view(height).await.identifier())
+            .await
+            .is_some());
+    }
 }
 
 #[tokio::test]
@@ -117,6 +152,13 @@ async fn light_pair_cross_publish() {
 
     assert_eq!(transition.source().height(), 10);
     assert_eq!(transition.destination().height(), 12);
+
+    for height in [8, 10, 12] {
+        assert!(alice
+            .view(&generator.view(height).await.identifier())
+            .await
+            .is_some());
+    }
 }
 
 #[tokio::test]
@@ -139,6 +181,13 @@ async fn light_pair_stream_publish() {
 
     assert_eq!(transition.source().height(), 14);
     assert_eq!(transition.destination().height(), 16);
+
+    for height in [8, 10, 12, 14, 16] {
+        assert!(bob
+            .view(&generator.view(height).await.identifier())
+            .await
+            .is_some());
+    }
 }
 
 #[tokio::test]
@@ -163,4 +212,11 @@ async fn light_pair_redundant_delayed_join() {
 
     assert_eq!(transition.source().height(), 8);
     assert_eq!(transition.destination().height(), 14);
+
+    for height in [8, 14] {
+        assert!(bob
+            .view(&generator.view(height).await.identifier())
+            .await
+            .is_some());
+    }
 }
