@@ -4,7 +4,7 @@ use crate::{
     view::View,
 };
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use talk::crypto::Identity;
@@ -25,13 +25,13 @@ type ResultInlet = OneshotSender<bool>;
 type ResultOutlet = OneshotReceiver<bool>;
 
 pub(in crate::lattice) struct LatticeRunner<
-    Instance: UnicastMessage + Clone,
+    Instance: UnicastMessage + Clone + Eq,
     Element: LatticeElement,
 > {
     view: View,
     instance: Instance,
 
-    members: HashSet<Identity>,
+    members: HashMap<Identity, KeyCard>,
 
     keychain: KeyChain,
     database: Database<Instance, Element>,
@@ -46,12 +46,12 @@ pub(in crate::lattice) struct LatticeRunner<
     fuse: Fuse,
 }
 
-struct Database<Instance: UnicastMessage + Clone, Element: LatticeElement> {
+struct Database<Instance: UnicastMessage + Clone + Eq, Element: LatticeElement> {
     safe_elements: HashMap<Hash, Element>,
     disclosure: DisclosureDatabase<Instance, Element>,
 }
 
-struct DisclosureDatabase<Instance: UnicastMessage + Clone, Element: LatticeElement> {
+struct DisclosureDatabase<Instance: UnicastMessage + Clone + Eq, Element: LatticeElement> {
     disclosed: bool,
     disclosures: HashMap<(Identity, Hash), DisclosureSend<Instance, Element>>,
 }
@@ -62,7 +62,7 @@ struct Settings {
 
 impl<Instance, Element> LatticeRunner<Instance, Element>
 where
-    Instance: UnicastMessage + Clone,
+    Instance: UnicastMessage + Clone + Eq,
     Element: LatticeElement,
 {
     pub fn new(
@@ -74,7 +74,12 @@ where
         receiver: Receiver<Message<Instance, Element>>,
         proposal_outlet: ProposalOutlet<Element>,
     ) -> Self {
-        let members = view.members().iter().map(KeyCard::identity).collect();
+        let members = view
+            .members()
+            .iter()
+            .cloned()
+            .map(|keycard| (keycard.identity(), keycard))
+            .collect();
 
         let database = Database {
             safe_elements: HashMap::new(),
@@ -140,9 +145,22 @@ where
         message: Message<Instance, Element>,
         acknowledger: Acknowledger,
     ) {
-        if !self.members.contains(&source) {
+        if let Some(keycard) = self.members.get(&source) {
+            if self.validate_message(keycard, &message) {
+                
+            } else {
+                // Message invalid
+            }
+        } else {
             // Foreign source
-            return;
+        }
+    }
+
+    fn validate_message(&self, source: &KeyCard, message: &Message<Instance, Element>) -> bool {
+        match message {
+            Message::DisclosureSend(disclosure_send) => {
+                disclosure_send.validate(&self.instance, &self.discovery, &self.view, source)
+            }
         }
     }
 
@@ -174,7 +192,7 @@ where
 
         let broadcast = BestEffort::new(
             self.sender.clone(),
-            self.members.iter().cloned(),
+            self.members.keys().cloned(),
             message,
             self.settings.broadcast.clone(),
         );

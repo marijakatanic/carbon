@@ -22,7 +22,7 @@ type ProposalOutlet<Element> = OneshotReceiver<(Element, ResultInlet)>;
 type ResultInlet = OneshotSender<bool>;
 type ResultOutlet = OneshotReceiver<bool>;
 
-pub(crate) struct LatticeAgreement<Instance: UnicastMessage + Clone, Element: LatticeElement> {
+pub(crate) struct LatticeAgreement<Instance: UnicastMessage + Clone + Eq, Element: LatticeElement> {
     instance: Instance,
     proposal_inlet: Option<ProposalInlet<Element>>,
     _fuse: Fuse,
@@ -36,7 +36,7 @@ pub(crate) enum LatticeAgreementError {
 
 impl<Instance, Element> LatticeAgreement<Instance, Element>
 where
-    Instance: UnicastMessage + Clone,
+    Instance: UnicastMessage + Clone + Eq,
     Element: LatticeElement,
 {
     pub fn new<C, L>(
