@@ -1,9 +1,12 @@
 use crate::{
+    discovery::Client,
     lattice::{LatticeElement, LatticeRunner, Message},
     view::View,
 };
 
 use doomstack::{Doom, Top};
+
+use std::sync::Arc;
 
 use talk::crypto::KeyChain;
 use talk::net::{Connector, Listener};
@@ -40,6 +43,7 @@ where
         view: View,
         instance: Instance,
         keychain: KeyChain,
+        discovery: Arc<Client>,
         connector: C,
         listener: L,
     ) -> Self
@@ -58,8 +62,15 @@ where
 
         {
             let instance = instance.clone();
-            let mut runner =
-                LatticeRunner::new(view, instance, keychain, sender, receiver, proposal_outlet);
+            let mut runner = LatticeRunner::new(
+                view,
+                instance,
+                keychain,
+                discovery,
+                sender,
+                receiver,
+                proposal_outlet,
+            );
 
             fuse.spawn(async move {
                 let _ = runner.run().await;

@@ -1,9 +1,11 @@
 use crate::{
+    discovery::Client,
     lattice::{messages::DisclosureSend, statements::Disclosure, LatticeElement, Message},
     view::View,
 };
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use talk::crypto::Identity;
 use talk::crypto::{KeyCard, KeyChain};
@@ -34,6 +36,7 @@ pub(in crate::lattice) struct LatticeRunner<
     keychain: KeyChain,
     database: Database<Instance, Element>,
 
+    discovery: Arc<Client>,
     sender: Sender<Message<Instance, Element>>,
     receiver: Receiver<Message<Instance, Element>>,
 
@@ -66,6 +69,7 @@ where
         view: View,
         instance: Instance,
         keychain: KeyChain,
+        discovery: Arc<Client>,
         sender: Sender<Message<Instance, Element>>,
         receiver: Receiver<Message<Instance, Element>>,
         proposal_outlet: ProposalOutlet<Element>,
@@ -98,6 +102,7 @@ where
             members,
             keychain,
             database,
+            discovery,
             sender,
             receiver,
             proposal_outlet,
