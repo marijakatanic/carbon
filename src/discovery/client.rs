@@ -83,8 +83,8 @@ enum ListenError {
     ConnectionError,
     #[doom(description("Unexpected response"))]
     UnexpectedResponse,
-    #[doom(description("Error while acquiring install message"))]
-    AcquireError,
+    #[doom(description("`acquire` failed"))]
+    AcquireFailed,
 }
 
 #[derive(Doom)]
@@ -368,7 +368,7 @@ impl Client {
                 Response::Update(update) => {
                     Client::acquire(database, sync, transition_inlet, update)
                         .await
-                        .pot(ListenError::AcquireError, here!())?;
+                        .pot(ListenError::AcquireFailed, here!())?;
                 }
                 Response::KeepAlive => {}
                 _ => {
