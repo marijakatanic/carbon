@@ -4,12 +4,12 @@ use doomstack::{Doom, Top};
 
 use talk::unicast::Message;
 
-pub(crate) trait LatticeElement: Message + Clone {
-    fn validate(&self, client: &Client, view: &View) -> Result<(), Top<LatticeElementError>>;
+pub(crate) trait Element: Message + Clone {
+    fn validate(&self, client: &Client, view: &View) -> Result<(), Top<ElementError>>;
 }
 
 #[derive(Doom)]
-pub(crate) enum LatticeElementError {
+pub(crate) enum ElementError {
     #[doom(description("Lattice element invalid"))]
     ElementInvalid,
 }

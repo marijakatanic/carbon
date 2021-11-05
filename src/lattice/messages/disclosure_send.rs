@@ -1,6 +1,6 @@
 use crate::{
     discovery::Client,
-    lattice::{statements::Disclosure, LatticeElement},
+    lattice::{statements::Disclosure, Element as LatticeElement, Instance as LatticeInstance},
     view::View,
 };
 
@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 
 use talk::crypto::primitives::sign::Signature;
 use talk::crypto::KeyCard;
-use talk::unicast::Message as UnicastMessage;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(in crate::lattice) struct DisclosureSend<Instance, Element> {
@@ -18,7 +17,7 @@ pub(in crate::lattice) struct DisclosureSend<Instance, Element> {
 
 impl<Instance, Element> DisclosureSend<Instance, Element>
 where
-    Instance: UnicastMessage + Clone + Eq,
+    Instance: LatticeInstance,
     Element: LatticeElement,
 {
     pub fn validate(

@@ -1,6 +1,9 @@
 use crate::{
     discovery::Client,
-    lattice::{messages::DisclosureSend, statements::Disclosure, LatticeElement, Message},
+    lattice::{
+        messages::DisclosureSend, statements::Disclosure, Element as LatticeElement,
+        Instance as LatticeInstance, Message,
+    },
     view::View,
 };
 
@@ -10,9 +13,7 @@ use std::sync::Arc;
 use talk::crypto::Identity;
 use talk::crypto::{KeyCard, KeyChain};
 use talk::sync::fuse::Fuse;
-use talk::unicast::{
-    Acknowledgement, Acknowledger, Message as UnicastMessage, PushSettings, Receiver, Sender,
-};
+use talk::unicast::{Acknowledgement, Acknowledger, PushSettings, Receiver, Sender};
 use talk::{broadcast::BestEffort, crypto::primitives::hash};
 use talk::{broadcast::BestEffortSettings, crypto::primitives::hash::Hash};
 
@@ -24,10 +25,7 @@ type ProposalOutlet<Element> = OneshotReceiver<(Element, ResultInlet)>;
 type ResultInlet = OneshotSender<bool>;
 type ResultOutlet = OneshotReceiver<bool>;
 
-pub(in crate::lattice) struct LatticeRunner<
-    Instance: UnicastMessage + Clone + Eq,
-    Element: LatticeElement,
-> {
+pub(in crate::lattice) struct LatticeRunner<Instance: LatticeInstance, Element: LatticeElement> {
     view: View,
     instance: Instance,
 
@@ -46,12 +44,12 @@ pub(in crate::lattice) struct LatticeRunner<
     fuse: Fuse,
 }
 
-struct Database<Instance: UnicastMessage + Clone + Eq, Element: LatticeElement> {
+struct Database<Instance: LatticeInstance, Element: LatticeElement> {
     safe_elements: HashMap<Hash, Element>,
     disclosure: DisclosureDatabase<Instance, Element>,
 }
 
-struct DisclosureDatabase<Instance: UnicastMessage + Clone + Eq, Element: LatticeElement> {
+struct DisclosureDatabase<Instance: LatticeInstance, Element: LatticeElement> {
     disclosed: bool,
     disclosures: HashMap<(Identity, Hash), DisclosureSend<Instance, Element>>,
 }
@@ -62,7 +60,7 @@ struct Settings {
 
 impl<Instance, Element> LatticeRunner<Instance, Element>
 where
-    Instance: UnicastMessage + Clone + Eq,
+    Instance: LatticeInstance,
     Element: LatticeElement,
 {
     pub fn new(
@@ -147,7 +145,6 @@ where
     ) {
         if let Some(keycard) = self.members.get(&source) {
             if self.validate_message(keycard, &message) {
-                
             } else {
                 // Message invalid
             }

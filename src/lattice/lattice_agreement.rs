@@ -1,6 +1,6 @@
 use crate::{
     discovery::Client,
-    lattice::{LatticeElement, LatticeRunner, Message},
+    lattice::{Element as LatticeElement, Instance as LatticeInstance, LatticeRunner, Message},
     view::View,
 };
 
@@ -11,7 +11,7 @@ use std::sync::Arc;
 use talk::crypto::KeyChain;
 use talk::net::{Connector, Listener};
 use talk::sync::fuse::Fuse;
-use talk::unicast::{Message as UnicastMessage, Receiver, Sender};
+use talk::unicast::{Receiver, Sender};
 
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::{Receiver as OneshotReceiver, Sender as OneshotSender};
@@ -22,7 +22,7 @@ type ProposalOutlet<Element> = OneshotReceiver<(Element, ResultInlet)>;
 type ResultInlet = OneshotSender<bool>;
 type ResultOutlet = OneshotReceiver<bool>;
 
-pub(crate) struct LatticeAgreement<Instance: UnicastMessage + Clone + Eq, Element: LatticeElement> {
+pub(crate) struct LatticeAgreement<Instance: LatticeInstance, Element: LatticeElement> {
     instance: Instance,
     proposal_inlet: Option<ProposalInlet<Element>>,
     _fuse: Fuse,
@@ -36,7 +36,7 @@ pub(crate) enum LatticeAgreementError {
 
 impl<Instance, Element> LatticeAgreement<Instance, Element>
 where
-    Instance: UnicastMessage + Clone + Eq,
+    Instance: LatticeInstance,
     Element: LatticeElement,
 {
     pub fn new<C, L>(
