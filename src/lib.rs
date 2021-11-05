@@ -9,3 +9,6 @@ mod discovery;
 
 #[allow(dead_code)]
 mod view;
+
+#[allow(dead_code)]
+mod lattice;
