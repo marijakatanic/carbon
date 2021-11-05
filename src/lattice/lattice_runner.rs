@@ -32,7 +32,7 @@ pub(in crate::lattice) struct LatticeRunner<
     members: HashSet<Identity>,
 
     keychain: KeyChain,
-    database: Database<Element>,
+    database: Database<Instance, Element>,
 
     sender: Sender<Message<Instance, Element>>,
     receiver: Receiver<Message<Instance, Element>>,
@@ -43,18 +43,18 @@ pub(in crate::lattice) struct LatticeRunner<
     fuse: Fuse,
 }
 
-struct Database<Element: LatticeElement> {
+struct Database<Instance: UnicastMessage + Clone, Element: LatticeElement> {
     safe_elements: HashMap<Hash, Element>,
-    already_proposed: bool,
+    disclosure: DisclosureDatabase<Instance, Element>,
+}
+
+struct DisclosureDatabase<Instance: UnicastMessage + Clone, Element: LatticeElement> {
+    disclosed: bool,
+    disclosures: HashMap<(Identity, Hash), DisclosureSend<Instance, Element>>,
 }
 
 struct Settings {
-    broadcast: BroadcastSettings,
-}
-
-struct BroadcastSettings {
-    weak: BestEffortSettings,
-    strong: BestEffortSettings,
+    broadcast: BestEffortSettings,
 }
 
 impl<Instance, Element> LatticeRunner<Instance, Element>
@@ -74,22 +74,18 @@ where
 
         let database = Database {
             safe_elements: HashMap::new(),
-            already_proposed: false,
+            disclosure: DisclosureDatabase {
+                disclosed: false,
+                disclosures: HashMap::new(),
+            },
         };
 
+        // TODO: Forward variable settings
         let settings = Settings {
-            broadcast: BroadcastSettings {
-                weak: BestEffortSettings {
-                    push_settings: PushSettings {
-                        stop_condition: Acknowledgement::Weak,
-                        ..Default::default()
-                    },
-                },
-                strong: BestEffortSettings {
-                    push_settings: PushSettings {
-                        stop_condition: Acknowledgement::Strong,
-                        ..Default::default()
-                    },
+            broadcast: BestEffortSettings {
+                push_settings: PushSettings {
+                    stop_condition: Acknowledgement::Strong,
+                    ..Default::default()
                 },
             },
         };
@@ -125,7 +121,7 @@ where
     }
 
     async fn handle_proposal(&mut self, proposal: Element, result_inlet: ResultInlet) {
-        if !self.database.already_proposed {
+        if !self.disclosed() {
             self.disclose(proposal).await;
             let _ = result_inlet.send(true);
         } else {
@@ -145,8 +141,12 @@ where
         }
     }
 
+    fn disclosed(&self) -> bool {
+        self.database.disclosure.disclosed
+    }
+
     async fn disclose(&mut self, proposal: Element) {
-        self.database.already_proposed = true;
+        self.database.disclosure.disclosed = true;
 
         self.database
             .safe_elements
@@ -171,7 +171,7 @@ where
             self.sender.clone(),
             self.members.iter().cloned(),
             message,
-            self.settings.broadcast.strong.clone(),
+            self.settings.broadcast.clone(),
         );
 
         broadcast.spawn(&self.fuse);
