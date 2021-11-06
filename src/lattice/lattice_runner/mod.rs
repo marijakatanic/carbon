@@ -176,7 +176,7 @@ where
     ) -> Result<(), Top<MessageError>> {
         match message {
             Message::DisclosureSend(message) => self.validate_disclosure_send(source, message),
-            Message::DisclosureEcho(_) => todo!(),
+            Message::DisclosureEcho(message) => self.validate_disclosure_echo(source, message),
         }
     }
 
@@ -190,7 +190,9 @@ where
             Message::DisclosureSend(message) => {
                 self.process_disclosure_send(source, message, acknowledger);
             }
-            Message::DisclosureEcho(_) => todo!(),
+            Message::DisclosureEcho(message) => {
+                self.process_disclosure_echo(source, message, acknowledger);
+            }
         }
     }
 }

@@ -62,8 +62,14 @@ where
                 let broadcast = BestEffort::brief(
                     self.sender.clone(),
                     self.members.keys().cloned(),
-                    Message::DisclosureEcho(DisclosureEcho::Brief(identifier)),
-                    Message::DisclosureEcho(DisclosureEcho::Expanded(message)),
+                    Message::DisclosureEcho(DisclosureEcho::Brief {
+                        origin: source,
+                        disclosure: identifier,
+                    }),
+                    Message::DisclosureEcho(DisclosureEcho::Expanded {
+                        origin: source,
+                        disclosure: message,
+                    }),
                     self.settings.broadcast.clone(),
                 );
 
