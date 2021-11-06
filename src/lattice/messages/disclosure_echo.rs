@@ -7,5 +7,5 @@ use talk::crypto::primitives::hash::Hash;
 #[derive(Clone, Serialize, Deserialize)]
 pub(in crate::lattice) enum DisclosureEcho<Instance, Element> {
     Brief(Hash),
-    Extended(DisclosureSend<Instance, Element>),
+    Expanded(DisclosureSend<Instance, Element>),
 }

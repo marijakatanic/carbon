@@ -1,4 +1,4 @@
-use crate::lattice::messages::DisclosureSend;
+use crate::lattice::messages::{DisclosureEcho, DisclosureSend};
 
 use doomstack::Doom;
 
@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Serialize, Deserialize)]
 pub(in crate::lattice) enum Message<Instance, Element> {
     DisclosureSend(DisclosureSend<Instance, Element>),
+    DisclosureEcho(DisclosureEcho<Instance, Element>),
 }
 
 #[derive(Doom)]

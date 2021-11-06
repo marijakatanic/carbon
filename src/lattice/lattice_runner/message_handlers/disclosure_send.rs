@@ -1,11 +1,13 @@
 use crate::lattice::{
-    messages::DisclosureSend, Element as LatticeElement, Instance as LatticeInstance,
-    LatticeRunner, MessageError,
+    messages::{DisclosureEcho, DisclosureSend},
+    Element as LatticeElement, Instance as LatticeInstance, LatticeRunner, Message, MessageError,
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use talk::{crypto::KeyCard, unicast::Acknowledger};
+use talk::broadcast::BestEffort;
+use talk::crypto::KeyCard;
+use talk::unicast::Acknowledger;
 
 impl<Instance, Element> LatticeRunner<Instance, Element>
 where
@@ -38,11 +40,37 @@ where
     }
 
     pub(in crate::lattice::lattice_runner) fn process_disclosure_send(
-        &self,
-        _source: &KeyCard,
-        _message: DisclosureSend<Instance, Element>,
-        _acknowledger: Acknowledger,
+        &mut self,
+        source: &KeyCard,
+        message: DisclosureSend<Instance, Element>,
+        acknowledger: Acknowledger,
     ) {
-        todo!()
+        let source = source.identity();
+        let identifier = message.identifier();
+
+        self.database
+            .disclosure
+            .disclosures_received
+            .insert((source, identifier), message.clone());
+
+        if !self.database.disclosure.echoes_sent.contains_key(&source) {
+            // No message from `source` was previously echoed
+
+            self.database
+                .disclosure
+                .echoes_sent
+                .insert(source, identifier);
+
+            let broadcast = BestEffort::brief(
+                self.sender.clone(),
+                self.members.keys().cloned(),
+                Message::DisclosureEcho(DisclosureEcho::Brief(identifier)),
+                Message::DisclosureEcho(DisclosureEcho::Expanded(message)),
+                self.settings.broadcast.clone(),
+            );
+
+            broadcast.spawn(&self.fuse);
+            acknowledger.strong()
+        }
     }
 }

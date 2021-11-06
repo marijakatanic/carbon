@@ -9,7 +9,7 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use talk::crypto::Identity;
@@ -52,7 +52,10 @@ struct Database<Instance: LatticeInstance, Element: LatticeElement> {
 
 struct DisclosureDatabase<Instance: LatticeInstance, Element: LatticeElement> {
     disclosed: bool,
-    disclosures: HashMap<(Identity, Hash), DisclosureSend<Instance, Element>>,
+    disclosures_received: HashMap<(Identity, Hash), DisclosureSend<Instance, Element>>,
+
+    echoes_sent: HashMap<Identity, Hash>,
+    echoes_received: HashMap<(Identity, Hash), HashSet<Identity>>,
 }
 
 struct Settings {
@@ -92,7 +95,9 @@ where
             safe_elements: HashMap::new(),
             disclosure: DisclosureDatabase {
                 disclosed: false,
-                disclosures: HashMap::new(),
+                disclosures_received: HashMap::new(),
+                echoes_sent: HashMap::new(),
+                echoes_received: HashMap::new(),
             },
         };
 
@@ -171,6 +176,7 @@ where
     ) -> Result<(), Top<MessageError>> {
         match message {
             Message::DisclosureSend(message) => self.validate_disclosure_send(source, message),
+            Message::DisclosureEcho(_) => todo!(),
         }
     }
 
@@ -184,6 +190,7 @@ where
             Message::DisclosureSend(message) => {
                 self.process_disclosure_send(source, message, acknowledger);
             }
+            Message::DisclosureEcho(_) => todo!(),
         }
     }
 }
