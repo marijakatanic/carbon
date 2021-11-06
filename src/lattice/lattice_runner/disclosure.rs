@@ -4,7 +4,6 @@ use crate::lattice::{
 };
 
 use talk::broadcast::BestEffort;
-use talk::crypto::primitives::hash;
 
 impl<Instance, Element> LatticeRunner<Instance, Element>
 where
@@ -20,7 +19,7 @@ where
 
         self.database
             .safe_elements
-            .insert(hash::hash(&proposal).unwrap(), proposal.clone());
+            .insert(proposal.identifier(), proposal.clone());
 
         let disclosure = Disclosure {
             view: self.view.identifier(),
