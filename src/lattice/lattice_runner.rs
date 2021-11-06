@@ -28,36 +28,38 @@ type ResultInlet = OneshotSender<bool>;
 type ResultOutlet = OneshotReceiver<bool>;
 
 pub(in crate::lattice) struct LatticeRunner<Instance: LatticeInstance, Element: LatticeElement> {
-    view: View,
-    instance: Instance,
+    pub(in crate::lattice) view: View,
+    pub(in crate::lattice) instance: Instance,
 
-    members: HashMap<Identity, KeyCard>,
+    pub(in crate::lattice) members: HashMap<Identity, KeyCard>,
 
-    keychain: KeyChain,
-    database: Database<Instance, Element>,
+    pub(in crate::lattice) keychain: KeyChain,
+    pub(in crate::lattice) database: Database<Instance, Element>,
 
-    discovery: Arc<Client>,
-    sender: Sender<Message<Instance, Element>>,
-    receiver: Receiver<Message<Instance, Element>>,
+    pub(in crate::lattice) discovery: Arc<Client>,
+    pub(in crate::lattice) sender: Sender<Message<Instance, Element>>,
+    pub(in crate::lattice) receiver: Receiver<Message<Instance, Element>>,
 
-    proposal_outlet: ProposalOutlet<Element>,
+    pub(in crate::lattice) proposal_outlet: ProposalOutlet<Element>,
 
-    settings: Settings,
-    fuse: Fuse,
+    pub(in crate::lattice) settings: Settings,
+    pub(in crate::lattice) fuse: Fuse,
 }
 
-struct Database<Instance: LatticeInstance, Element: LatticeElement> {
-    safe_elements: HashMap<Hash, Element>,
-    disclosure: DisclosureDatabase<Instance, Element>,
+pub(in crate::lattice) struct Database<Instance: LatticeInstance, Element: LatticeElement> {
+    pub(in crate::lattice) safe_elements: HashMap<Hash, Element>,
+    pub(in crate::lattice) disclosure: DisclosureDatabase<Instance, Element>,
 }
 
-struct DisclosureDatabase<Instance: LatticeInstance, Element: LatticeElement> {
-    disclosed: bool,
-    disclosures: HashMap<(Identity, Hash), DisclosureSend<Instance, Element>>,
+pub(in crate::lattice) struct DisclosureDatabase<Instance: LatticeInstance, Element: LatticeElement>
+{
+    pub(in crate::lattice) disclosed: bool,
+    pub(in crate::lattice) disclosures:
+        HashMap<(Identity, Hash), DisclosureSend<Instance, Element>>,
 }
 
-struct Settings {
-    broadcast: BestEffortSettings,
+pub(in crate::lattice) struct Settings {
+    pub(in crate::lattice) broadcast: BestEffortSettings,
 }
 
 #[derive(Doom)]
