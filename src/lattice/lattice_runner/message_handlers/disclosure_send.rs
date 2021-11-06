@@ -5,6 +5,8 @@ use crate::lattice::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
+use std::collections::hash_map::Entry;
+
 use talk::broadcast::BestEffort;
 use talk::crypto::KeyCard;
 use talk::unicast::Acknowledger;
@@ -53,24 +55,23 @@ where
             .disclosures_received
             .insert((source, identifier), message.clone());
 
-        if !self.database.disclosure.echoes_sent.contains_key(&source) {
-            // No message from `source` was previously echoed
+        match self.database.disclosure.echoes_sent.entry(source) {
+            Entry::Vacant(entry) => {
+                entry.insert(identifier);
 
-            self.database
-                .disclosure
-                .echoes_sent
-                .insert(source, identifier);
+                let broadcast = BestEffort::brief(
+                    self.sender.clone(),
+                    self.members.keys().cloned(),
+                    Message::DisclosureEcho(DisclosureEcho::Brief(identifier)),
+                    Message::DisclosureEcho(DisclosureEcho::Expanded(message)),
+                    self.settings.broadcast.clone(),
+                );
 
-            let broadcast = BestEffort::brief(
-                self.sender.clone(),
-                self.members.keys().cloned(),
-                Message::DisclosureEcho(DisclosureEcho::Brief(identifier)),
-                Message::DisclosureEcho(DisclosureEcho::Expanded(message)),
-                self.settings.broadcast.clone(),
-            );
-
-            broadcast.spawn(&self.fuse);
-            acknowledger.strong()
+                broadcast.spawn(&self.fuse);
+                acknowledger.strong()
+            }
+            Entry::Occupied(entry) if *entry.get() == identifier => acknowledger.strong(),
+            _ => (),
         }
     }
 }
