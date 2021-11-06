@@ -2,10 +2,12 @@ use crate::{
     discovery::Client,
     lattice::{
         messages::DisclosureSend, statements::Disclosure, Element as LatticeElement,
-        Instance as LatticeInstance, Message,
+        Instance as LatticeInstance, Message, MessageError,
     },
     view::View,
 };
+
+use doomstack::{here, Doom, ResultExt, Top};
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -56,6 +58,14 @@ struct DisclosureDatabase<Instance: LatticeInstance, Element: LatticeElement> {
 
 struct Settings {
     broadcast: BestEffortSettings,
+}
+
+#[derive(Doom)]
+enum HandleError {
+    #[doom(description("Message from a source foreign to the `View`"))]
+    ForeignSource,
+    #[doom(description("Invalid message"))]
+    InvalidMessage,
 }
 
 impl<Instance, Element> LatticeRunner<Instance, Element>
@@ -122,7 +132,7 @@ where
                 }
 
                 (source, message, acknowledger) = self.receiver.receive() => {
-                    self.handle_message(source, message, acknowledger).await
+                    let _ = self.handle_message(source, message, acknowledger).await;
                 }
             }
         }
@@ -142,21 +152,41 @@ where
         source: Identity,
         message: Message<Instance, Element>,
         acknowledger: Acknowledger,
-    ) {
+    ) -> Result<(), Top<HandleError>> {
         if let Some(keycard) = self.members.get(&source) {
-            if self.validate_message(keycard, &message) {
-            } else {
-                // Message invalid
-            }
+            self.validate_message(keycard, &message)
+                .pot(HandleError::InvalidMessage, here!())?;
+
+            let keycard = keycard.clone();
+            self.process_message(keycard, message, acknowledger);
+
+            Ok(())
         } else {
-            // Foreign source
+            HandleError::ForeignSource.fail().spot(here!())
         }
     }
 
-    fn validate_message(&self, source: &KeyCard, message: &Message<Instance, Element>) -> bool {
+    fn validate_message(
+        &self,
+        source: &KeyCard,
+        message: &Message<Instance, Element>,
+    ) -> Result<(), Top<MessageError>> {
         match message {
             Message::DisclosureSend(disclosure_send) => {
                 disclosure_send.validate(&self.instance, &self.discovery, &self.view, source)
+            }
+        }
+    }
+
+    fn process_message(
+        &mut self,
+        source: KeyCard,
+        message: Message<Instance, Element>,
+        acknowledger: Acknowledger,
+    ) {
+        match message {
+            Message::DisclosureSend(disclosure_send) => {
+                self.process_disclosure_send(source, disclosure_send, acknowledger);
             }
         }
     }

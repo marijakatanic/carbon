@@ -9,6 +9,7 @@ mod statements;
 
 use lattice_runner::LatticeRunner;
 use message::Message;
+use message::MessageError;
 
 #[allow(unused_imports)]
 pub(crate) use element::Element;
