@@ -43,7 +43,7 @@ where
             let support = self
                 .database
                 .disclosure
-                .echo_support
+                .ready_support
                 .entry((origin, identifier))
                 .or_insert(0);
 
@@ -65,25 +65,8 @@ where
 
                 broadcast.spawn(&self.fuse);
             }
-
-            let disclosure = self
-                .database
-                .disclosure
-                .disclosures_received
-                .get(&(origin, identifier))
-                .map(|send| &send.disclosure.element)
-                .cloned();
-
-            if disclosure.is_some()
-                && support >= self.view.quorum()
-                && !self
-                    .database
-                    .disclosure
-                    .disclosures_delivered
-                    .insert(origin)
-            {
-                self.deliver_disclosure(origin, disclosure.unwrap());
-            }
         }
+
+        self.try_deliver_disclosure(source, identifier);
     }
 }

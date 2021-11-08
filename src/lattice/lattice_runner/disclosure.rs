@@ -4,6 +4,7 @@ use crate::lattice::{
 };
 
 use talk::broadcast::BestEffort;
+use talk::crypto::primitives::hash::Hash;
 use talk::crypto::Identity;
 
 impl<Instance, Element> LatticeRunner<Instance, Element>
@@ -47,11 +48,39 @@ where
         broadcast.spawn(&self.fuse);
     }
 
-    pub(in crate::lattice::lattice_runner) fn deliver_disclosure(
+    pub(in crate::lattice::lattice_runner) fn try_deliver_disclosure(
         &mut self,
         origin: Identity,
-        proposal: Element,
+        identifier: Hash,
     ) {
+        let disclosure = self
+            .database
+            .disclosure
+            .disclosures_received
+            .get(&(origin, identifier))
+            .map(|send| &send.disclosure.element)
+            .cloned();
+
+        let support = self
+            .database
+            .disclosure
+            .ready_support
+            .entry((origin, identifier))
+            .or_insert(0);
+
+        if disclosure.is_some()
+            && *support >= self.view.quorum()
+            && self
+                .database
+                .disclosure
+                .disclosures_delivered
+                .insert(origin)
+        {
+            self.deliver_disclosure(origin, disclosure.unwrap());
+        }
+    }
+
+    fn deliver_disclosure(&mut self, origin: Identity, proposal: Element) {
         // TODO: Implements rest of Lattice Agreement
     }
 }

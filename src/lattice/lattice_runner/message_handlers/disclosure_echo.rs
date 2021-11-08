@@ -53,11 +53,17 @@ where
             DisclosureEcho::Expanded { origin, disclosure } => {
                 let identifier = disclosure.identifier();
 
-                self.database
+                if self
+                    .database
                     .disclosure
                     .disclosures_received
-                    .entry((origin, identifier))
-                    .or_insert(disclosure);
+                    .insert((source, identifier), disclosure)
+                    .is_none()
+                {
+                    // We might have already been prepared to deliver this disclosure (enough ready support)
+                    // but were waiting to acquire its concrete value (the expanded version)
+                    self.try_deliver_disclosure(source, identifier);
+                };
 
                 (origin, identifier)
             }

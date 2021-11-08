@@ -52,10 +52,17 @@ where
         let source = source.identity();
         let identifier = message.identifier();
 
-        self.database
+        if self
+            .database
             .disclosure
             .disclosures_received
-            .insert((source, identifier), message.clone());
+            .insert((source, identifier), message.clone())
+            .is_none()
+        {
+            // We might have already been prepared to deliver this disclosure (enough ready support)
+            // but were waiting to acquire its concrete value (the expanded version)
+            self.try_deliver_disclosure(source, identifier);
+        };
 
         if let Entry::Vacant(entry) = self.database.disclosure.echoes_sent.entry(source) {
             entry.insert(identifier);
