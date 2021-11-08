@@ -64,7 +64,7 @@ where
 
         acknowledger.strong();
 
-        if !self
+        if self
             .database
             .disclosure
             .ready_collected
@@ -81,15 +81,15 @@ where
             let support = *support;
 
             if support >= self.view.plurality()
-                && !self.database.disclosure.ready_sent.insert(origin)
+                && self.database.disclosure.ready_sent.insert(origin)
             {
                 let brief = DisclosureReady::Brief {
-                    origin: source,
+                    origin,
                     proposal: identifier,
                 };
 
                 let expanded = DisclosureReady::Expanded {
-                    origin: source,
+                    origin,
                     proposal: proposal.clone(),
                 };
 
@@ -104,7 +104,7 @@ where
                 broadcast.spawn(&self.fuse);
             }
 
-            if support >= self.view.quorum() && !self.database.disclosure.delivered.insert(origin) {
+            if support >= self.view.quorum() && self.database.disclosure.delivered.insert(origin) {
                 self.deliver_disclosure(origin, proposal);
             }
         }
