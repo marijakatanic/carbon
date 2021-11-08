@@ -189,6 +189,7 @@ where
         match message {
             Message::DisclosureSend(message) => self.validate_disclosure_send(source, message),
             Message::DisclosureEcho(message) => self.validate_disclosure_echo(source, message),
+            Message::DisclosureReady(_) => todo!(),
         }
     }
 
@@ -205,6 +206,7 @@ where
             Message::DisclosureEcho(message) => {
                 self.process_disclosure_echo(source, message, acknowledger);
             }
+            Message::DisclosureReady(_) => todo!(),
         }
     }
 }
