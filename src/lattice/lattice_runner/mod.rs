@@ -71,6 +71,15 @@ struct DisclosureDatabase<Instance: LatticeInstance, Element: LatticeElement> {
     // origin is in `ready_sent` iff the local replica issued a ready message
     // for _any_ message from origin
     ready_sent: HashSet<Identity>,
+
+    // (source, origin) is in `ready_collected` iff the local replica
+    // received a ready message from source for _any_ message from origin
+    ready_collected: HashSet<(Identity, Identity)>,
+
+    // (origin, identifier) -> number of distinct ready messages received
+    // (must be at least `self.view.plurality()` to issue a ready message)
+    // (must be at least `self.view.quorum()` to deliver)
+    ready_support: HashMap<(Identity, Hash), usize>,
 }
 
 struct Settings {
@@ -115,6 +124,8 @@ where
                 echoes_collected: HashSet::new(),
                 echo_support: HashMap::new(),
                 ready_sent: HashSet::new(),
+                ready_collected: HashSet::new(),
+                ready_support: HashMap::new(),
             },
         };
 
@@ -194,7 +205,7 @@ where
         match message {
             Message::DisclosureSend(message) => self.validate_disclosure_send(source, message),
             Message::DisclosureEcho(message) => self.validate_disclosure_echo(source, message),
-            Message::DisclosureReady(_) => todo!(),
+            Message::DisclosureReady(message) => self.validate_disclosure_ready(source, message),
         }
     }
 
@@ -211,7 +222,9 @@ where
             Message::DisclosureEcho(message) => {
                 self.process_disclosure_echo(source, message, acknowledger);
             }
-            Message::DisclosureReady(_) => todo!(),
+            Message::DisclosureReady(message) => {
+                self.process_disclosure_ready(source, message, acknowledger);
+            }
         }
     }
 }

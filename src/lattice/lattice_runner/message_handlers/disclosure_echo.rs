@@ -79,22 +79,15 @@ where
             .echoes_collected
             .insert((source, origin))
         {
-            let support = match self
+            let support = self
                 .database
                 .disclosure
                 .echo_support
                 .entry((source, identifier))
-            {
-                Entry::Occupied(mut entry) => {
-                    let support = entry.get_mut();
-                    *support += 1;
-                    *support
-                }
-                Entry::Vacant(entry) => {
-                    entry.insert(1);
-                    1
-                }
-            };
+                .or_insert(0);
+
+            *support += 1;
+            let support = *support;
 
             if support == self.view.quorum() && !self.database.disclosure.ready_sent.insert(origin)
             {
