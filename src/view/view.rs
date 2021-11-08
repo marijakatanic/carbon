@@ -203,7 +203,7 @@ impl View {
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use super::*;
 
     use std::iter;

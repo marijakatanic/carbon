@@ -56,12 +56,12 @@ where
         let disclosure = self
             .database
             .disclosure
-            .disclosures_received
-            .get(&(origin, identifier))
-            .map(|send| &send.disclosure.element)
+            .disclosures
+            .get(&identifier)
+            .map(|disclosure| &disclosure.element)
             .cloned();
 
-        let support = self
+        let support = *self
             .database
             .disclosure
             .ready_support
@@ -69,7 +69,7 @@ where
             .or_insert(0);
 
         if disclosure.is_some()
-            && *support >= self.view.quorum()
+            && support >= self.view.quorum()
             && self
                 .database
                 .disclosure
@@ -80,7 +80,16 @@ where
         }
     }
 
-    fn deliver_disclosure(&mut self, origin: Identity, proposal: Element) {
+    fn deliver_disclosure(&mut self, origin: Identity, _proposal: Element) {
+        println!("Disclosure delivered from {:?}.", origin);
         // TODO: Implements rest of Lattice Agreement
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[tokio::test]
+    async fn develop() {
+
     }
 }

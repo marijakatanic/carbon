@@ -1,7 +1,7 @@
 use crate::{
     discovery::Client,
     lattice::{
-        messages::DisclosureSend, Element as LatticeElement, Instance as LatticeInstance, Message,
+        statements::Disclosure, Element as LatticeElement, Instance as LatticeInstance, Message,
         MessageError,
     },
     view::View,
@@ -54,11 +54,11 @@ struct DisclosureDatabase<Instance: LatticeInstance, Element: LatticeElement> {
     // `true` iff the local replica disclosed a value
     disclosed: bool,
 
-    // (origin of the message, identifier of disclosure) -> signed send message
-    disclosures_received: HashMap<(Identity, Hash), DisclosureSend<Instance, Element>>,
+    disclosures: HashMap<Hash, Disclosure<Instance, Element>>,
 
-    // origin -> identifier of disclosure the local replica echoed
-    echoes_sent: HashMap<Identity, Hash>,
+    // origin is in `echoes_sent` iff the local replica issued an echo message
+    // for _any_ message from origin
+    echoes_sent: HashSet<Identity>,
 
     // (source, origin) is in `echoes_collected` iff the local replica
     // received an echo from source for _any_ message from origin
@@ -123,8 +123,8 @@ where
             safe_elements: HashMap::new(),
             disclosure: DisclosureDatabase {
                 disclosed: false,
-                disclosures_received: HashMap::new(),
-                echoes_sent: HashMap::new(),
+                disclosures: HashMap::new(),
+                echoes_sent: HashSet::new(),
                 echoes_collected: HashSet::new(),
                 echo_support: HashMap::new(),
                 ready_sent: HashSet::new(),

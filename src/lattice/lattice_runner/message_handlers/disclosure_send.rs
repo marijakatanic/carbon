@@ -5,8 +5,6 @@ use crate::lattice::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use std::collections::hash_map::Entry;
-
 use talk::broadcast::BestEffort;
 use talk::crypto::KeyCard;
 use talk::unicast::Acknowledger;
@@ -55,18 +53,20 @@ where
         if self
             .database
             .disclosure
-            .disclosures_received
-            .insert((source, identifier), message.clone())
+            .disclosures
+            .insert(identifier, message.disclosure.clone())
             .is_none()
         {
             // We might have already been prepared to deliver this disclosure (enough ready support)
             // but were waiting to acquire its concrete value (the expanded version)
-            self.try_deliver_disclosure(source, identifier);
+            let members = self.members.keys().cloned().collect::<Vec<_>>();
+
+            for member in members.into_iter() {
+                self.try_deliver_disclosure(member, identifier);
+            }
         };
 
-        if let Entry::Vacant(entry) = self.database.disclosure.echoes_sent.entry(source) {
-            entry.insert(identifier);
-
+        if self.database.disclosure.echoes_sent.insert(source) {
             let broadcast = BestEffort::brief(
                 self.sender.clone(),
                 self.members.keys().cloned(),

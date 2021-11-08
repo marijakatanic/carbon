@@ -41,8 +41,8 @@ where
                 if !self
                     .database
                     .disclosure
-                    .disclosures_received
-                    .contains_key(&(origin, disclosure))
+                    .disclosures
+                    .contains_key(&disclosure)
                 {
                     acknowledger.expand();
                     return;
@@ -56,13 +56,17 @@ where
                 if self
                     .database
                     .disclosure
-                    .disclosures_received
-                    .insert((source, identifier), disclosure)
+                    .disclosures
+                    .insert(identifier, disclosure.disclosure)
                     .is_none()
                 {
                     // We might have already been prepared to deliver this disclosure (enough ready support)
                     // but were waiting to acquire its concrete value (the expanded version)
-                    self.try_deliver_disclosure(source, identifier);
+                    let members = self.members.keys().cloned().collect::<Vec<_>>();
+
+                    for member in members.into_iter() {
+                        self.try_deliver_disclosure(member, identifier);
+                    }
                 };
 
                 (origin, identifier)
