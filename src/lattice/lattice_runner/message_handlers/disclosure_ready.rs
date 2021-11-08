@@ -28,11 +28,11 @@ where
         message: DisclosureReady,
         acknowledger: Acknowledger,
     ) {
+        acknowledger.strong();
+
         let source = source.identity();
         let origin = message.origin;
         let identifier = message.disclosure;
-
-        acknowledger.strong();
 
         if !self
             .database
@@ -44,13 +44,13 @@ where
                 .database
                 .disclosure
                 .echo_support
-                .entry((source, identifier))
+                .entry((origin, identifier))
                 .or_insert(0);
 
             *support += 1;
             let support = *support;
 
-            if support == self.view.plurality()
+            if support >= self.view.plurality()
                 && !self.database.disclosure.ready_sent.insert(origin)
             {
                 let broadcast = BestEffort::new(
@@ -66,8 +66,23 @@ where
                 broadcast.spawn(&self.fuse);
             }
 
-            if support == self.view.quorum() {
-                // TODO: Deliver disclosure
+            let disclosure = self
+                .database
+                .disclosure
+                .disclosures_received
+                .get(&(origin, identifier))
+                .map(|send| &send.disclosure.element)
+                .cloned();
+
+            if disclosure.is_some()
+                && support >= self.view.quorum()
+                && !self
+                    .database
+                    .disclosure
+                    .disclosures_delivered
+                    .insert(origin)
+            {
+                self.deliver_disclosure(origin, disclosure.unwrap());
             }
         }
     }

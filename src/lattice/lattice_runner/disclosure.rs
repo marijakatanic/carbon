@@ -4,6 +4,7 @@ use crate::lattice::{
 };
 
 use talk::broadcast::BestEffort;
+use talk::crypto::Identity;
 
 impl<Instance, Element> LatticeRunner<Instance, Element>
 where
@@ -14,7 +15,7 @@ where
         self.database.disclosure.disclosed
     }
 
-    pub(in crate::lattice::lattice_runner) async fn disclose(&mut self, proposal: Element) {
+    pub(in crate::lattice::lattice_runner) fn disclose(&mut self, proposal: Element) {
         self.database.disclosure.disclosed = true;
 
         self.database
@@ -44,5 +45,13 @@ where
         );
 
         broadcast.spawn(&self.fuse);
+    }
+
+    pub(in crate::lattice::lattice_runner) fn deliver_disclosure(
+        &mut self,
+        origin: Identity,
+        proposal: Element,
+    ) {
+        // TODO: Implements rest of Lattice Agreement
     }
 }

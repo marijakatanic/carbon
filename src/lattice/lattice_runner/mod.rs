@@ -80,6 +80,10 @@ struct DisclosureDatabase<Instance: LatticeInstance, Element: LatticeElement> {
     // (must be at least `self.view.plurality()` to issue a ready message)
     // (must be at least `self.view.quorum()` to deliver)
     ready_support: HashMap<(Identity, Hash), usize>,
+
+    // origin is in `disclosures_delivered` iff the local replica has delivered
+    // (the only possible) disclosure from origin
+    disclosures_delivered: HashSet<Identity>,
 }
 
 struct Settings {
@@ -126,6 +130,7 @@ where
                 ready_sent: HashSet::new(),
                 ready_collected: HashSet::new(),
                 ready_support: HashMap::new(),
+                disclosures_delivered: HashSet::new(),
             },
         };
 
@@ -172,7 +177,7 @@ where
 
     async fn handle_proposal(&mut self, proposal: Element, result_inlet: ResultInlet) {
         if !self.disclosed() {
-            self.disclose(proposal).await;
+            self.disclose(proposal);
             let _ = result_inlet.send(true);
         } else {
             let _ = result_inlet.send(false);

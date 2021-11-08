@@ -47,6 +47,8 @@ where
         message: DisclosureSend<Instance, Element>,
         acknowledger: Acknowledger,
     ) {
+        acknowledger.strong();
+
         let source = source.identity();
         let identifier = message.identifier();
 
@@ -55,29 +57,24 @@ where
             .disclosures_received
             .insert((source, identifier), message.clone());
 
-        match self.database.disclosure.echoes_sent.entry(source) {
-            Entry::Vacant(entry) => {
-                entry.insert(identifier);
+        if let Entry::Vacant(entry) = self.database.disclosure.echoes_sent.entry(source) {
+            entry.insert(identifier);
 
-                let broadcast = BestEffort::brief(
-                    self.sender.clone(),
-                    self.members.keys().cloned(),
-                    Message::DisclosureEcho(DisclosureEcho::Brief {
-                        origin: source,
-                        disclosure: identifier,
-                    }),
-                    Message::DisclosureEcho(DisclosureEcho::Expanded {
-                        origin: source,
-                        disclosure: message,
-                    }),
-                    self.settings.broadcast.clone(),
-                );
+            let broadcast = BestEffort::brief(
+                self.sender.clone(),
+                self.members.keys().cloned(),
+                Message::DisclosureEcho(DisclosureEcho::Brief {
+                    origin: source,
+                    disclosure: identifier,
+                }),
+                Message::DisclosureEcho(DisclosureEcho::Expanded {
+                    origin: source,
+                    disclosure: message,
+                }),
+                self.settings.broadcast.clone(),
+            );
 
-                broadcast.spawn(&self.fuse);
-                acknowledger.strong()
-            }
-            Entry::Occupied(entry) if *entry.get() == identifier => acknowledger.strong(),
-            _ => (),
+            broadcast.spawn(&self.fuse);
         }
     }
 }

@@ -5,8 +5,6 @@ use crate::lattice::{
 
 use doomstack::Top;
 
-use std::collections::hash_map::Entry;
-
 use talk::broadcast::BestEffort;
 use talk::crypto::KeyCard;
 use talk::unicast::Acknowledger;
@@ -55,17 +53,11 @@ where
             DisclosureEcho::Expanded { origin, disclosure } => {
                 let identifier = disclosure.identifier();
 
-                match self
-                    .database
+                self.database
                     .disclosure
                     .disclosures_received
                     .entry((origin, identifier))
-                {
-                    Entry::Occupied(_) => (),
-                    Entry::Vacant(entry) => {
-                        entry.insert(disclosure);
-                    }
-                }
+                    .or_insert(disclosure);
 
                 (origin, identifier)
             }
@@ -83,13 +75,13 @@ where
                 .database
                 .disclosure
                 .echo_support
-                .entry((source, identifier))
+                .entry((origin, identifier))
                 .or_insert(0);
 
             *support += 1;
             let support = *support;
 
-            if support == self.view.quorum() && !self.database.disclosure.ready_sent.insert(origin)
+            if support >= self.view.quorum() && !self.database.disclosure.ready_sent.insert(origin)
             {
                 let broadcast = BestEffort::new(
                     self.sender.clone(),
