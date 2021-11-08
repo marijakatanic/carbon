@@ -96,7 +96,8 @@ where
                 }
             };
 
-            if support == self.view.quorum() {
+            if support == self.view.quorum() && !self.database.disclosure.ready_sent.insert(origin)
+            {
                 let broadcast = BestEffort::new(
                     self.sender.clone(),
                     self.members.keys().cloned(),

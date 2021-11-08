@@ -67,6 +67,10 @@ struct DisclosureDatabase<Instance: LatticeInstance, Element: LatticeElement> {
     // (origin, identifier) -> number of distinct echoes received
     // (must be at least `self.view.quorum()` to issue a ready message)
     echo_support: HashMap<(Identity, Hash), usize>,
+
+    // origin is in `ready_sent` iff the local replica issued a ready message
+    // for _any_ message from origin
+    ready_sent: HashSet<Identity>,
 }
 
 struct Settings {
@@ -110,6 +114,7 @@ where
                 echoes_sent: HashMap::new(),
                 echoes_collected: HashSet::new(),
                 echo_support: HashMap::new(),
+                ready_sent: HashSet::new(),
             },
         };
 
