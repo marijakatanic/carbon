@@ -21,3 +21,6 @@ pub(crate) use instance::Instance;
 
 #[allow(unused_imports)]
 pub(crate) use lattice_agreement::LatticeAgreement;
+
+#[cfg(test)]
+mod test;

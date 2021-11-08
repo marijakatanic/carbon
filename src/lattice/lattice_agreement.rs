@@ -83,7 +83,7 @@ where
         }
     }
 
-    async fn propose(&mut self, element: Element) -> Result<(), Top<LatticeAgreementError>> {
+    pub async fn propose(&mut self, element: Element) -> Result<(), Top<LatticeAgreementError>> {
         let proposal_inlet = self
             .proposal_inlet
             .take()
