@@ -3,7 +3,7 @@ use crate::lattice::{
     Element as LatticeElement, Instance as LatticeInstance, LatticeRunner, Message, MessageError,
 };
 
-use doomstack::Top;
+use doomstack::{here, ResultExt, Top};
 
 use talk::broadcast::BestEffort;
 use talk::crypto::KeyCard;
@@ -17,59 +17,48 @@ where
     pub(in crate::lattice::lattice_runner) fn validate_disclosure_echo(
         &self,
         _source: &KeyCard,
-        message: &DisclosureEcho<Instance, Element>,
+        message: &DisclosureEcho<Element>,
     ) -> Result<(), Top<MessageError>> {
         match message {
             DisclosureEcho::Brief { .. } => Ok(()),
-            DisclosureEcho::Expanded { origin, disclosure } => {
-                let origin = self.members[origin].clone();
-                self.validate_disclosure_send(&origin, disclosure)
-            }
+            DisclosureEcho::Expanded { proposal, .. } => proposal
+                .validate(&self.discovery, &self.view)
+                .pot(MessageError::InvalidElement, here!()),
         }
     }
 
     pub(in crate::lattice::lattice_runner) fn process_disclosure_echo(
         &mut self,
         source: &KeyCard,
-        message: DisclosureEcho<Instance, Element>,
+        message: DisclosureEcho<Element>,
         acknowledger: Acknowledger,
     ) {
         let source = source.identity();
 
-        let (origin, identifier) = match message {
-            DisclosureEcho::Brief { origin, disclosure } => {
-                if !self
-                    .database
-                    .disclosure
-                    .disclosures
-                    .contains_key(&disclosure)
-                {
-                    acknowledger.expand();
-                    return;
-                }
-
-                (origin, disclosure)
-            }
-            DisclosureEcho::Expanded { origin, disclosure } => {
-                let identifier = disclosure.identifier();
-
-                if self
-                    .database
-                    .disclosure
-                    .disclosures
-                    .insert(identifier, disclosure.disclosure)
-                    .is_none()
-                {
-                    // We might have already been prepared to deliver this disclosure (enough ready support)
-                    // but were waiting to acquire its concrete value (the expanded version)
-                    let members = self.members.keys().cloned().collect::<Vec<_>>();
-
-                    for member in members.into_iter() {
-                        self.try_deliver_disclosure(member, identifier);
+        let (origin, identifier, proposal) = match message {
+            DisclosureEcho::Brief {
+                origin,
+                proposal: identifier,
+            } => {
+                let proposal = match self.database.disclosure.proposals.get(&identifier).cloned() {
+                    Some(proposal) => proposal,
+                    None => {
+                        acknowledger.expand();
+                        return;
                     }
                 };
 
-                (origin, identifier)
+                (origin, identifier, proposal)
+            }
+            DisclosureEcho::Expanded { origin, proposal } => {
+                let identifier = proposal.identifier();
+
+                self.database
+                    .disclosure
+                    .proposals
+                    .insert(identifier, proposal.clone());
+
+                (origin, identifier, proposal)
             }
         };
 
@@ -93,13 +82,21 @@ where
 
             if support >= self.view.quorum() && !self.database.disclosure.ready_sent.insert(origin)
             {
-                let broadcast = BestEffort::new(
+                let brief = DisclosureReady::Brief {
+                    origin: source,
+                    proposal: identifier,
+                };
+
+                let expanded = DisclosureReady::Expanded {
+                    origin: source,
+                    proposal,
+                };
+
+                let broadcast = BestEffort::brief(
                     self.sender.clone(),
                     self.members.keys().cloned(),
-                    Message::DisclosureReady(DisclosureReady {
-                        origin,
-                        disclosure: identifier,
-                    }),
+                    Message::DisclosureReady(brief),
+                    Message::DisclosureReady(expanded),
                     self.settings.broadcast.clone(),
                 );
 

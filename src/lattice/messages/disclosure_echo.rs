@@ -1,18 +1,10 @@
-use crate::lattice::messages::DisclosureSend;
-
 use serde::{Deserialize, Serialize};
 
 use talk::crypto::primitives::hash::Hash;
 use talk::crypto::Identity;
 
 #[derive(Clone, Serialize, Deserialize)]
-pub(in crate::lattice) enum DisclosureEcho<Instance, Element> {
-    Brief {
-        origin: Identity,
-        disclosure: Hash,
-    },
-    Expanded {
-        origin: Identity,
-        disclosure: DisclosureSend<Instance, Element>,
-    },
+pub(in crate::lattice) enum DisclosureEcho<Element> {
+    Brief { origin: Identity, proposal: Hash },
+    Expanded { origin: Identity, proposal: Element },
 }

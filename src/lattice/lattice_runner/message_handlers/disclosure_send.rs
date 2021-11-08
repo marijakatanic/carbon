@@ -3,7 +3,7 @@ use crate::lattice::{
     Element as LatticeElement, Instance as LatticeInstance, LatticeRunner, Message, MessageError,
 };
 
-use doomstack::{here, Doom, ResultExt, Top};
+use doomstack::{here, ResultExt, Top};
 
 use talk::broadcast::BestEffort;
 use talk::crypto::KeyCard;
@@ -16,68 +16,69 @@ where
 {
     pub(in crate::lattice::lattice_runner) fn validate_disclosure_send(
         &self,
-        source: &KeyCard,
-        message: &DisclosureSend<Instance, Element>,
+        _source: &KeyCard,
+        message: &DisclosureSend<Element>,
     ) -> Result<(), Top<MessageError>> {
-        if message.disclosure.view != self.view.identifier() {
-            return MessageError::ForeignView.fail().spot(here!());
+        match message {
+            DisclosureSend::Brief { .. } => Ok(()),
+            DisclosureSend::Expanded { proposal } => proposal
+                .validate(&self.discovery, &self.view)
+                .pot(MessageError::InvalidElement, here!()),
         }
-
-        if message.disclosure.instance != self.instance {
-            return MessageError::ForeignInstance.fail().spot(here!());
-        }
-
-        message
-            .signature
-            .verify(source, &message.disclosure)
-            .pot(MessageError::IncorrectSignature, here!())?;
-
-        message
-            .disclosure
-            .element
-            .validate(&self.discovery, &self.view)
-            .pot(MessageError::InvalidElement, here!())
     }
 
     pub(in crate::lattice::lattice_runner) fn process_disclosure_send(
         &mut self,
         source: &KeyCard,
-        message: DisclosureSend<Instance, Element>,
+        message: DisclosureSend<Element>,
         acknowledger: Acknowledger,
     ) {
-        acknowledger.strong();
-
         let source = source.identity();
-        let identifier = message.identifier();
 
-        if self
-            .database
-            .disclosure
-            .disclosures
-            .insert(identifier, message.disclosure.clone())
-            .is_none()
-        {
-            // We might have already been prepared to deliver this disclosure (enough ready support)
-            // but were waiting to acquire its concrete value (the expanded version)
-            let members = self.members.keys().cloned().collect::<Vec<_>>();
+        let (identifier, proposal) = match message {
+            DisclosureSend::Brief {
+                proposal: identifier,
+            } => {
+                let proposal = match self.database.disclosure.proposals.get(&identifier).cloned() {
+                    Some(proposal) => proposal,
+                    None => {
+                        acknowledger.expand();
+                        return;
+                    }
+                };
 
-            for member in members.into_iter() {
-                self.try_deliver_disclosure(member, identifier);
+                (identifier, proposal)
+            }
+            DisclosureSend::Expanded { proposal } => {
+                let identifier = proposal.identifier();
+
+                self.database
+                    .disclosure
+                    .proposals
+                    .insert(identifier, proposal.clone());
+
+                (identifier, proposal)
             }
         };
 
+        acknowledger.strong();
+
         if self.database.disclosure.echoes_sent.insert(source) {
+            let brief = DisclosureEcho::Brief {
+                origin: source,
+                proposal: identifier,
+            };
+
+            let expanded = DisclosureEcho::Expanded {
+                origin: source,
+                proposal,
+            };
+
             let broadcast = BestEffort::brief(
                 self.sender.clone(),
                 self.members.keys().cloned(),
-                Message::DisclosureEcho(DisclosureEcho::Brief {
-                    origin: source,
-                    disclosure: identifier,
-                }),
-                Message::DisclosureEcho(DisclosureEcho::Expanded {
-                    origin: source,
-                    disclosure: message,
-                }),
+                Message::DisclosureEcho(brief),
+                Message::DisclosureEcho(expanded),
                 self.settings.broadcast.clone(),
             );
 

@@ -5,7 +5,6 @@ mod lattice_runner;
 mod message;
 
 mod messages;
-mod statements;
 
 use lattice_runner::LatticeRunner;
 use message::Message;

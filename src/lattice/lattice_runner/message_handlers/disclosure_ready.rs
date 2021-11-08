@@ -3,7 +3,7 @@ use crate::lattice::{
     LatticeRunner, Message, MessageError,
 };
 
-use doomstack::Top;
+use doomstack::{here, ResultExt, Top};
 
 use talk::broadcast::BestEffort;
 use talk::crypto::KeyCard;
@@ -17,22 +17,52 @@ where
     pub(in crate::lattice::lattice_runner) fn validate_disclosure_ready(
         &self,
         _source: &KeyCard,
-        _message: &DisclosureReady,
+        message: &DisclosureReady<Element>,
     ) -> Result<(), Top<MessageError>> {
-        Ok(())
+        match message {
+            DisclosureReady::Brief { .. } => Ok(()),
+            DisclosureReady::Expanded { proposal, .. } => proposal
+                .validate(&self.discovery, &self.view)
+                .pot(MessageError::InvalidElement, here!()),
+        }
     }
 
     pub(in crate::lattice::lattice_runner) fn process_disclosure_ready(
         &mut self,
         source: &KeyCard,
-        message: DisclosureReady,
+        message: DisclosureReady<Element>,
         acknowledger: Acknowledger,
     ) {
-        acknowledger.strong();
-
         let source = source.identity();
-        let origin = message.origin;
-        let identifier = message.disclosure;
+
+        let (origin, identifier, proposal) = match message {
+            DisclosureReady::Brief {
+                origin,
+                proposal: identifier,
+            } => {
+                let proposal = match self.database.disclosure.proposals.get(&identifier).cloned() {
+                    Some(proposal) => proposal,
+                    None => {
+                        acknowledger.expand();
+                        return;
+                    }
+                };
+
+                (origin, identifier, proposal)
+            }
+            DisclosureReady::Expanded { origin, proposal } => {
+                let identifier = proposal.identifier();
+
+                self.database
+                    .disclosure
+                    .proposals
+                    .insert(identifier, proposal.clone());
+
+                (origin, identifier, proposal)
+            }
+        };
+
+        acknowledger.strong();
 
         if !self
             .database
@@ -53,20 +83,30 @@ where
             if support >= self.view.plurality()
                 && !self.database.disclosure.ready_sent.insert(origin)
             {
-                let broadcast = BestEffort::new(
+                let brief = DisclosureReady::Brief {
+                    origin: source,
+                    proposal: identifier,
+                };
+
+                let expanded = DisclosureReady::Expanded {
+                    origin: source,
+                    proposal: proposal.clone(),
+                };
+
+                let broadcast = BestEffort::brief(
                     self.sender.clone(),
                     self.members.keys().cloned(),
-                    Message::DisclosureReady(DisclosureReady {
-                        origin,
-                        disclosure: identifier,
-                    }),
+                    Message::DisclosureReady(brief),
+                    Message::DisclosureReady(expanded),
                     self.settings.broadcast.clone(),
                 );
 
                 broadcast.spawn(&self.fuse);
             }
-        }
 
-        self.try_deliver_disclosure(source, identifier);
+            if support >= self.view.quorum() && !self.database.disclosure.delivered.insert(origin) {
+                self.deliver_disclosure(origin, proposal);
+            }
+        }
     }
 }

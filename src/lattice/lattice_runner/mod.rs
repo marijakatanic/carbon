@@ -1,9 +1,6 @@
 use crate::{
     discovery::Client,
-    lattice::{
-        statements::Disclosure, Element as LatticeElement, Instance as LatticeInstance, Message,
-        MessageError,
-    },
+    lattice::{Element as LatticeElement, Instance as LatticeInstance, Message, MessageError},
     view::View,
 };
 
@@ -33,11 +30,11 @@ pub(in crate::lattice) struct LatticeRunner<Instance: LatticeInstance, Element: 
     members: HashMap<Identity, KeyCard>,
 
     keychain: KeyChain,
-    database: Database<Instance, Element>,
+    database: Database<Element>,
 
     discovery: Arc<Client>,
-    sender: Sender<Message<Instance, Element>>,
-    receiver: Receiver<Message<Instance, Element>>,
+    sender: Sender<Message<Element>>,
+    receiver: Receiver<Message<Element>>,
 
     proposal_outlet: ProposalOutlet<Element>,
 
@@ -45,16 +42,16 @@ pub(in crate::lattice) struct LatticeRunner<Instance: LatticeInstance, Element: 
     fuse: Fuse,
 }
 
-struct Database<Instance: LatticeInstance, Element: LatticeElement> {
+struct Database<Element: LatticeElement> {
     safe_elements: HashMap<Hash, Element>,
-    disclosure: DisclosureDatabase<Instance, Element>,
+    disclosure: DisclosureDatabase<Element>,
 }
 
-struct DisclosureDatabase<Instance: LatticeInstance, Element: LatticeElement> {
+struct DisclosureDatabase<Element: LatticeElement> {
     // `true` iff the local replica disclosed a value
     disclosed: bool,
 
-    disclosures: HashMap<Hash, Disclosure<Instance, Element>>,
+    proposals: HashMap<Hash, Element>,
 
     // origin is in `echoes_sent` iff the local replica issued an echo message
     // for _any_ message from origin
@@ -83,7 +80,7 @@ struct DisclosureDatabase<Instance: LatticeInstance, Element: LatticeElement> {
 
     // origin is in `disclosures_delivered` iff the local replica has delivered
     // (the only possible) disclosure from origin
-    disclosures_delivered: HashSet<Identity>,
+    delivered: HashSet<Identity>,
 }
 
 struct Settings {
@@ -108,8 +105,8 @@ where
         instance: Instance,
         keychain: KeyChain,
         discovery: Arc<Client>,
-        sender: Sender<Message<Instance, Element>>,
-        receiver: Receiver<Message<Instance, Element>>,
+        sender: Sender<Message<Element>>,
+        receiver: Receiver<Message<Element>>,
         proposal_outlet: ProposalOutlet<Element>,
     ) -> Self {
         let members = view
@@ -123,14 +120,14 @@ where
             safe_elements: HashMap::new(),
             disclosure: DisclosureDatabase {
                 disclosed: false,
-                disclosures: HashMap::new(),
+                proposals: HashMap::new(),
                 echoes_sent: HashSet::new(),
                 echoes_collected: HashSet::new(),
                 echo_support: HashMap::new(),
                 ready_sent: HashSet::new(),
                 ready_collected: HashSet::new(),
                 ready_support: HashMap::new(),
-                disclosures_delivered: HashSet::new(),
+                delivered: HashSet::new(),
             },
         };
 
@@ -187,7 +184,7 @@ where
     async fn handle_message(
         &mut self,
         source: Identity,
-        message: Message<Instance, Element>,
+        message: Message<Element>,
         acknowledger: Acknowledger,
     ) -> Result<(), Top<HandleError>> {
         if let Some(keycard) = self.members.get(&source).cloned() {
@@ -205,7 +202,7 @@ where
     fn validate_message(
         &self,
         source: &KeyCard,
-        message: &Message<Instance, Element>,
+        message: &Message<Element>,
     ) -> Result<(), Top<MessageError>> {
         match message {
             Message::DisclosureSend(message) => self.validate_disclosure_send(source, message),
@@ -217,7 +214,7 @@ where
     fn process_message(
         &mut self,
         source: &KeyCard,
-        message: Message<Instance, Element>,
+        message: Message<Element>,
         acknowledger: Acknowledger,
     ) {
         match message {

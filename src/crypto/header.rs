@@ -4,6 +4,4 @@ use serde::{Deserialize, Serialize};
 #[repr(i8)]
 pub(crate) enum Header {
     Install = 0,
-
-    LatticeDisclosureSend = 1,
 }

@@ -1,10 +1,9 @@
 use crate::lattice::{
-    messages::DisclosureSend, statements::Disclosure, Element as LatticeElement,
-    Instance as LatticeInstance, LatticeRunner, Message,
+    messages::DisclosureSend, Element as LatticeElement, Instance as LatticeInstance,
+    LatticeRunner, Message,
 };
 
 use talk::broadcast::BestEffort;
-use talk::crypto::primitives::hash::Hash;
 use talk::crypto::Identity;
 
 impl<Instance, Element> LatticeRunner<Instance, Element>
@@ -23,73 +22,28 @@ where
             .safe_elements
             .insert(proposal.identifier(), proposal.clone());
 
-        let disclosure = Disclosure {
-            view: self.view.identifier(),
-            instance: self.instance.clone(),
-            element: proposal,
+        let brief = DisclosureSend::Brief {
+            proposal: proposal.identifier(),
         };
 
-        let signature = self.keychain.sign(&disclosure).unwrap();
+        let expanded = DisclosureSend::Expanded { proposal };
 
-        let disclosure_send = DisclosureSend {
-            disclosure,
-            signature,
-        };
-
-        let message = Message::DisclosureSend(disclosure_send);
-
-        let broadcast = BestEffort::new(
+        let broadcast = BestEffort::brief(
             self.sender.clone(),
             self.members.keys().cloned(),
-            message,
+            Message::DisclosureSend(brief),
+            Message::DisclosureSend(expanded),
             self.settings.broadcast.clone(),
         );
 
         broadcast.spawn(&self.fuse);
     }
 
-    pub(in crate::lattice::lattice_runner) fn try_deliver_disclosure(
+    pub(in crate::lattice::lattice_runner) fn deliver_disclosure(
         &mut self,
         origin: Identity,
-        identifier: Hash,
+        _proposal: Element,
     ) {
-        let disclosure = self
-            .database
-            .disclosure
-            .disclosures
-            .get(&identifier)
-            .map(|disclosure| &disclosure.element)
-            .cloned();
-
-        let support = *self
-            .database
-            .disclosure
-            .ready_support
-            .entry((origin, identifier))
-            .or_insert(0);
-
-        if disclosure.is_some()
-            && support >= self.view.quorum()
-            && self
-                .database
-                .disclosure
-                .disclosures_delivered
-                .insert(origin)
-        {
-            self.deliver_disclosure(origin, disclosure.unwrap());
-        }
-    }
-
-    fn deliver_disclosure(&mut self, origin: Identity, _proposal: Element) {
         println!("Disclosure delivered from {:?}.", origin);
-        // TODO: Implements rest of Lattice Agreement
-    }
-}
-
-#[cfg(test)]
-mod test {
-    #[tokio::test]
-    async fn develop() {
-
     }
 }
