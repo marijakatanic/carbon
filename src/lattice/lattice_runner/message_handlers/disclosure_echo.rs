@@ -64,7 +64,7 @@ where
 
         acknowledger.strong();
 
-        if !self
+        if self
             .database
             .disclosure
             .echoes_collected
@@ -80,17 +80,13 @@ where
             *support += 1;
             let support = *support;
 
-            if support >= self.view.quorum() && !self.database.disclosure.ready_sent.insert(origin)
-            {
+            if support >= self.view.quorum() && self.database.disclosure.ready_sent.insert(origin) {
                 let brief = DisclosureReady::Brief {
-                    origin: source,
+                    origin,
                     proposal: identifier,
                 };
 
-                let expanded = DisclosureReady::Expanded {
-                    origin: source,
-                    proposal,
-                };
+                let expanded = DisclosureReady::Expanded { origin, proposal };
 
                 let broadcast = BestEffort::brief(
                     self.sender.clone(),

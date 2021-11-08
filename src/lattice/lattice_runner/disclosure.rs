@@ -16,14 +16,16 @@ where
     }
 
     pub(in crate::lattice::lattice_runner) fn disclose(&mut self, proposal: Element) {
+        let identifier = proposal.identifier();
+
         self.database.disclosure.disclosed = true;
 
         self.database
             .safe_elements
-            .insert(proposal.identifier(), proposal.clone());
+            .insert(identifier, proposal.clone());
 
         let brief = DisclosureSend::Brief {
-            proposal: proposal.identifier(),
+            proposal: identifier,
         };
 
         let expanded = DisclosureSend::Expanded { proposal };
