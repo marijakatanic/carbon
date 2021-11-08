@@ -1,21 +1,23 @@
-use crate::lattice::{Element as LatticeElement, LatticeAgreement};
+use crate::{
+    discovery::{Client, ClientSettings, Mode, Server},
+    lattice::{Element as LatticeElement, LatticeAgreement},
+    view::View,
+};
+
 use serde::{Deserialize, Serialize};
-
-use crate::discovery::Mode;
-use crate::view::View;
-
-use talk::crypto::KeyChain;
-use talk::net::test::System;
-
-use std::sync::Arc;
-
-use crate::discovery::{Client, ClientSettings, Server};
 
 use std::iter;
 use std::iter::Iterator;
 use std::net::Ipv4Addr;
+use std::sync::Arc;
 
-pub(crate) async fn setup(genesis: View, mode: Mode) -> (Server, impl Iterator<Item = Client>) {
+use talk::crypto::KeyChain;
+use talk::net::test::System;
+
+pub(crate) async fn setup_discovery(
+    genesis: View,
+    mode: Mode,
+) -> (Server, impl Iterator<Item = Client>) {
     let server = Server::new(
         genesis.clone(),
         (Ipv4Addr::UNSPECIFIED, 0),
@@ -24,7 +26,7 @@ pub(crate) async fn setup(genesis: View, mode: Mode) -> (Server, impl Iterator<I
     .await
     .unwrap();
 
-    let server_clients = {
+    let clients = {
         let address = server.address();
         let genesis = genesis.clone();
 
@@ -40,13 +42,11 @@ pub(crate) async fn setup(genesis: View, mode: Mode) -> (Server, impl Iterator<I
         })
     };
 
-    (server, server_clients)
+    (server, clients)
 }
 
 #[derive(PartialEq, Eq, Serialize, Deserialize, Clone)]
-struct Element {
-    my_proposal: usize,
-}
+struct Element(u32);
 
 impl LatticeElement for Element {
     fn validate(
@@ -60,37 +60,37 @@ impl LatticeElement for Element {
 
 #[tokio::test]
 async fn develop() {
-    let mut keychains = (0..4).map(|_| KeyChain::random()).collect::<Vec<_>>();
-    let genesis = View::genesis(keychains.iter().map(|keychain| keychain.keycard())).await;
-    let (_server, clients) = setup(genesis.clone(), Mode::Full).await;
+    let keychains = (0..4).map(|_| KeyChain::random()).collect::<Vec<_>>();
+    let genesis = View::genesis(keychains.iter().map(KeyChain::keycard)).await;
+    let (_server, clients) = setup_discovery(genesis.clone(), Mode::Full).await;
 
     let System {
-        mut connectors,
-        mut listeners,
-        keys,
+        connectors,
+        listeners,
+        ..
     } = System::setup_with_keychains(keychains.clone()).await;
 
-    let mut lattices: Vec<LatticeAgreement<i32, Element>> = Vec::new();
-    for client in clients.take(4) {
-        let lattice = LatticeAgreement::<i32, Element>::new(
-            genesis.clone(),
-            1,
-            keychains.remove(0),
-            Arc::new(client),
-            connectors.remove(0),
-            listeners.remove(0),
-        );
+    let mut lattices = keychains
+        .into_iter()
+        .take(3) // Simulate single crash
+        .zip(clients)
+        .zip(connectors)
+        .zip(listeners)
+        .map(|(((keychain, client), connector), listener)| {
+            LatticeAgreement::<i32, Element>::new(
+                genesis.clone(),
+                0,
+                keychain,
+                Arc::new(client),
+                connector,
+                listener,
+            )
+        })
+        .collect::<Vec<_>>();
 
-        lattices.push(lattice);
+    for (proposal, lattice) in lattices.iter_mut().enumerate() {
+        let _ = lattice.propose(Element(proposal as u32)).await;
     }
 
-    for (i, lattice) in lattices.iter_mut().enumerate() {
-        let _ = lattice
-            .propose(Element {
-                my_proposal: i + 1000,
-            })
-            .await;
-    }
-
-    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+    tokio::time::sleep(std::time::Duration::from_secs(100)).await;
 }
