@@ -70,15 +70,6 @@ async fn develop() {
         keys,
     } = System::setup_with_keychains(keychains.clone()).await;
 
-    println!("keys: {:?}", keys);
-    println!(
-        "identities: {:?}",
-        keychains
-            .iter()
-            .map(|keychain| keychain.keycard().identity())
-            .collect::<Vec<_>>()
-    );
-
     let mut lattices: Vec<LatticeAgreement<i32, Element>> = Vec::new();
     for client in clients.take(4) {
         let lattice = LatticeAgreement::<i32, Element>::new(
@@ -93,7 +84,7 @@ async fn develop() {
         lattices.push(lattice);
     }
 
-    for (i, mut lattice) in lattices.into_iter().enumerate() {
+    for (i, lattice) in lattices.iter_mut().enumerate() {
         let _ = lattice
             .propose(Element {
                 my_proposal: i + 1000,
@@ -102,5 +93,4 @@ async fn develop() {
     }
 
     tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-    panic!("Test not finished");
 }

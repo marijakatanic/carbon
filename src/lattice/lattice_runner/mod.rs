@@ -159,26 +159,19 @@ where
     }
 
     pub async fn run(&mut self) {
-        let mut already_proposed = false;
-        loop {
-            println!("HERE START");
+        let mut proposed = false;
 
+        loop {
             tokio::select! {
-                Ok((proposal, result_inlet)) = &mut self.proposal_outlet, if !already_proposed => {
-                    println!("HANDLING PROPOSE");
+                Ok((proposal, result_inlet)) = &mut self.proposal_outlet, if !proposed => {
+                    proposed = true;
                     self.handle_proposal(proposal, result_inlet).await;
-                    already_proposed = true;
-                    println!("DONE PROPOSE");
                 }
 
                 (source, message, acknowledger) = self.receiver.receive() => {
-                    println!("HANDLING MESSAGE");
                     let _ = self.handle_message(source, message, acknowledger).await;
-                    println!("DONE MESSAGE");
                 }
             }
-
-            println!("HERE END");
         }
     }
 

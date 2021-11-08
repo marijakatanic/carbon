@@ -16,8 +16,6 @@ where
     }
 
     pub(in crate::lattice::lattice_runner) fn disclose(&mut self, proposal: Element) {
-        println!("DISCLOSING");
-
         let identifier = proposal.identifier();
 
         self.database.disclosure.disclosed = true;
@@ -41,8 +39,6 @@ where
         );
 
         broadcast.spawn(&self.fuse);
-
-        println!("FINISHED DISCLOSING");
     }
 
     pub(in crate::lattice::lattice_runner) fn deliver_disclosure(
