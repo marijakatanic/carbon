@@ -5,7 +5,7 @@ use crate::{
 
 use std::time::Duration;
 
-use talk::net::utils::TcpProxy;
+use talk::net::test::TcpProxy;
 
 use tokio::time;
 

@@ -7,7 +7,7 @@ use std::iter;
 use std::iter::Iterator;
 use std::net::Ipv4Addr;
 
-use talk::net::utils::TcpProxy;
+use talk::net::test::TcpProxy;
 
 pub(crate) async fn setup(
     views: usize,
