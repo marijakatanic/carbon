@@ -1,12 +1,13 @@
 use crate::lattice::{
-    messages::DisclosureEcho, Element as LatticeElement, Instance as LatticeInstance,
-    LatticeRunner, MessageError,
+    messages::{DisclosureEcho, DisclosureReady},
+    Element as LatticeElement, Instance as LatticeInstance, LatticeRunner, Message, MessageError,
 };
 
 use doomstack::Top;
 
 use std::collections::hash_map::Entry;
 
+use talk::broadcast::BestEffort;
 use talk::crypto::KeyCard;
 use talk::unicast::Acknowledger;
 
@@ -70,6 +71,8 @@ where
             }
         };
 
+        acknowledger.strong();
+
         if !self
             .database
             .disclosure
@@ -93,8 +96,18 @@ where
                 }
             };
 
-            if support >= self.view.quorum() {
-                // TODO: Issue a ready message (if we haven't done that already)
+            if support == self.view.quorum() {
+                let broadcast = BestEffort::new(
+                    self.sender.clone(),
+                    self.members.keys().cloned(),
+                    Message::DisclosureReady(DisclosureReady {
+                        origin,
+                        disclosure: identifier,
+                    }),
+                    self.settings.broadcast.clone(),
+                );
+
+                broadcast.spawn(&self.fuse);
             }
         }
     }

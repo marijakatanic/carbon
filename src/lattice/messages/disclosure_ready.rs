@@ -5,6 +5,6 @@ use talk::crypto::Identity;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(in crate::lattice) struct DisclosureReady {
-    origin: Identity,
-    disclosure: Hash,
+    pub origin: Identity,
+    pub disclosure: Hash,
 }
