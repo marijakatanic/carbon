@@ -37,7 +37,7 @@ where
     ) {
         let source = source.identity();
 
-        let identifier = match message {
+        let (origin, identifier) = match message {
             DisclosureEcho::Brief { origin, disclosure } => {
                 if !self
                     .database
@@ -49,7 +49,7 @@ where
                     return;
                 }
 
-                disclosure
+                (origin, disclosure)
             }
             DisclosureEcho::Expanded { origin, disclosure } => {
                 let identifier = disclosure.identifier();
@@ -66,8 +66,36 @@ where
                     }
                 }
 
-                identifier
+                (origin, identifier)
             }
         };
+
+        if !self
+            .database
+            .disclosure
+            .echoes_collected
+            .insert((source, origin))
+        {
+            let support = match self
+                .database
+                .disclosure
+                .echo_support
+                .entry((source, identifier))
+            {
+                Entry::Occupied(mut entry) => {
+                    let support = entry.get_mut();
+                    *support += 1;
+                    *support
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(1);
+                    1
+                }
+            };
+
+            if support >= self.view.quorum() {
+                // TODO: Issue a ready message (if we haven't done that already)
+            }
+        }
     }
 }

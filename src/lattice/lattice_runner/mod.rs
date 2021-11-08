@@ -51,11 +51,22 @@ struct Database<Instance: LatticeInstance, Element: LatticeElement> {
 }
 
 struct DisclosureDatabase<Instance: LatticeInstance, Element: LatticeElement> {
+    // `true` iff the local replica disclosed a value
     disclosed: bool,
+
+    // (origin of the message, identifier of disclosure) -> signed send message
     disclosures_received: HashMap<(Identity, Hash), DisclosureSend<Instance, Element>>,
 
+    // origin -> identifier of disclosure the local replica echoed
     echoes_sent: HashMap<Identity, Hash>,
-    echoes_received: HashMap<(Identity, Hash), HashSet<Identity>>,
+
+    // (source, origin) is in `echoes_collected` iff the local replica
+    // received an echo from source for _any_ message from origin
+    echoes_collected: HashSet<(Identity, Identity)>,
+
+    // (origin, identifier) -> number of distinct echoes received
+    // (must be at least `self.view.quorum()` to issue a ready message)
+    echo_support: HashMap<(Identity, Hash), usize>,
 }
 
 struct Settings {
@@ -97,7 +108,8 @@ where
                 disclosed: false,
                 disclosures_received: HashMap::new(),
                 echoes_sent: HashMap::new(),
-                echoes_received: HashMap::new(),
+                echoes_collected: HashSet::new(),
+                echo_support: HashMap::new(),
             },
         };
 
