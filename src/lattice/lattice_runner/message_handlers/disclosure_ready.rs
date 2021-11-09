@@ -105,7 +105,7 @@ where
             }
 
             if support >= self.view.quorum() && self.database.disclosure.delivered.insert(origin) {
-                self.deliver_disclosure(origin, proposal);
+                self.deliver_disclosure(proposal);
             }
         }
     }

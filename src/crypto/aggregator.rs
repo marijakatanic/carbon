@@ -23,6 +23,10 @@ where
         }
     }
 
+    pub fn statement(&self) -> &S {
+        &self.statement
+    }
+
     pub fn add(
         &mut self,
         keycard: &KeyCard,
@@ -46,6 +50,10 @@ where
         self.components.push((identity, signature));
 
         Ok(())
+    }
+
+    pub fn multiplicity(&self) -> usize {
+        self.components.len()
     }
 
     pub fn finalize(self) -> (S, Certificate) {

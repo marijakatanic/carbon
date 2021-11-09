@@ -51,8 +51,9 @@ where
         C: Connector,
         L: Listener,
     {
-        let sender: Sender<Message<Element>> = Sender::new(connector, Default::default()); // TODO: Forward settings
-        let receiver: Receiver<Message<Element>> = Receiver::new(listener, Default::default()); // TODO: Forward settings
+        let sender: Sender<Message<Instance, Element>> = Sender::new(connector, Default::default()); // TODO: Forward settings
+        let receiver: Receiver<Message<Instance, Element>> =
+            Receiver::new(listener, Default::default()); // TODO: Forward settings
 
         let (proposal_inlet, proposal_outlet) = oneshot::channel();
         let proposal_inlet = Some(proposal_inlet);

@@ -1,10 +1,9 @@
 use crate::lattice::{
-    messages::DisclosureSend, Element as LatticeElement, Instance as LatticeInstance,
-    LatticeRunner, Message,
+    lattice_runner::State, messages::DisclosureSend, Element as LatticeElement,
+    Instance as LatticeInstance, LatticeRunner, Message,
 };
 
 use talk::broadcast::BestEffort;
-use talk::crypto::Identity;
 
 impl<Instance, Element> LatticeRunner<Instance, Element>
 where
@@ -20,9 +19,8 @@ where
 
         self.database.disclosure.disclosed = true;
 
-        self.database
-            .safe_elements
-            .insert(identifier, proposal.clone());
+        self.database.safe_set.insert(identifier, proposal.clone());
+        self.database.proposed_set.insert(identifier).unwrap();
 
         let brief = DisclosureSend::Brief {
             proposal: identifier,
@@ -41,11 +39,24 @@ where
         broadcast.spawn(&self.fuse);
     }
 
-    pub(in crate::lattice::lattice_runner) fn deliver_disclosure(
-        &mut self,
-        origin: Identity,
-        _proposal: Element,
-    ) {
-        println!("Disclosure delivered from {:?}.", origin);
+    pub(in crate::lattice::lattice_runner) fn deliver_disclosure(&mut self, proposal: Element) {
+        self.database.disclosures += 1;
+        let identifier = proposal.identifier();
+
+        self.database.safe_set.insert(identifier, proposal.clone());
+
+        if let State::Disclosing = &self.state {
+            if !self.disclosed() {
+                self.disclose(proposal);
+            }
+
+            self.database.proposed_set.insert(identifier).unwrap();
+
+            if self.database.disclosures >= self.view.quorum() {
+                self.state = State::Proposing;
+
+                self.certify();
+            }
+        }
     }
 }
