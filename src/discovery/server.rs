@@ -474,7 +474,7 @@ mod test {
         let generator = InstallGenerator::new(max_height);
         let genesis = generator.view(genesis_height).await;
 
-        let server = Server::new(genesis, (Ipv4Addr::UNSPECIFIED, 0), Default::default())
+        let server = Server::new(genesis, (Ipv4Addr::LOCALHOST, 0), Default::default())
             .await
             .unwrap();
 

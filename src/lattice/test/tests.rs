@@ -20,7 +20,7 @@ pub(crate) async fn setup_discovery(
 ) -> (Server, impl Iterator<Item = Client>) {
     let server = Server::new(
         genesis.clone(),
-        (Ipv4Addr::UNSPECIFIED, 0),
+        (Ipv4Addr::LOCALHOST, 0),
         Default::default(),
     )
     .await

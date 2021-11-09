@@ -25,7 +25,7 @@ pub(crate) async fn setup(
 
     let server = Server::new(
         genesis.clone(),
-        (Ipv4Addr::UNSPECIFIED, 0),
+        (Ipv4Addr::LOCALHOST, 0),
         Default::default(),
     )
     .await
