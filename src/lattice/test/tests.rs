@@ -10,9 +10,12 @@ use std::iter;
 use std::iter::Iterator;
 use std::net::Ipv4Addr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use talk::crypto::KeyChain;
 use talk::net::test::System;
+
+use tokio::time;
 
 pub(crate) async fn setup_discovery(
     genesis: View,
@@ -59,6 +62,7 @@ impl LatticeElement for Element {
 }
 
 #[tokio::test]
+#[ignore]
 async fn develop() {
     let keychains = (0..4).map(|_| KeyChain::random()).collect::<Vec<_>>();
     let genesis = View::genesis(keychains.iter().map(KeyChain::keycard)).await;
@@ -88,14 +92,9 @@ async fn develop() {
         })
         .collect::<Vec<_>>();
 
-    println!("Submitting proposals..");
     for (proposal, lattice) in lattices.iter_mut().enumerate() {
-        let start = std::time::Instant::now();
-        println!("Submitting proposal {}", proposal);
         let _ = lattice.propose(Element(proposal as u32)).await;
-        println! {"Done in {}", start.elapsed().as_secs_f64()};
     }
-    println!("All proposals submitted.");
 
-    tokio::time::sleep(std::time::Duration::from_secs(100)).await;
+    time::sleep(Duration::from_secs(5)).await;
 }
