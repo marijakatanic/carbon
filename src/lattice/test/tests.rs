@@ -88,9 +88,14 @@ async fn develop() {
         })
         .collect::<Vec<_>>();
 
+    println!("Submitting proposals..");
     for (proposal, lattice) in lattices.iter_mut().enumerate() {
+        let start = std::time::Instant::now();
+        println!("Submitting proposal {}", proposal);
         let _ = lattice.propose(Element(proposal as u32)).await;
+        println! {"Done in {}", start.elapsed().as_secs_f64()};
     }
+    println!("All proposals submitted.");
 
     tokio::time::sleep(std::time::Duration::from_secs(100)).await;
 }
