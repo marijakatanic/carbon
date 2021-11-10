@@ -1,25 +1,24 @@
 use crate::{
     crypto::{Aggregator, Header},
     discovery::Client,
-    lattice::{Element as LatticeElement, Instance as LatticeInstance, Message, MessageError},
+    lattice::{
+        statements::Decision, Element as LatticeElement, Instance as LatticeInstance, Message,
+        MessageError,
+    },
     view::View,
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use serde::{Deserialize, Serialize};
-
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
-use talk::crypto::{primitives::hash, Identity, KeyCard, KeyChain, Statement as CryptoStatement};
+use talk::crypto::{Identity, KeyCard, KeyChain, Statement as CryptoStatement};
 use talk::sync::fuse::Fuse;
 use talk::unicast::{Acknowledgement, Acknowledger, PushSettings, Receiver, Sender};
 use talk::{broadcast::BestEffortSettings, crypto::primitives::hash::Hash};
 
 use tokio::sync::oneshot::{Receiver as OneshotReceiver, Sender as OneshotSender};
-
-use zebra::{map::Set, Commitment as ZebraCommitment};
 
 type ProposalInlet<Element> = OneshotSender<(Element, ResultInlet)>;
 type ProposalOutlet<Element> = OneshotReceiver<(Element, ResultInlet)>;
@@ -62,7 +61,7 @@ struct Database<Instance: LatticeInstance, Element: LatticeElement> {
     disclosures: usize,
     safe_set: HashMap<Hash, Element>,
 
-    proposed_set: Set<Hash>,
+    proposed_set: BTreeSet<Hash>,
 }
 
 struct DisclosureDatabase<Element: LatticeElement> {
@@ -105,22 +104,6 @@ pub(in crate::lattice) struct CertificationDatabase<Instance: LatticeInstance> {
     identifier: Hash,
     aggregator: Aggregator<Decision<Instance>>,
     fuse: Fuse,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub(in crate::lattice) struct Decision<Instance> {
-    elements: Vec<Hash>,
-    view: ZebraCommitment,
-    instance: Instance,
-}
-
-impl<Instance> Decision<Instance>
-where
-    Instance: LatticeInstance,
-{
-    pub fn identifier(&self) -> Hash {
-        hash::hash(&self).unwrap()
-    }
 }
 
 struct Settings {
@@ -176,7 +159,7 @@ where
             disclosures: 0,
             safe_set: HashMap::new(),
 
-            proposed_set: Set::new(),
+            proposed_set: BTreeSet::new(),
         };
 
         // TODO: Forward variable settings

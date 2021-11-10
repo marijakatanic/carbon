@@ -20,7 +20,7 @@ where
         self.database.disclosure.disclosed = true;
 
         self.database.safe_set.insert(identifier, proposal.clone());
-        self.database.proposed_set.insert(identifier).unwrap();
+        self.database.proposed_set.insert(identifier);
 
         let brief = DisclosureSend::Brief {
             proposal: identifier,
@@ -50,7 +50,7 @@ where
                 self.disclose(proposal);
             }
 
-            self.database.proposed_set.insert(identifier).unwrap();
+            self.database.proposed_set.insert(identifier);
 
             if self.database.disclosures >= self.view.quorum() {
                 self.state = State::Proposing;

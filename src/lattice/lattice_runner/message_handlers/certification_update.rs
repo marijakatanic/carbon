@@ -34,7 +34,7 @@ where
         if message
             .differences
             .iter()
-            .all(|element| self.database.proposed_set.contains(element).unwrap())
+            .all(|element| self.database.proposed_set.contains(element))
         {
             return MessageError::NoNewElements.fail();
         }

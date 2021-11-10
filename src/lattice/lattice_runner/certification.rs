@@ -15,10 +15,15 @@ where
     Instance: LatticeInstance,
     Element: LatticeElement,
 {
-
     pub(in crate::lattice::lattice_runner) fn current_decision(&self) -> Decision<Instance> {
         if self.state == State::Proposing {
-            self.database.certification.as_ref().unwrap().aggregator.statement().clone()
+            self.database
+                .certification
+                .as_ref()
+                .unwrap()
+                .aggregator
+                .statement()
+                .clone()
         } else {
             // TODO: Improve this by implementing a collect/iterator method for `zebra::map::Set`
 
@@ -27,11 +32,11 @@ where
                 .safe_set
                 .keys()
                 .cloned()
-                .filter(|hash| self.database.proposed_set.contains(hash).unwrap())
+                .filter(|hash| self.database.proposed_set.contains(hash))
                 .collect::<Vec<_>>();
-    
+
             elements.sort();
-    
+
             Decision {
                 elements: elements,
                 view: self.view.identifier(),
@@ -71,7 +76,13 @@ where
     pub(in crate::lattice::lattice_runner) fn decide(&mut self) {
         self.state = State::Decided;
 
-        let (_decision, _certificate) = self.database.certification.take().unwrap().aggregator.finalize_quorum();
+        let (_decision, _certificate) = self
+            .database
+            .certification
+            .take()
+            .unwrap()
+            .aggregator
+            .finalize_quorum();
 
         todo!();
     }
