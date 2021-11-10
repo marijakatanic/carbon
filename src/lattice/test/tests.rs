@@ -57,11 +57,8 @@ impl LatticeElement for Element {
         Ok(())
     }
 }
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 32)]
-#[ignore]
-async fn develop() {
-    let keychains = (0..100).map(|_| KeyChain::random()).collect::<Vec<_>>();
+async fn lattice_run() {
+    let keychains = (0..10).map(|_| KeyChain::random()).collect::<Vec<_>>();
     let genesis = View::genesis(keychains.iter().map(KeyChain::keycard)).await;
     let (_server, clients) = setup_discovery(genesis.clone(), Mode::Full).await;
 
@@ -73,7 +70,7 @@ async fn develop() {
 
     let mut lattices = keychains
         .into_iter()
-        .take(67) // Simulate single crash
+        .take(10) // Simulate single crash
         .zip(clients)
         .zip(connectors)
         .zip(listeners)
@@ -106,5 +103,14 @@ async fn develop() {
     sets.sort_by_key(|set| set.len());
     for window in sets.windows(2) {
         assert!(window[0].is_subset(&window[1]));
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 32)]
+#[ignore]
+async fn develop() {
+    for i in 0.. {
+        println!("Running {}", i);
+        lattice_run().await;
     }
 }
