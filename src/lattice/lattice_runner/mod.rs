@@ -1,5 +1,5 @@
 use crate::{
-    crypto::{Aggregator, Header},
+    crypto::Aggregator,
     discovery::Client,
     lattice::{
         statements::Decision, Element as LatticeElement, Instance as LatticeInstance, Message,
@@ -13,7 +13,7 @@ use doomstack::{here, Doom, ResultExt, Top};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
-use talk::crypto::{Identity, KeyCard, KeyChain, Statement as CryptoStatement};
+use talk::crypto::{Identity, KeyCard, KeyChain};
 use talk::sync::fuse::Fuse;
 use talk::unicast::{Acknowledgement, Acknowledger, PushSettings, Receiver, Sender};
 use talk::{broadcast::BestEffortSettings, crypto::primitives::hash::Hash};
@@ -287,14 +287,6 @@ where
             }
         }
     }
-}
-
-impl<Instance> CryptoStatement for Decision<Instance>
-where
-    Instance: LatticeInstance,
-{
-    type Header = Header;
-    const HEADER: Header = Header::LatticeDecision;
 }
 
 // Implementations
