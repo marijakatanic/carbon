@@ -6,8 +6,8 @@ use crate::{
 
 use serde::{Deserialize, Serialize};
 
-use std::iter;
-use std::iter::Iterator;
+use std::collections::BTreeSet;
+use std::iter::{self, FromIterator, Iterator};
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 
@@ -45,7 +45,7 @@ pub(crate) async fn setup_discovery(
     (server, clients)
 }
 
-#[derive(PartialEq, Eq, Serialize, Deserialize, Clone, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Clone, Debug)]
 struct Element(u32);
 
 impl LatticeElement for Element {
@@ -58,10 +58,10 @@ impl LatticeElement for Element {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 32)]
 #[ignore]
 async fn develop() {
-    let keychains = (0..10).map(|_| KeyChain::random()).collect::<Vec<_>>();
+    let keychains = (0..100).map(|_| KeyChain::random()).collect::<Vec<_>>();
     let genesis = View::genesis(keychains.iter().map(KeyChain::keycard)).await;
     let (_server, clients) = setup_discovery(genesis.clone(), Mode::Full).await;
 
@@ -73,7 +73,7 @@ async fn develop() {
 
     let mut lattices = keychains
         .into_iter()
-        .take(10) // Simulate single crash
+        .take(67) // Simulate single crash
         .zip(clients)
         .zip(connectors)
         .zip(listeners)
@@ -93,8 +93,18 @@ async fn develop() {
         let _ = lattice.propose(Element(proposal as u32)).await;
     }
 
+    let mut decisions = Vec::new();
     for lattice in lattices.iter_mut() {
         let (decision, _certificate) = lattice.decide().await;
-        println!("Works? {:?}", decision);
+        decisions.push(decision);
+    }
+
+    let mut sets: Vec<_> = decisions
+        .into_iter()
+        .map(|decision| BTreeSet::from_iter(decision))
+        .collect();
+    sets.sort_by_key(|set| set.len());
+    for window in sets.windows(2) {
+        assert!(window[0].is_subset(&window[1]));
     }
 }
