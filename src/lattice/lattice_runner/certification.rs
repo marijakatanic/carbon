@@ -27,11 +27,16 @@ where
 
         let identifier = decision.identifier();
 
+        let accepted_set = self
+            .database
+            .certification
+            .take()
+            .map(|certification| certification.accepted_set)
+            .unwrap_or(BTreeSet::new());
+
         let aggregator = Aggregator::new(self.view.clone(), decision.clone());
 
-        let message = CertificationRequest {
-            decision: decision.clone(),
-        };
+        let message = CertificationRequest { decision };
 
         let broadcast = BestEffort::new(
             self.sender.clone(),
@@ -41,12 +46,11 @@ where
         );
 
         let fuse = Fuse::new();
-
         broadcast.spawn(&fuse);
 
         let certification_database = CertificationDatabase {
             identifier,
-            decision,
+            accepted_set,
             aggregator,
             fuse,
         };

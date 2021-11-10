@@ -58,10 +58,11 @@ struct Database<Instance: LatticeInstance, Element: LatticeElement> {
     disclosure: DisclosureDatabase<Element>,
     certification: Option<CertificationDatabase<Instance>>,
 
-    disclosures: usize,
     elements: HashMap<Hash, Element>,
 
+    disclosures: usize,
     safe_set: BTreeSet<Hash>,
+
     proposed_set: BTreeSet<Hash>,
 }
 
@@ -103,10 +104,8 @@ struct DisclosureDatabase<Element: LatticeElement> {
 
 pub(in crate::lattice) struct CertificationDatabase<Instance: LatticeInstance> {
     identifier: Hash,
-    decision: Decision<Instance>,
-
+    accepted_set: BTreeSet<Hash>,
     aggregator: Aggregator<Decision<Instance>>,
-
     fuse: Fuse,
 }
 
@@ -160,10 +159,11 @@ where
 
             certification: None,
 
-            disclosures: 0,
             elements: HashMap::new(),
 
+            disclosures: 0,
             safe_set: BTreeSet::new(),
+
             proposed_set: BTreeSet::new(),
         };
 

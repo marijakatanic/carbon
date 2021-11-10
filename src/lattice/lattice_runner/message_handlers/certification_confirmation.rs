@@ -30,7 +30,12 @@ where
             .signature
             .verify(
                 [source],
-                &self.database.certification.as_ref().unwrap().decision,
+                self.database
+                    .certification
+                    .as_ref()
+                    .unwrap()
+                    .aggregator
+                    .statement(),
             )
             .pot(MessageError::InvalidSignature, here!())?;
 
