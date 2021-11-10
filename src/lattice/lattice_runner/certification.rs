@@ -7,7 +7,10 @@ use crate::{
     },
 };
 
+use std::collections::BTreeSet;
+
 use talk::broadcast::BestEffort;
+use talk::crypto::primitives::hash::Hash;
 use talk::sync::fuse::Fuse;
 
 impl<Instance, Element> LatticeRunner<Instance, Element>
@@ -15,43 +18,20 @@ where
     Instance: LatticeInstance,
     Element: LatticeElement,
 {
-    pub(in crate::lattice::lattice_runner) fn current_decision(&self) -> Decision<Instance> {
-        if self.state == State::Proposing {
-            self.database
-                .certification
-                .as_ref()
-                .unwrap()
-                .aggregator
-                .statement()
-                .clone()
-        } else {
-            // TODO: Improve this by implementing a collect/iterator method for `zebra::map::Set`
+    pub(in crate::lattice::lattice_runner) fn certify(&mut self, elements: BTreeSet<Hash>) {
+        let decision = Decision {
+            view: self.view.identifier(),
+            instance: self.instance.clone(),
+            elements,
+        };
 
-            let mut elements = self
-                .database
-                .safe_set
-                .keys()
-                .cloned()
-                .filter(|hash| self.database.proposed_set.contains(hash))
-                .collect::<Vec<_>>();
-
-            elements.sort();
-
-            Decision {
-                elements: elements,
-                view: self.view.identifier(),
-                instance: self.instance.clone(),
-            }
-        }
-    }
-
-    pub(in crate::lattice::lattice_runner) fn certify(&mut self) {
-        let decision = self.current_decision();
         let identifier = decision.identifier();
 
         let aggregator = Aggregator::new(self.view.clone(), decision.clone());
 
-        let message = CertificationRequest { decision };
+        let message = CertificationRequest {
+            decision: decision.clone(),
+        };
 
         let broadcast = BestEffort::new(
             self.sender.clone(),
@@ -66,6 +46,7 @@ where
 
         let certification_database = CertificationDatabase {
             identifier,
+            decision,
             aggregator,
             fuse,
         };

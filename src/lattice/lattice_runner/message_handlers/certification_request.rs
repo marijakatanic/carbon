@@ -21,18 +21,16 @@ where
         if self.state != State::Proposing {
             return MessageError::WrongState.fail();
         }
-        if self.instance != message.decision.instance {
-            return MessageError::WrongInstance.fail();
-        }
-        if self.view.identifier() != message.decision.view {
+
+        if message.decision.view != self.view.identifier() {
             return MessageError::WrongView.fail();
         }
-        if message
-            .decision
-            .elements
-            .iter()
-            .any(|element| !self.database.safe_set.contains_key(element))
-        {
+
+        if message.decision.instance != self.instance {
+            return MessageError::WrongInstance.fail();
+        }
+
+        if !message.decision.elements.is_subset(&self.database.safe_set) {
             return MessageError::InvalidElement.fail();
         }
 

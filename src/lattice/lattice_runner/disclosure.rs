@@ -19,7 +19,9 @@ where
 
         self.database.disclosure.disclosed = true;
 
-        self.database.safe_set.insert(identifier, proposal.clone());
+        self.database.elements.insert(identifier, proposal.clone());
+
+        self.database.safe_set.insert(identifier);
         self.database.proposed_set.insert(identifier);
 
         let brief = DisclosureSend::Brief {
@@ -43,7 +45,9 @@ where
         self.database.disclosures += 1;
         let identifier = proposal.identifier();
 
-        self.database.safe_set.insert(identifier, proposal.clone());
+        self.database.elements.insert(identifier, proposal.clone());
+
+        self.database.safe_set.insert(identifier);
 
         if let State::Disclosing = &self.state {
             if !self.disclosed() {
@@ -54,8 +58,7 @@ where
 
             if self.database.disclosures >= self.view.quorum() {
                 self.state = State::Proposing;
-
-                self.certify();
+                self.certify(self.database.proposed_set.clone());
             }
         }
     }

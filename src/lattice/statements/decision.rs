@@ -2,6 +2,8 @@ use crate::lattice::Instance as LatticeInstance;
 
 use serde::{Deserialize, Serialize};
 
+use std::collections::BTreeSet;
+
 use talk::crypto::primitives::hash;
 use talk::crypto::primitives::hash::Hash;
 
@@ -11,7 +13,7 @@ use zebra::Commitment;
 pub(in crate::lattice) struct Decision<Instance> {
     pub view: Commitment,
     pub instance: Instance,
-    pub elements: Vec<Hash>,
+    pub elements: BTreeSet<Hash>,
 }
 
 impl<Instance> Decision<Instance>

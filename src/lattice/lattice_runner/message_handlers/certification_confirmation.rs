@@ -21,13 +21,17 @@ where
         if self.state != State::Proposing {
             return MessageError::WrongState.fail();
         }
-        if self.database.certification.as_ref().unwrap().identifier != message.identifier {
+
+        if message.identifier != self.database.certification.as_ref().unwrap().identifier {
             return MessageError::StaleMessage.fail();
         }
 
         message
             .signature
-            .verify([source], &self.current_decision())
+            .verify(
+                [source],
+                &self.database.certification.as_ref().unwrap().decision,
+            )
             .pot(MessageError::InvalidSignature, here!())?;
 
         Ok(())

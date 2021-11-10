@@ -21,21 +21,16 @@ where
         if self.state != State::Proposing {
             return MessageError::WrongState.fail();
         }
-        if self.database.certification.as_ref().unwrap().identifier != message.identifier {
+
+        if message.identifier != self.database.certification.as_ref().unwrap().identifier {
             return MessageError::StaleMessage.fail();
         }
-        if message
-            .differences
-            .iter()
-            .any(|element| !self.database.safe_set.contains_key(element))
-        {
+
+        if !message.differences.is_subset(&self.database.safe_set) {
             return MessageError::InvalidElement.fail();
         }
-        if message
-            .differences
-            .iter()
-            .all(|element| self.database.proposed_set.contains(element))
-        {
+
+        if message.differences.is_disjoint(&self.database.proposed_set) {
             return MessageError::NoNewElements.fail();
         }
 
