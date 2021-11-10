@@ -1,9 +1,12 @@
 use crate::lattice::{
-    lattice_runner::State, messages::CertificationRequest, Element as LatticeElement,
-    Instance as LatticeInstance, LatticeRunner, MessageError,
+    message::Message,
+    messages::{CertificationConfirmation, CertificationRequest, CertificationUpdate},
+    Element as LatticeElement, Instance as LatticeInstance, LatticeRunner, MessageError,
 };
 
 use doomstack::{Doom, Top};
+
+use std::collections::BTreeSet;
 
 use talk::crypto::KeyCard;
 use talk::unicast::Acknowledger;
@@ -18,16 +21,16 @@ where
         _source: &KeyCard,
         message: &CertificationRequest<Instance>,
     ) -> Result<(), Top<MessageError>> {
-        if self.state != State::Proposing {
-            return MessageError::WrongState.fail();
-        }
-
         if message.decision.view != self.view.identifier() {
             return MessageError::WrongView.fail();
         }
 
         if message.decision.instance != self.instance {
             return MessageError::WrongInstance.fail();
+        }
+
+        if message.decision.elements.is_empty() {
+            return MessageError::EmptyDecision.fail();
         }
 
         if !message.decision.elements.is_subset(&self.database.safe_set) {
@@ -39,12 +42,59 @@ where
 
     pub(in crate::lattice::lattice_runner) fn process_certification_request(
         &mut self,
-        _source: &KeyCard,
-        _message: CertificationRequest<Instance>,
+        source: &KeyCard,
+        message: CertificationRequest<Instance>,
         acknowledger: Acknowledger,
     ) {
         acknowledger.strong();
 
-        todo!();
+        if message
+            .decision
+            .elements
+            .is_superset(&self.database.accepted_set)
+        {
+            let identifier = message.decision.identifier();
+            let signature = self.keychain.multisign(&message.decision).unwrap();
+
+            let message = CertificationConfirmation {
+                identifier,
+                signature,
+            };
+
+            self.sender.spawn_push(
+                source.identity(),
+                Message::CertificationConfirmation(message),
+                Default::default(), // TODO: Add settings
+                &self.fuse,
+            );
+        } else {
+            let identifier = message.decision.identifier();
+
+            let differences = self
+                .database
+                .accepted_set
+                .difference(&message.decision.elements)
+                .cloned()
+                .collect::<BTreeSet<_>>();
+
+            let message = CertificationUpdate {
+                identifier,
+                differences,
+            };
+
+            self.sender.spawn_push(
+                source.identity(),
+                Message::CertificationUpdate(message),
+                Default::default(), // TODO: Add settings
+                &self.fuse,
+            );
+        }
+
+        self.database.accepted_set = self
+            .database
+            .accepted_set
+            .union(&message.decision.elements)
+            .cloned()
+            .collect::<BTreeSet<_>>();
     }
 }

@@ -6,7 +6,7 @@ use talk::crypto::primitives::hash;
 use talk::crypto::primitives::hash::Hash;
 use talk::unicast::Message;
 
-pub(crate) trait Element: Message + Clone {
+pub(crate) trait Element: Message + Clone + std::fmt::Debug { // TODO: Remove `Debug`
     fn validate(&self, client: &Client, view: &View) -> Result<(), Top<ElementError>>;
 
     fn identifier(&self) -> Hash {

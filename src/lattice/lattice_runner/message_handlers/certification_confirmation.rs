@@ -57,6 +57,7 @@ where
             .add(source, message.signature)
             .unwrap();
 
+        // If this is reached, then `self.state == State::Proposing` (as `message` passed validation)
         if certification_database.aggregator.multiplicity() >= self.view.quorum() {
             self.decide();
         }

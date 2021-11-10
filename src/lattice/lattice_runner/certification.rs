@@ -27,13 +27,6 @@ where
 
         let identifier = decision.identifier();
 
-        let accepted_set = self
-            .database
-            .certification
-            .take()
-            .map(|certification| certification.accepted_set)
-            .unwrap_or(BTreeSet::new());
-
         let aggregator = Aggregator::new(self.view.clone(), decision.clone());
 
         let message = CertificationRequest { decision };
@@ -50,7 +43,6 @@ where
 
         let certification_database = CertificationDatabase {
             identifier,
-            accepted_set,
             aggregator,
             fuse,
         };
@@ -61,7 +53,7 @@ where
     pub(in crate::lattice::lattice_runner) fn decide(&mut self) {
         self.state = State::Decided;
 
-        let (_decision, _certificate) = self
+        let (decision, certificate) = self
             .database
             .certification
             .take()
@@ -69,6 +61,17 @@ where
             .aggregator
             .finalize_quorum();
 
-        todo!();
+        let elements = decision
+            .elements
+            .iter()
+            .map(|element| self.database.elements.get(element).unwrap())
+            .cloned()
+            .collect::<Vec<_>>();
+
+        let _ = self
+            .decision_inlet
+            .take()
+            .unwrap()
+            .send((elements, certificate));
     }
 }

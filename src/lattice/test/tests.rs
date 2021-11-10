@@ -10,12 +10,9 @@ use std::iter;
 use std::iter::Iterator;
 use std::net::Ipv4Addr;
 use std::sync::Arc;
-use std::time::Duration;
 
 use talk::crypto::KeyChain;
 use talk::net::test::System;
-
-use tokio::time;
 
 pub(crate) async fn setup_discovery(
     genesis: View,
@@ -48,7 +45,7 @@ pub(crate) async fn setup_discovery(
     (server, clients)
 }
 
-#[derive(PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[derive(PartialEq, Eq, Serialize, Deserialize, Clone, Debug)]
 struct Element(u32);
 
 impl LatticeElement for Element {
@@ -76,7 +73,7 @@ async fn develop() {
 
     let mut lattices = keychains
         .into_iter()
-        .take(3) // Simulate single crash
+        .take(4) // Simulate single crash
         .zip(clients)
         .zip(connectors)
         .zip(listeners)
@@ -96,5 +93,8 @@ async fn develop() {
         let _ = lattice.propose(Element(proposal as u32)).await;
     }
 
-    time::sleep(Duration::from_secs(5)).await;
+    for lattice in lattices.iter_mut() {
+        let (decision, _certificate) = lattice.decide().await;
+        println!("Works? {:?}", decision);
+    }
 }

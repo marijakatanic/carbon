@@ -33,4 +33,6 @@ pub(in crate::lattice) enum MessageError {
     InvalidSignature,
     #[doom(description("`Message` contains no new `Element`"))]
     NoNewElements,
+    #[doom(description("`Message`'s `Decision` must contain at least one `Element`"))]
+    EmptyDecision,
 }

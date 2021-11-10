@@ -1,5 +1,5 @@
 use crate::{
-    crypto::Aggregator,
+    crypto::{Aggregator, Certificate},
     discovery::Client,
     lattice::{
         statements::Decision, Element as LatticeElement, Instance as LatticeInstance, Message,
@@ -26,6 +26,9 @@ type ProposalOutlet<Element> = OneshotReceiver<(Element, ResultInlet)>;
 type ResultInlet = OneshotSender<bool>;
 type ResultOutlet = OneshotReceiver<bool>;
 
+type DecisionInlet<Element> = OneshotSender<(Vec<Element>, Certificate)>;
+type DecisionOutlet<Element> = OneshotReceiver<(Vec<Element>, Certificate)>;
+
 pub(in crate::lattice) struct LatticeRunner<Instance: LatticeInstance, Element: LatticeElement> {
     view: View,
     instance: Instance,
@@ -42,6 +45,7 @@ pub(in crate::lattice) struct LatticeRunner<Instance: LatticeInstance, Element: 
     receiver: Receiver<Message<Instance, Element>>,
 
     proposal_outlet: ProposalOutlet<Element>,
+    decision_inlet: Option<DecisionInlet<Element>>,
 
     settings: Settings,
     fuse: Fuse,
@@ -64,6 +68,7 @@ struct Database<Instance: LatticeInstance, Element: LatticeElement> {
     safe_set: BTreeSet<Hash>,
 
     proposed_set: BTreeSet<Hash>,
+    accepted_set: BTreeSet<Hash>,
 }
 
 struct DisclosureDatabase<Element: LatticeElement> {
@@ -104,7 +109,6 @@ struct DisclosureDatabase<Element: LatticeElement> {
 
 pub(in crate::lattice) struct CertificationDatabase<Instance: LatticeInstance> {
     identifier: Hash,
-    accepted_set: BTreeSet<Hash>,
     aggregator: Aggregator<Decision<Instance>>,
     fuse: Fuse,
 }
@@ -134,6 +138,7 @@ where
         sender: Sender<Message<Instance, Element>>,
         receiver: Receiver<Message<Instance, Element>>,
         proposal_outlet: ProposalOutlet<Element>,
+        decision_inlet: DecisionInlet<Element>,
     ) -> Self {
         let members = view
             .members()
@@ -165,6 +170,7 @@ where
             safe_set: BTreeSet::new(),
 
             proposed_set: BTreeSet::new(),
+            accepted_set: BTreeSet::new(),
         };
 
         // TODO: Forward variable settings
@@ -190,6 +196,7 @@ where
             sender,
             receiver,
             proposal_outlet,
+            decision_inlet: Some(decision_inlet),
             settings,
             fuse,
         }

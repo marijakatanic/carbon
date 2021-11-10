@@ -1,4 +1,5 @@
 use crate::{
+    crypto::Certificate,
     discovery::Client,
     lattice::{Element as LatticeElement, Instance as LatticeInstance, LatticeRunner, Message},
     view::View,
@@ -22,9 +23,13 @@ type ProposalOutlet<Element> = OneshotReceiver<(Element, ResultInlet)>;
 type ResultInlet = OneshotSender<bool>;
 type ResultOutlet = OneshotReceiver<bool>;
 
+type DecisionInlet<Element> = OneshotSender<(Vec<Element>, Certificate)>;
+type DecisionOutlet<Element> = OneshotReceiver<(Vec<Element>, Certificate)>;
+
 pub(crate) struct LatticeAgreement<Instance: LatticeInstance, Element: LatticeElement> {
     instance: Instance,
     proposal_inlet: Option<ProposalInlet<Element>>,
+    decision_outlet: Option<DecisionOutlet<Element>>,
     _fuse: Fuse,
 }
 
@@ -56,7 +61,7 @@ where
             Receiver::new(listener, Default::default()); // TODO: Forward settings
 
         let (proposal_inlet, proposal_outlet) = oneshot::channel();
-        let proposal_inlet = Some(proposal_inlet);
+        let (decision_inlet, decision_outlet) = oneshot::channel();
 
         let fuse = Fuse::new();
 
@@ -70,6 +75,7 @@ where
                 sender,
                 receiver,
                 proposal_outlet,
+                decision_inlet,
             );
 
             fuse.spawn(async move {
@@ -79,7 +85,8 @@ where
 
         LatticeAgreement {
             instance,
-            proposal_inlet,
+            proposal_inlet: Some(proposal_inlet),
+            decision_outlet: Some(decision_outlet),
             _fuse: fuse,
         }
     }
@@ -102,5 +109,9 @@ where
         } else {
             LatticeAgreementError::ProposalSuperseded.fail()
         }
+    }
+
+    pub async fn decide(&mut self) -> (Vec<Element>, Certificate) {
+        self.decision_outlet.take().unwrap().await.unwrap()
     }
 }

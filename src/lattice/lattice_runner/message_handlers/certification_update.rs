@@ -5,6 +5,8 @@ use crate::lattice::{
 
 use doomstack::{Doom, Top};
 
+use std::collections::BTreeSet;
+
 use talk::crypto::KeyCard;
 use talk::unicast::Acknowledger;
 
@@ -40,9 +42,18 @@ where
     pub(in crate::lattice::lattice_runner) fn process_certification_update(
         &mut self,
         _source: &KeyCard,
-        _message: CertificationUpdate,
-        _acknowledger: Acknowledger,
+        message: CertificationUpdate,
+        acknowledger: Acknowledger,
     ) {
-        todo!();
+        acknowledger.strong();
+
+        self.database.proposed_set = self
+            .database
+            .proposed_set
+            .union(&message.differences)
+            .cloned()
+            .collect::<BTreeSet<_>>();
+
+        self.certify(self.database.proposed_set.clone());
     }
 }
