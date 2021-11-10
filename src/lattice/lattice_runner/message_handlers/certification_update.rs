@@ -32,7 +32,7 @@ where
             return MessageError::InvalidElement.fail();
         }
 
-        if message.differences.is_disjoint(&self.database.proposed_set) {
+        if !message.differences.is_disjoint(&self.database.proposed_set) {
             return MessageError::NoNewElements.fail();
         }
 

@@ -61,7 +61,7 @@ impl LatticeElement for Element {
 #[tokio::test]
 #[ignore]
 async fn develop() {
-    let keychains = (0..4).map(|_| KeyChain::random()).collect::<Vec<_>>();
+    let keychains = (0..10).map(|_| KeyChain::random()).collect::<Vec<_>>();
     let genesis = View::genesis(keychains.iter().map(KeyChain::keycard)).await;
     let (_server, clients) = setup_discovery(genesis.clone(), Mode::Full).await;
 
@@ -73,7 +73,7 @@ async fn develop() {
 
     let mut lattices = keychains
         .into_iter()
-        .take(4) // Simulate single crash
+        .take(10) // Simulate single crash
         .zip(clients)
         .zip(connectors)
         .zip(listeners)
