@@ -9,7 +9,7 @@ use doomstack::{Doom, Top};
 use std::collections::BTreeSet;
 
 use talk::crypto::KeyCard;
-use talk::unicast::Acknowledger;
+use talk::unicast::{Acknowledgement, Acknowledger, PushSettings};
 
 impl<Instance, Element> LatticeRunner<Instance, Element>
 where
@@ -64,7 +64,10 @@ where
             self.sender.spawn_push(
                 source.identity(),
                 Message::CertificationConfirmation(message),
-                Default::default(), // TODO: Add settings
+                PushSettings {
+                    stop_condition: Acknowledgement::Weak,
+                    ..Default::default()
+                }, // TODO: Add settings
                 &self.fuse,
             );
         } else {
@@ -85,7 +88,10 @@ where
             self.sender.spawn_push(
                 source.identity(),
                 Message::CertificationUpdate(message),
-                Default::default(), // TODO: Add settings
+                PushSettings {
+                    stop_condition: Acknowledgement::Weak,
+                    ..Default::default()
+                }, // TODO: Add settings
                 &self.fuse,
             );
         }
