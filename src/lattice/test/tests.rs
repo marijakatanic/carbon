@@ -1,4 +1,5 @@
 use crate::{
+    crypto::Identify,
     discovery::{Client, ClientSettings, Mode, Server},
     lattice::{Element as LatticeElement, LatticeAgreement},
     view::View,
@@ -11,6 +12,8 @@ use std::iter::{self, FromIterator, Iterator};
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 
+use talk::crypto::primitives::hash;
+use talk::crypto::primitives::hash::Hash;
 use talk::crypto::KeyChain;
 use talk::net::test::System;
 
@@ -57,6 +60,13 @@ impl LatticeElement for Element {
         Ok(())
     }
 }
+
+impl Identify for Element {
+    fn identifier(&self) -> Hash {
+        hash::hash(&self.0).unwrap()
+    }
+}
+
 async fn lattice_run() {
     let keychains = (0..10).map(|_| KeyChain::random()).collect::<Vec<_>>();
     let genesis = View::genesis(keychains.iter().map(KeyChain::keycard)).await;

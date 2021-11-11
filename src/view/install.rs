@@ -1,5 +1,5 @@
 use crate::{
-    crypto::{Aggregator, Certificate, Header},
+    crypto::{Aggregator, Certificate, Header, Identify},
     view::{Increment, Transition, View},
 };
 
@@ -13,8 +13,6 @@ use talk::crypto::primitives::hash::Hash;
 use talk::crypto::primitives::multi::{MultiError, Signature as MultiSignature};
 use talk::crypto::{KeyCard, KeyChain, Statement as CryptoStatement};
 
-use zebra::Commitment;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(remote = "Self")]
 pub(crate) struct Install {
@@ -22,13 +20,13 @@ pub(crate) struct Install {
     certificate: Certificate,
 }
 
-pub(crate) struct InstallAggregator(Aggregator<Statement>);
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Statement {
-    source: Commitment,
+    source: Hash,
     increments: Vec<Increment>,
 }
+
+pub(crate) struct InstallAggregator(Aggregator<Statement>);
 
 #[derive(Doom)]
 pub(crate) enum InstallError {
@@ -55,11 +53,7 @@ impl Install {
             .expect("Panic at `Install::certify`: unexpected error from `keychain.multisign`")
     }
 
-    pub fn identifier(&self) -> Hash {
-        hash::hash(self).unwrap()
-    }
-
-    pub fn source(&self) -> Commitment {
+    pub fn source(&self) -> Hash {
         self.statement.source
     }
 
@@ -139,6 +133,18 @@ impl<'de> Deserialize<'de> for Install {
         let install = Install::deserialize(deserializer)?;
         install.check().map_err(|err| de::Error::custom(err))?;
         Ok(install)
+    }
+}
+
+impl Identify for Install {
+    fn identifier(&self) -> Hash {
+        self.statement.identifier()
+    }
+}
+
+impl Identify for Statement {
+    fn identifier(&self) -> Hash {
+        hash::hash(self).unwrap()
     }
 }
 

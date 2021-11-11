@@ -1,5 +1,5 @@
 use crate::{
-    crypto::Aggregator,
+    crypto::{Aggregator, Identify},
     lattice::{
         lattice_runner::{CertificationDatabase, Decision, State},
         messages::CertificationRequest,

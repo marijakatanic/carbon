@@ -1,7 +1,10 @@
-use crate::lattice::{
-    message::Message,
-    messages::{CertificationConfirmation, CertificationRequest, CertificationUpdate},
-    Element as LatticeElement, Instance as LatticeInstance, LatticeRunner, MessageError,
+use crate::{
+    crypto::Identify,
+    lattice::{
+        message::Message,
+        messages::{CertificationConfirmation, CertificationRequest, CertificationUpdate},
+        Element as LatticeElement, Instance as LatticeInstance, LatticeRunner, MessageError,
+    },
 };
 
 use doomstack::{Doom, Top};

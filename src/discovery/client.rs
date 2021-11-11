@@ -1,4 +1,5 @@
 use crate::{
+    crypto::Identify,
     discovery::{ClientSettings, Mode, Request, Response},
     view::{Install, Transition, View},
 };
@@ -22,7 +23,6 @@ use tokio::sync::{watch, Mutex};
 use tokio::time;
 
 use zebra::database::{Collection, CollectionTransaction, Family};
-use zebra::Commitment;
 
 type TransitionInlet = Sender<Option<Transition>>;
 type TransitionOutlet = Receiver<Option<Transition>>;
@@ -36,7 +36,7 @@ pub(crate) struct Client {
 }
 
 struct Database {
-    views: HashMap<Commitment, View>,
+    views: HashMap<Hash, View>,
     installs: HashMap<Hash, Install>,
 }
 
@@ -146,7 +146,7 @@ impl Client {
         }
     }
 
-    pub(crate) async fn view(&self, identifier: &Commitment) -> Option<View> {
+    pub(crate) async fn view(&self, identifier: &Hash) -> Option<View> {
         self.database.lock().await.views.get(identifier).cloned()
     }
 

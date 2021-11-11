@@ -1,4 +1,7 @@
-use crate::view::{Install, View};
+use crate::{
+    crypto::Identify,
+    view::{Install, View},
+};
 
 pub(crate) struct Client {
     current: View,

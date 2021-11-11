@@ -1,6 +1,6 @@
 use crate::view::{Increment, View};
 
-use zebra::Commitment;
+use talk::crypto::primitives::hash::Hash;
 
 #[derive(Clone)]
 pub(crate) struct Transition {
@@ -10,7 +10,7 @@ pub(crate) struct Transition {
 }
 
 impl Transition {
-    pub(in crate::view) async fn new(source: Commitment, increments: Vec<Increment>) -> Self {
+    pub(in crate::view) async fn new(source: Hash, increments: Vec<Increment>) -> Self {
         let source =
             View::get(source).expect("An `Install` message was accepted with unknown `source`");
 

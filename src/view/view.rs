@@ -1,13 +1,16 @@
-use crate::view::{Change, Increment, FAMILY, VIEWS};
+use crate::{
+    crypto::Identify,
+    view::{Change, Increment, FAMILY, VIEWS},
+};
 
 use std::collections::hash_map::Entry;
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use talk::crypto::primitives::hash::Hash;
 use talk::crypto::KeyCard;
 
 use zebra::database::{Collection, CollectionTransaction};
-use zebra::Commitment;
 
 #[derive(Clone)]
 pub(crate) struct View {
@@ -177,12 +180,8 @@ impl View {
         }
     }
 
-    pub fn get(identifier: Commitment) -> Option<Self> {
+    pub fn get(identifier: Hash) -> Option<Self> {
         VIEWS.lock().unwrap().get(&identifier).cloned()
-    }
-
-    pub fn identifier(&self) -> Commitment {
-        self.data.changes.commit()
     }
 
     pub fn height(&self) -> usize {
@@ -199,6 +198,12 @@ impl View {
 
     pub fn members(&self) -> &[KeyCard] {
         self.data.members.as_slice()
+    }
+}
+
+impl Identify for View {
+    fn identifier(&self) -> Hash {
+        self.data.changes.commit()
     }
 }
 

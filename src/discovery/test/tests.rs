@@ -1,4 +1,5 @@
 use crate::{
+    crypto::Identify,
     discovery::{test, Client, Mode, Server},
     view::test::InstallGenerator,
 };

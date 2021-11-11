@@ -1,4 +1,5 @@
 use crate::{
+    crypto::Identify,
     discovery::{Frame, Request, Response, ServerSettings},
     view::{Install, View},
 };
@@ -16,17 +17,13 @@ use talk::sync::fuse::Fuse;
 use tokio::io;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::sync::broadcast;
-use tokio::sync::broadcast::{
-    error::RecvError as BroadcastRecvError, Receiver as BroadcastReceiver,
-    Sender as BroadcastSender,
-};
-
+use tokio::sync::broadcast::error::RecvError as BroadcastRecvError;
+use tokio::sync::broadcast::{Receiver as BroadcastReceiver, Sender as BroadcastSender};
 use tokio::sync::watch;
 use tokio::sync::watch::{Receiver as WatchReceiver, Sender as WatchSender};
 use tokio::sync::Mutex as TokioMutex;
 
 use zebra::database::{Collection, CollectionStatus, CollectionTransaction, Family, Question};
-use zebra::Commitment;
 
 type InstallInlet = BroadcastSender<Install>;
 type InstallOutlet = BroadcastReceiver<Install>;
@@ -40,7 +37,7 @@ pub(crate) struct Server {
 }
 
 struct Database {
-    views: HashMap<Commitment, View>,
+    views: HashMap<Hash, View>,
     installs: HashMap<Hash, Install>,
 }
 

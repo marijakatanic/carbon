@@ -1,4 +1,7 @@
-use crate::{crypto::Header, lattice::Instance as LatticeInstance};
+use crate::{
+    crypto::{Header, Identify},
+    lattice::Instance as LatticeInstance,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -8,20 +11,18 @@ use talk::crypto::primitives::hash;
 use talk::crypto::primitives::hash::Hash;
 use talk::crypto::Statement;
 
-use zebra::Commitment;
-
 #[derive(Clone, Serialize, Deserialize)]
 pub(in crate::lattice) struct Decision<Instance> {
-    pub view: Commitment,
+    pub view: Hash,
     pub instance: Instance,
     pub elements: BTreeSet<Hash>,
 }
 
-impl<Instance> Decision<Instance>
+impl<Instance> Identify for Decision<Instance>
 where
     Instance: LatticeInstance,
 {
-    pub fn identifier(&self) -> Hash {
+    fn identifier(&self) -> Hash {
         hash::hash(&self).unwrap()
     }
 }
