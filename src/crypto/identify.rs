@@ -16,6 +16,12 @@ pub trait Identify {
     fn identifier(&self) -> Hash;
 }
 
+impl Identify for Hash {
+    fn identifier(&self) -> Hash {
+        *self
+    }
+}
+
 impl<T> Identify for Vec<T>
 where
     T: Identify,
