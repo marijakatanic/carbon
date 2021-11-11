@@ -40,8 +40,8 @@ pub(in crate::lattice) struct LatticeRunner<Instance: LatticeInstance, Element: 
     database: Database<Instance, Element>,
 
     discovery: Arc<Client>,
-    sender: Sender<Message<Instance, Element>>,
-    receiver: Receiver<Message<Instance, Element>>,
+    sender: Sender<Message<Element>>,
+    receiver: Receiver<Message<Element>>,
 
     proposal_outlet: ProposalOutlet<Element>,
     decision_inlet: Option<DecisionInlet<Element>>,
@@ -134,8 +134,8 @@ where
         instance: Instance,
         keychain: KeyChain,
         discovery: Arc<Client>,
-        sender: Sender<Message<Instance, Element>>,
-        receiver: Receiver<Message<Instance, Element>>,
+        sender: Sender<Message<Element>>,
+        receiver: Receiver<Message<Element>>,
         proposal_outlet: ProposalOutlet<Element>,
         decision_inlet: DecisionInlet<Element>,
     ) -> Self {
@@ -230,7 +230,7 @@ where
     async fn handle_message(
         &mut self,
         source: Identity,
-        message: Message<Instance, Element>,
+        message: Message<Element>,
         acknowledger: Acknowledger,
     ) -> Result<(), Top<HandleError>> {
         if let Some(keycard) = self.members.get(&source).cloned() {
@@ -248,7 +248,7 @@ where
     fn validate_message(
         &self,
         source: &KeyCard,
-        message: &Message<Instance, Element>,
+        message: &Message<Element>,
     ) -> Result<(), Top<MessageError>> {
         match message {
             Message::DisclosureSend(message) => self.validate_disclosure_send(source, message),
@@ -269,7 +269,7 @@ where
     fn process_message(
         &mut self,
         source: &KeyCard,
-        message: Message<Instance, Element>,
+        message: Message<Element>,
         acknowledger: Acknowledger,
     ) {
         match message {

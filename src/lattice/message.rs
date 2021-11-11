@@ -8,11 +8,11 @@ use doomstack::Doom;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
-pub(in crate::lattice) enum Message<Instance, Element> {
+pub(in crate::lattice) enum Message<Element> {
     DisclosureSend(DisclosureSend<Element>),
     DisclosureEcho(DisclosureEcho<Element>),
     DisclosureReady(DisclosureReady<Element>),
-    CertificationRequest(CertificationRequest<Instance>),
+    CertificationRequest(CertificationRequest),
     CertificationConfirmation(CertificationConfirmation),
     CertificationUpdate(CertificationUpdate),
 }

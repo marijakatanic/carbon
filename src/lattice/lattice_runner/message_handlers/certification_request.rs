@@ -3,7 +3,8 @@ use crate::{
     lattice::{
         message::Message,
         messages::{CertificationConfirmation, CertificationRequest, CertificationUpdate},
-        Element as LatticeElement, Instance as LatticeInstance, LatticeRunner, MessageError,
+        Decision, Element as LatticeElement, Instance as LatticeInstance, LatticeRunner,
+        MessageError,
     },
 };
 
@@ -22,21 +23,13 @@ where
     pub(in crate::lattice::lattice_runner) fn validate_certification_request(
         &self,
         _source: &KeyCard,
-        message: &CertificationRequest<Instance>,
+        message: &CertificationRequest,
     ) -> Result<(), Top<MessageError>> {
-        if message.decision.view != self.view.identifier() {
-            return MessageError::WrongView.fail();
-        }
-
-        if message.decision.instance != self.instance {
-            return MessageError::WrongInstance.fail();
-        }
-
-        if message.decision.elements.is_empty() {
+        if message.elements.is_empty() {
             return MessageError::EmptyDecision.fail();
         }
 
-        if !message.decision.elements.is_subset(&self.database.safe_set) {
+        if !message.elements.is_subset(&self.database.safe_set) {
             return MessageError::InvalidElement.fail();
         }
 
@@ -46,18 +39,21 @@ where
     pub(in crate::lattice::lattice_runner) fn process_certification_request(
         &mut self,
         source: &KeyCard,
-        message: CertificationRequest<Instance>,
+        message: CertificationRequest,
         acknowledger: Acknowledger,
     ) {
         acknowledger.strong();
 
-        if message
-            .decision
-            .elements
-            .is_superset(&self.database.accepted_set)
-        {
-            let identifier = message.decision.identifier();
-            let signature = self.keychain.multisign(&message.decision).unwrap();
+        if message.elements.is_superset(&self.database.accepted_set) {
+            let identifier = message.elements.identifier();
+
+            let decision = Decision {
+                view: self.view.identifier(),
+                instance: self.instance.clone(),
+                elements: message.elements.clone(),
+            };
+
+            let signature = self.keychain.multisign(&decision).unwrap();
 
             let message = CertificationConfirmation {
                 identifier,
@@ -74,12 +70,12 @@ where
                 &self.fuse,
             );
         } else {
-            let identifier = message.decision.identifier();
+            let identifier = message.elements.identifier();
 
             let differences = self
                 .database
                 .accepted_set
-                .difference(&message.decision.elements)
+                .difference(&message.elements)
                 .cloned()
                 .collect::<BTreeSet<_>>();
 
@@ -102,7 +98,7 @@ where
         self.database.accepted_set = self
             .database
             .accepted_set
-            .union(&message.decision.elements)
+            .union(&message.elements)
             .cloned()
             .collect::<BTreeSet<_>>();
     }

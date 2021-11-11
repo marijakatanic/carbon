@@ -19,17 +19,17 @@ where
     Element: LatticeElement,
 {
     pub(in crate::lattice::lattice_runner) fn certify(&mut self, elements: BTreeSet<Hash>) {
+        let identifier = elements.identifier();
+
         let decision = Decision {
             view: self.view.identifier(),
             instance: self.instance.clone(),
-            elements,
+            elements: elements.clone(),
         };
 
-        let identifier = decision.identifier();
+        let aggregator = Aggregator::new(self.view.clone(), decision);
 
-        let aggregator = Aggregator::new(self.view.clone(), decision.clone());
-
-        let message = CertificationRequest { decision };
+        let message = CertificationRequest { elements };
 
         let broadcast = BestEffort::new(
             self.sender.clone(),
