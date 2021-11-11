@@ -1,9 +1,9 @@
 use crate::{
     crypto::{Aggregator, Identify},
     lattice::{
-        lattice_runner::{CertificationDatabase, Decision, State},
+        lattice_runner::{CertificationDatabase, State},
         messages::CertificationRequest,
-        Element as LatticeElement, Instance as LatticeInstance, LatticeRunner, Message,
+        Decision, Element as LatticeElement, Instance as LatticeInstance, LatticeRunner, Message,
     },
 };
 

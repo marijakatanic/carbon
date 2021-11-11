@@ -1,3 +1,4 @@
+mod decision;
 mod element;
 mod instance;
 mod lattice_agreement;
@@ -5,8 +6,8 @@ mod lattice_runner;
 mod message;
 
 mod messages;
-mod statements;
 
+use decision::Decision;
 use lattice_runner::LatticeRunner;
 use message::Message;
 use message::MessageError;

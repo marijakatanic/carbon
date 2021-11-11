@@ -2,8 +2,7 @@ use crate::{
     crypto::{Aggregator, Certificate},
     discovery::Client,
     lattice::{
-        statements::Decision, Element as LatticeElement, Instance as LatticeInstance, Message,
-        MessageError,
+        Decision, Element as LatticeElement, Instance as LatticeInstance, Message, MessageError,
     },
     view::View,
 };

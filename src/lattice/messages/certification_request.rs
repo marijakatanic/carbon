@@ -1,4 +1,4 @@
-use crate::lattice::statements::Decision;
+use crate::lattice::Decision;
 
 use serde::{Deserialize, Serialize};
 
