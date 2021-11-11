@@ -1,4 +1,6 @@
-use talk::crypto::primitives::hash::Hash;
+use std::collections::BTreeSet;
+
+use talk::crypto::primitives::hash::{Hash, Hasher};
 
 /// ## `Identify` and `Eq`
 ///
@@ -12,4 +14,34 @@ use talk::crypto::primitives::hash::Hash;
 /// In other words, two elements are equal if and only if their identifiers are equal.
 pub trait Identify {
     fn identifier(&self) -> Hash;
+}
+
+impl<T> Identify for Vec<T>
+where
+    T: Identify,
+{
+    fn identifier(&self) -> Hash {
+        let mut hasher = Hasher::new();
+
+        for element in self.iter() {
+            hasher.update(&element.identifier()).unwrap();
+        }
+
+        hasher.finalize()
+    }
+}
+
+impl<T> Identify for BTreeSet<T>
+where
+    T: Identify,
+{
+    fn identifier(&self) -> Hash {
+        let mut hasher = Hasher::new();
+
+        for element in self.iter() {
+            hasher.update(&element.identifier()).unwrap();
+        }
+
+        hasher.finalize()
+    }
 }
