@@ -18,3 +18,5 @@ pub(crate) use install::Install;
 pub(crate) use install::InstallAggregator;
 pub(crate) use transition::Transition;
 pub(crate) use view::View;
+#[allow(unused_imports)]
+pub(crate) use view::ViewError;

@@ -34,19 +34,14 @@ where
         keycard: &KeyCard,
         signature: MultiSignature,
     ) -> Result<(), Top<MultiError>> {
-        let identity = keycard.identity();
-
         #[cfg(debug_assertions)]
         {
-            if self
-                .view
-                .members()
-                .binary_search_by_key(&identity, |member| member.identity())
-                .is_err()
-            {
+            if !self.view.members().contains(&keycard) {
                 panic!("Called `Aggregator::add` with foreign `identity`");
             }
         }
+
+        let identity = keycard.identity();
 
         signature.verify([keycard], &self.statement)?;
         self.components.insert(identity, signature);

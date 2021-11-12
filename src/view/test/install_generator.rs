@@ -79,15 +79,13 @@ impl InstallGenerator {
         let increments = heights
             .windows(2)
             .map(|window| {
-                Increment::new(
-                    self.keycards[window[0]..window[1]]
-                        .iter()
-                        .cloned()
-                        .map(|replica| Change::Join(replica))
-                        .collect::<Vec<_>>(),
-                )
+                self.keycards[window[0]..window[1]]
+                    .iter()
+                    .cloned()
+                    .map(|replica| Change::Join(replica))
+                    .collect()
             })
-            .collect::<Vec<_>>();
+            .collect();
 
         increments
     }

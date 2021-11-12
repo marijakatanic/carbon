@@ -3,8 +3,10 @@ use crate::{
     view::{Change, Increment, FAMILY, VIEWS},
 };
 
+use doomstack::{here, Doom, ResultExt, Top};
+
 use std::collections::hash_map::Entry;
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use talk::crypto::primitives::hash::Hash;
@@ -20,7 +22,17 @@ pub(crate) struct View {
 struct Data {
     height: usize,
     changes: Collection<Change>,
-    members: Vec<KeyCard>,
+    members: BTreeSet<KeyCard>,
+}
+
+#[derive(Doom)]
+pub(crate) enum ViewError {
+    #[doom(description("Extension results in a member joining more than once"))]
+    DoubleJoin,
+    #[doom(description("Extension results in a member leaving before joining"))]
+    UnmatchedLeave,
+    #[doom(description("Extension results in a member leaving more than once"))]
+    DoubleLeave,
 }
 
 impl View {
@@ -28,36 +40,23 @@ impl View {
     where
         M: IntoIterator<Item = KeyCard>,
     {
-        let mut members = members.into_iter().collect::<Vec<_>>();
-        members.sort_by_key(KeyCard::identity);
+        let members = members.into_iter().collect::<BTreeSet<_>>();
 
         #[cfg(debug_assertions)]
         {
-            // Verify that all `members` are distinct, and sufficiently many for Byzantine resilience.
-
-            let members_set = members.clone().into_iter().collect::<HashSet<_>>();
-
-            if members_set.len() > members.len() {
-                panic!("called `View::genesis` with non-distinct `members`");
-            }
-
             if members.len() < 4 {
                 panic!("called `View::genesis` with insufficient `members` for Byzantine resilience (i.e., 4)");
             }
         }
 
         let height = members.len();
-
-        let updates = members
-            .clone()
-            .into_iter()
-            .map(|replica| Change::Join(replica));
+        let increment = members.iter().cloned().map(|replica| Change::Join(replica));
 
         let mut changes = FAMILY.empty_collection();
         let mut transaction = CollectionTransaction::new();
 
-        for update in updates {
-            transaction.insert(update).unwrap();
+        for change in increment {
+            transaction.insert(change).unwrap();
         }
 
         changes.execute(transaction);
@@ -79,81 +78,31 @@ impl View {
     }
 
     pub fn extend(&self, increment: Increment) -> Self {
-        let updates = increment.into_vec();
-
         #[cfg(debug_assertions)]
         {
-            // Verify that no element of `updates` is already in `self.data.changes`,
-            // and that all negative changes of `updates` are matched by a corresponding
-            // positive change in `self.data.changes`.
-            //
-            // (Note that all identities in `updates` are already guaranteed to be distinct)
-
-            use std::collections::HashMap;
-
-            let requirements = updates
-                .iter()
-                .filter_map(Change::requirement)
-                .collect::<Vec<_>>();
-
-            // These are all guaranteed to be distinct: indeed, all identities in `updates`
-            // are distinct, and `requirements` is a mirror of a subsequence in `updates`
-            // (`Change::Leave`s are mapped onto corresponding `Change::Join`s).
-            let queries = updates.clone().into_iter().chain(requirements.into_iter());
-
-            let mut transaction = CollectionTransaction::new();
-
-            let queries = queries
-                .map(|change| {
-                    let query = transaction.contains(&change).unwrap();
-                    (change, query)
-                })
-                .collect::<Vec<_>>();
-
-            let response = self.data.changes.clone().execute(transaction);
-
-            let response = queries
-                .into_iter()
-                .map(|(change, query)| (change, response.contains(&query)))
-                .collect::<HashMap<_, _>>();
-
-            for update in updates.iter() {
-                // Verify that `update` is not already in `self.data.changes`
-                if response[update] {
-                    panic!("called `View::extend` with a pre-existing `Change`");
-                }
-
-                // Verify that, if `update` is negative, its positive mirror is in `self.data.changes`
-                if let Some(requirement) = update.requirement() {
-                    if !response[&requirement] {
-                        panic!("called `View::extend` with an unsatisfied requirement (unmatched `Change::Leave`)");
-                    }
-                }
+            for change in increment.iter() {
+                self.validate_extension(change)
+                    .expect("called `extend` with an invalid extension");
             }
         }
 
-        let height = self.data.height + updates.len();
+        let height = self.data.height + increment.len();
 
         let mut changes = self.data.changes.clone();
         let mut transaction = CollectionTransaction::new();
 
-        for update in updates.clone() {
-            transaction.insert(update).unwrap();
+        for change in increment.iter().cloned() {
+            transaction.insert(change).unwrap();
         }
 
         changes.execute(transaction);
 
         let identifier = changes.commit();
 
-        let mut members = self
-            .data
-            .members
-            .clone()
-            .into_iter()
-            .collect::<HashSet<_>>();
+        let mut members = self.data.members.clone();
 
-        for update in updates {
-            match update {
+        for change in increment.into_iter() {
+            match change {
                 Change::Join(replica) => {
                     members.insert(replica);
                 }
@@ -162,9 +111,6 @@ impl View {
                 }
             }
         }
-
-        let mut members = members.into_iter().collect::<Vec<_>>();
-        members.sort_by_key(KeyCard::identity);
 
         let data = Arc::new(Data {
             height,
@@ -196,8 +142,39 @@ impl View {
         self.data.members.len() - (self.data.members.len() - 1) / 3
     }
 
-    pub fn members(&self) -> &[KeyCard] {
-        self.data.members.as_slice()
+    pub fn members(&self) -> &BTreeSet<KeyCard> {
+        &self.data.members
+    }
+
+    pub fn validate_extension(&self, change: &Change) -> Result<(), Top<ViewError>> {
+        let join = Change::Join(change.keycard());
+        let leave = Change::Leave(change.keycard());
+
+        let mut transaction = CollectionTransaction::new();
+
+        let join_query = transaction.contains(&join).unwrap();
+        let leave_query = transaction.contains(&leave).unwrap();
+
+        let response = self.data.changes.clone().execute(transaction);
+
+        match change {
+            Change::Join(_) => {
+                if response.contains(&join_query) {
+                    ViewError::DoubleJoin.fail().spot(here!())
+                } else {
+                    Ok(())
+                }
+            }
+            Change::Leave(_) => {
+                if !response.contains(&join_query) {
+                    ViewError::UnmatchedLeave.fail().spot(here!())
+                } else if response.contains(&leave_query) {
+                    ViewError::DoubleLeave.fail().spot(here!())
+                } else {
+                    Ok(())
+                }
+            }
+        }
     }
 }
 
@@ -251,7 +228,10 @@ mod test {
     #[should_panic]
     fn unmatched_leave() {
         let view = View::genesis(random_keycards(16));
-        let increment = Increment::new([Change::Leave(KeyChain::random().keycard())]);
+
+        let increment =
+            std::collections::BTreeSet::from([Change::Leave(KeyChain::random().keycard())]);
+
         let _ = view.extend(increment);
     }
 
@@ -268,11 +248,10 @@ mod test {
         let mut view = View::genesis(random_keycards(4));
 
         for step in 0..16 {
-            let increment = Increment::new(
-                random_keycards(4)
-                    .into_iter()
-                    .map(|keycard| Change::Join(keycard)),
-            );
+            let increment = random_keycards(4)
+                .into_iter()
+                .map(|keycard| Change::Join(keycard))
+                .collect();
 
             view = view.extend(increment);
 
@@ -290,19 +269,22 @@ mod test {
         for _ in 0..16 {
             let keycards = random_keycards(4);
 
-            let increment = Increment::new(
-                keycards
-                    .iter()
-                    .cloned()
-                    .map(|keycard| Change::Join(keycard)),
-            );
+            let increment = keycards
+                .iter()
+                .cloned()
+                .map(|keycard| Change::Join(keycard))
+                .collect();
 
             view = view.extend(increment);
             steps.push(keycards);
         }
 
         for (index, step) in steps.into_iter().enumerate() {
-            let increment = Increment::new(step.into_iter().map(|keycard| Change::Leave(keycard)));
+            let increment = step
+                .into_iter()
+                .map(|keycard| Change::Leave(keycard))
+                .collect();
+
             view = view.extend(increment);
 
             assert_eq!(view.height(), 4 * (18 + index));
@@ -322,13 +304,13 @@ mod test {
 
         let direct = View::genesis(keycards[0..16].to_vec());
 
-        let two_steps =
-            View::genesis(keycards[0..8].to_vec()).extend(Increment::new(joins[8..16].to_vec()));
+        let two_steps = View::genesis(keycards[0..8].to_vec())
+            .extend(joins[8..16].into_iter().cloned().collect());
 
         let four_steps = View::genesis(keycards[0..4].to_vec())
-            .extend(Increment::new(joins[4..8].to_vec()))
-            .extend(Increment::new(joins[8..12].to_vec()))
-            .extend(Increment::new(joins[12..16].to_vec()));
+            .extend(joins[4..8].into_iter().cloned().collect())
+            .extend(joins[8..12].into_iter().cloned().collect())
+            .extend(joins[12..16].into_iter().cloned().collect());
 
         assert_eq!(two_steps.identifier(), direct.identifier());
         assert_eq!(four_steps.identifier(), direct.identifier());
