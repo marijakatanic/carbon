@@ -24,7 +24,7 @@ struct Data {
 }
 
 impl View {
-    pub async fn genesis<M>(members: M) -> Self
+    pub fn genesis<M>(members: M) -> Self
     where
         M: IntoIterator<Item = KeyCard>,
     {
@@ -78,7 +78,7 @@ impl View {
         }
     }
 
-    pub async fn extend(&self, increment: Increment) -> Self {
+    pub fn extend(&self, increment: Increment) -> Self {
         let updates = increment.into_vec();
 
         #[cfg(debug_assertions)]
@@ -221,51 +221,51 @@ mod test {
             .collect()
     }
 
-    #[tokio::test]
+    #[test]
     #[should_panic]
-    async fn empty() {
-        let _ = View::genesis([]).await;
+    fn empty() {
+        let _ = View::genesis([]);
     }
 
-    #[tokio::test]
+    #[test]
     #[should_panic]
-    async fn too_few() {
+    fn too_few() {
         let alice = KeyChain::random().keycard();
         let bob = KeyChain::random().keycard();
         let carl = KeyChain::random().keycard();
 
-        let _ = View::genesis([alice, bob, carl]).await;
+        let _ = View::genesis([alice, bob, carl]);
     }
 
-    #[tokio::test]
+    #[test]
     #[should_panic]
-    async fn repeating() {
+    fn repeating() {
         let alice = KeyChain::random().keycard();
         let bob = KeyChain::random().keycard();
         let carl = KeyChain::random().keycard();
 
-        let _ = View::genesis([alice.clone(), bob, carl, alice]).await;
+        let _ = View::genesis([alice.clone(), bob, carl, alice]);
     }
 
-    #[tokio::test]
+    #[test]
     #[should_panic]
-    async fn unmatched_leave() {
-        let view = View::genesis(random_keycards(16)).await;
+    fn unmatched_leave() {
+        let view = View::genesis(random_keycards(16));
         let increment = Increment::new([Change::Leave(KeyChain::random().keycard())]);
-        let _ = view.extend(increment).await;
+        let _ = view.extend(increment);
     }
 
-    #[tokio::test]
-    async fn genesis_height() {
+    #[test]
+    fn genesis_height() {
         for height in 4..32 {
-            let view = View::genesis(random_keycards(height)).await;
+            let view = View::genesis(random_keycards(height));
             assert_eq!(view.height(), height);
         }
     }
 
-    #[tokio::test]
-    async fn extended_join_counters() {
-        let mut view = View::genesis(random_keycards(4)).await;
+    #[test]
+    fn extended_join_counters() {
+        let mut view = View::genesis(random_keycards(4));
 
         for step in 0..16 {
             let increment = Increment::new(
@@ -274,16 +274,16 @@ mod test {
                     .map(|keycard| Change::Join(keycard)),
             );
 
-            view = view.extend(increment).await;
+            view = view.extend(increment);
 
             assert_eq!(view.height(), 4 * (step + 2));
             assert_eq!(view.members().len(), 4 * (step + 2));
         }
     }
 
-    #[tokio::test]
-    async fn extended_join_leave_counters() {
-        let mut view = View::genesis(random_keycards(4)).await;
+    #[test]
+    fn extended_join_leave_counters() {
+        let mut view = View::genesis(random_keycards(4));
 
         let mut steps = Vec::new();
 
@@ -297,21 +297,21 @@ mod test {
                     .map(|keycard| Change::Join(keycard)),
             );
 
-            view = view.extend(increment).await;
+            view = view.extend(increment);
             steps.push(keycards);
         }
 
         for (index, step) in steps.into_iter().enumerate() {
             let increment = Increment::new(step.into_iter().map(|keycard| Change::Leave(keycard)));
-            view = view.extend(increment).await;
+            view = view.extend(increment);
 
             assert_eq!(view.height(), 4 * (18 + index));
             assert_eq!(view.members().len(), 4 * (16 - index));
         }
     }
 
-    #[tokio::test]
-    async fn identifier_associativity() {
+    #[test]
+    fn identifier_associativity() {
         let keycards = random_keycards(32);
 
         let joins = keycards
@@ -320,21 +320,15 @@ mod test {
             .map(|keycard| Change::Join(keycard))
             .collect::<Vec<_>>();
 
-        let direct = View::genesis(keycards[0..16].to_vec()).await;
+        let direct = View::genesis(keycards[0..16].to_vec());
 
-        let two_steps = View::genesis(keycards[0..8].to_vec())
-            .await
-            .extend(Increment::new(joins[8..16].to_vec()))
-            .await;
+        let two_steps =
+            View::genesis(keycards[0..8].to_vec()).extend(Increment::new(joins[8..16].to_vec()));
 
         let four_steps = View::genesis(keycards[0..4].to_vec())
-            .await
             .extend(Increment::new(joins[4..8].to_vec()))
-            .await
             .extend(Increment::new(joins[8..12].to_vec()))
-            .await
-            .extend(Increment::new(joins[12..16].to_vec()))
-            .await;
+            .extend(Increment::new(joins[12..16].to_vec()));
 
         assert_eq!(two_steps.identifier(), direct.identifier());
         assert_eq!(four_steps.identifier(), direct.identifier());

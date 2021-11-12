@@ -16,7 +16,7 @@ impl Client {
         }
     }
 
-    pub(crate) async fn update(&mut self, installs: Vec<Install>) {
+    pub(crate) fn update(&mut self, installs: Vec<Install>) {
         let mut current = self.last_installable.clone();
 
         for install in installs {
@@ -24,7 +24,7 @@ impl Client {
             assert!(install.increments().len() > 0);
 
             let increment = install.increments()[0].clone();
-            current = current.extend(increment).await;
+            current = current.extend(increment);
 
             if install.increments().len() == 1 {
                 // `install` is tailless

@@ -21,7 +21,7 @@ pub(crate) async fn setup(
     impl Iterator<Item = Client>,
 ) {
     let generator = InstallGenerator::new(views);
-    let genesis = generator.view(genesis).await;
+    let genesis = generator.view(genesis);
 
     let server = Server::new(
         genesis.clone(),

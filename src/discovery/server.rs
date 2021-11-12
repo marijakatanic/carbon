@@ -8,7 +8,7 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex as StdMutex};
+use std::sync::{Arc, Mutex};
 
 use talk::crypto::primitives::hash::Hash;
 use talk::net::PlainConnection;
@@ -21,7 +21,6 @@ use tokio::sync::broadcast::error::RecvError as BroadcastRecvError;
 use tokio::sync::broadcast::{Receiver as BroadcastReceiver, Sender as BroadcastSender};
 use tokio::sync::watch;
 use tokio::sync::watch::{Receiver as WatchReceiver, Sender as WatchSender};
-use tokio::sync::Mutex as TokioMutex;
 
 use zebra::database::{Collection, CollectionStatus, CollectionTransaction, Family, Question};
 
@@ -108,14 +107,14 @@ impl Server {
 
         let installs = HashMap::new();
 
-        let database = Arc::new(StdMutex::new(Database { views, installs }));
+        let database = Arc::new(Mutex::new(Database { views, installs }));
 
         let family = Family::new();
         let discovered = family.empty_collection();
 
         let (install_inlet, _) = broadcast::channel(settings.update_channel_capacity);
 
-        let sync = Arc::new(StdMutex::new(Sync {
+        let sync = Arc::new(Mutex::new(Sync {
             family,
             discovered,
             install_inlet,
@@ -124,7 +123,7 @@ impl Server {
         let frame = Arc::new(Frame::genesis(&genesis));
         let (frame_inlet, frame_outlet) = watch::channel(frame.clone());
 
-        let publish = Arc::new(TokioMutex::new(Publish { frame, frame_inlet }));
+        let publish = Arc::new(Mutex::new(Publish { frame, frame_inlet }));
 
         let fuse = Fuse::new();
 
@@ -144,9 +143,9 @@ impl Server {
 
     async fn listen(
         listener: TcpListener,
-        database: Arc<StdMutex<Database>>,
-        sync: Arc<StdMutex<Sync>>,
-        publish: Arc<TokioMutex<Publish>>,
+        database: Arc<Mutex<Database>>,
+        sync: Arc<Mutex<Sync>>,
+        publish: Arc<Mutex<Publish>>,
         frame_outlet: FrameOutlet,
     ) {
         let fuse = Fuse::new();
@@ -170,9 +169,9 @@ impl Server {
 
     async fn serve(
         mut connection: PlainConnection,
-        database: Arc<StdMutex<Database>>,
-        sync: Arc<StdMutex<Sync>>,
-        publish: Arc<TokioMutex<Publish>>,
+        database: Arc<Mutex<Database>>,
+        sync: Arc<Mutex<Sync>>,
+        publish: Arc<Mutex<Publish>>,
         frame_outlet: FrameOutlet,
     ) -> Result<(), Top<ServeError>> {
         let request: Request = connection
@@ -204,13 +203,12 @@ impl Server {
 
     async fn serve_publish(
         mut connection: PlainConnection,
-        database: Arc<StdMutex<Database>>,
-        sync: Arc<StdMutex<Sync>>,
-        publish: Arc<TokioMutex<Publish>>,
+        database: Arc<Mutex<Database>>,
+        sync: Arc<Mutex<Sync>>,
+        publish: Arc<Mutex<Publish>>,
         install: Install,
     ) -> Result<(), Top<ServeError>> {
         Server::update(database, sync, publish, install.clone())
-            .await
             .pot(ServeError::UpdateFailed, here!())?;
 
         connection
@@ -266,8 +264,8 @@ impl Server {
 
     async fn serve_full_subscribe(
         mut connection: PlainConnection,
-        database: Arc<StdMutex<Database>>,
-        sync: Arc<StdMutex<Sync>>,
+        database: Arc<Mutex<Database>>,
+        sync: Arc<Mutex<Sync>>,
     ) -> Result<(), Top<ServeError>> {
         // Remark: the following operations must be executed atomically in order for
         // fully-subscribed clients not to miss (or get redundant) `Install` messages
@@ -380,14 +378,14 @@ impl Server {
         }
     }
 
-    async fn update(
-        database: Arc<StdMutex<Database>>,
-        sync: Arc<StdMutex<Sync>>,
-        publish: Arc<TokioMutex<Publish>>,
+    fn update(
+        database: Arc<Mutex<Database>>,
+        sync: Arc<Mutex<Sync>>,
+        publish: Arc<Mutex<Publish>>,
         install: Install,
     ) -> Result<(), Top<UpdateError>> {
         let identifier = install.identifier();
-        let transition = install.clone().into_transition().await;
+        let transition = install.clone().into_transition();
 
         {
             let mut database = database.lock().unwrap();
@@ -440,9 +438,9 @@ impl Server {
         {
             // If `publish.frame` can be updated, broadcast its new value to all
             // light-subscribe tasks
-            let mut publish = publish.lock().await;
+            let mut publish = publish.lock().unwrap();
 
-            if let Some(update) = publish.frame.update(install).await {
+            if let Some(update) = publish.frame.update(install) {
                 publish.frame = Arc::new(update);
 
                 // The corresponding `frame_outlet` is held by `listen`, so this
@@ -469,7 +467,7 @@ mod test {
 
     async fn setup(genesis_height: usize, max_height: usize) -> (Server, InstallGenerator) {
         let generator = InstallGenerator::new(max_height);
-        let genesis = generator.view(genesis_height).await;
+        let genesis = generator.view(genesis_height);
 
         let server = Server::new(genesis, (Ipv4Addr::LOCALHOST, 0), Default::default())
             .await
@@ -493,10 +491,7 @@ mod test {
                 .enumerate()
                 .filter(|(i, _)| *i >= genesis_height)
         {
-            let mut client = Client::new(
-                generator.view(current).await,
-                generator.view(last_installable).await,
-            );
+            let mut client = Client::new(generator.view(current), generator.view(last_installable));
 
             let mut client_connection: PlainConnection =
                 TcpStream::connect(address).await.unwrap().into();
@@ -514,7 +509,7 @@ mod test {
                 Response::KeepAlive => panic!("Unexpected KeepAlive when none was sent"),
             };
 
-            client.update(installs.clone()).await;
+            client.update(installs.clone());
 
             assert!(client.current().height() >= expected_server_top);
         }
@@ -527,11 +522,11 @@ mod test {
 
         let (server, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
         let installs =
-            generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15).await;
+            generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15);
 
         let mut client = Client::new(
-            generator.view(GENESIS_HEIGHT).await,
-            generator.view(GENESIS_HEIGHT).await,
+            generator.view(GENESIS_HEIGHT),
+            generator.view(GENESIS_HEIGHT),
         );
 
         let mut client_connection: PlainConnection =
@@ -556,7 +551,7 @@ mod test {
                 tailless.push(destination);
             }
 
-            let install = generator.install(source, destination, tail).await;
+            let install = generator.install(source, destination, tail);
 
             let mut replica_connection: PlainConnection =
                 TcpStream::connect(server.address()).await.unwrap().into();
@@ -582,7 +577,7 @@ mod test {
                     Response::KeepAlive => panic!("Unexpected KeepAlive when none was sent"),
                 };
 
-                client.update(installs).await;
+                client.update(installs);
 
                 assert_eq!(client.current().height(), expected_top);
             }
@@ -599,7 +594,7 @@ mod test {
         let (server, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
 
         let installs =
-            generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15).await;
+            generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15);
 
         let mut client_connection: PlainConnection =
             TcpStream::connect(server.address()).await.unwrap().into();
@@ -622,7 +617,7 @@ mod test {
                 tailless.push(destination);
             }
 
-            let install = generator.install(source, destination, tail).await;
+            let install = generator.install(source, destination, tail);
 
             replica_connection
                 .send(&Request::Publish(install))
@@ -660,7 +655,7 @@ mod test {
         let (server, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
 
         let installs =
-            generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15).await;
+            generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15);
 
         let mut client_connection: PlainConnection =
             TcpStream::connect(server.address()).await.unwrap().into();
@@ -683,7 +678,7 @@ mod test {
                 tailless.push(destination);
             }
 
-            let install = generator.install(source, destination, tail.clone()).await;
+            let install = generator.install(source, destination, tail.clone());
 
             replica_connection
                 .send(&Request::Publish(install))

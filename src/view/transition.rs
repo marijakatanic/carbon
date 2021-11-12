@@ -10,25 +10,23 @@ pub(crate) struct Transition {
 }
 
 impl Transition {
-    pub(in crate::view) async fn new(source: Hash, increments: Vec<Increment>) -> Self {
+    pub(in crate::view) fn new(source: Hash, increments: Vec<Increment>) -> Self {
         let source =
             View::get(source).expect("An `Install` message was accepted with unknown `source`");
 
         let mut increments = increments.into_iter();
 
-        let destination = source
-            .extend(
-                increments
-                    .next()
-                    .expect("An `Install` message was accepted with no increments"),
-            )
-            .await;
+        let destination = source.extend(
+            increments
+                .next()
+                .expect("An `Install` message was accepted with no increments"),
+        );
 
         let mut tail = Vec::new();
         let mut head = destination.clone();
 
         for increment in increments {
-            head = head.extend(increment).await;
+            head = head.extend(increment);
             tail.push(head.clone());
         }
 

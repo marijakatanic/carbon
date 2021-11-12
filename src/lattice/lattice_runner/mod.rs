@@ -205,17 +205,17 @@ where
             tokio::select! {
                 Ok((proposal, result_inlet)) = &mut self.proposal_outlet, if !proposed => {
                     proposed = true;
-                    self.handle_proposal(proposal, result_inlet).await;
+                    self.handle_proposal(proposal, result_inlet);
                 }
 
                 (source, message, acknowledger) = self.receiver.receive() => {
-                    let _ = self.handle_message(source, message, acknowledger).await;
+                    let _ = self.handle_message(source, message, acknowledger);
                 }
             }
         }
     }
 
-    async fn handle_proposal(&mut self, proposal: Element, result_inlet: ResultInlet) {
+    fn handle_proposal(&mut self, proposal: Element, result_inlet: ResultInlet) {
         if !self.disclosed() {
             self.disclose(proposal);
             let _ = result_inlet.send(true);
@@ -224,7 +224,7 @@ where
         }
     }
 
-    async fn handle_message(
+    fn handle_message(
         &mut self,
         source: Identity,
         message: Message<Element>,

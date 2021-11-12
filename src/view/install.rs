@@ -61,8 +61,8 @@ impl Install {
         &self.statement.increments
     }
 
-    pub async fn into_transition(self) -> Transition {
-        Transition::new(self.statement.source, self.statement.increments).await
+    pub fn into_transition(self) -> Transition {
+        Transition::new(self.statement.source, self.statement.increments)
     }
 
     fn check(&self) -> Result<(), Top<InstallError>> {

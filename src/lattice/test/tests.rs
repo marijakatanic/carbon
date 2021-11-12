@@ -69,7 +69,7 @@ impl Identify for Element {
 
 async fn lattice_run() {
     let keychains = (0..10).map(|_| KeyChain::random()).collect::<Vec<_>>();
-    let genesis = View::genesis(keychains.iter().map(KeyChain::keycard)).await;
+    let genesis = View::genesis(keychains.iter().map(KeyChain::keycard));
     let (_server, clients) = setup_discovery(genesis.clone(), Mode::Full).await;
 
     let System {

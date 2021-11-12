@@ -27,8 +27,8 @@ impl Frame {
         }
     }
 
-    pub async fn update(&self, install: Install) -> Option<Frame> {
-        let transition = install.clone().into_transition().await;
+    pub fn update(&self, install: Install) -> Option<Frame> {
+        let transition = install.clone().into_transition();
 
         if self.can_grow_by(&transition) || self.can_improve_by(&transition) {
             Some(self.acquire(install, transition))
@@ -139,9 +139,9 @@ mod test {
 
     use crate::view::test::{generate_installs, last_installable, Client, InstallGenerator};
 
-    async fn setup(genesis_height: usize, max_height: usize) -> (Frame, InstallGenerator) {
+    fn setup(genesis_height: usize, max_height: usize) -> (Frame, InstallGenerator) {
         let generator = InstallGenerator::new(max_height);
-        let genesis = generator.view(genesis_height).await;
+        let genesis = generator.view(genesis_height);
         let frame = Frame::genesis(&genesis);
 
         (frame, generator)
@@ -153,7 +153,7 @@ mod test {
         }
     }
 
-    async fn check_frame<I>(
+    fn check_frame<I>(
         frame: &Frame,
         genesis_height: usize,
         tailless: I,
@@ -167,42 +167,39 @@ mod test {
                 .enumerate()
                 .filter(|(height, _)| *height >= genesis_height)
         {
-            let mut client = Client::new(
-                generator.view(current).await,
-                generator.view(last_installable).await,
-            );
+            let mut client = Client::new(generator.view(current), generator.view(last_installable));
 
             let installs = frame.lookup(current);
-            client.update(installs).await;
+            client.update(installs);
 
             assert!(client.current().height() >= frame.top());
         }
     }
 
-    #[tokio::test]
-    async fn manual() {
+    #[test]
+    fn manual() {
         const GENESIS_HEIGHT: usize = 10;
         const MAX_HEIGHT: usize = 50;
 
-        let (frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
+        let (frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT);
 
-        let i0 = generator.install(10, 15, [16]).await;
-        let f0 = frame.update(i0).await.unwrap();
+        let i0 = generator.install(10, 15, [16]);
+        let f0 = frame.update(i0).unwrap();
 
-        let i1 = generator.install(15, 20, [21]).await;
-        let f1 = f0.update(i1).await.unwrap();
+        let i1 = generator.install(15, 20, [21]);
+        let f1 = f0.update(i1).unwrap();
 
-        let i2 = generator.install(20, 25, []).await;
-        let f2 = f1.update(i2).await.unwrap();
+        let i2 = generator.install(20, 25, []);
+        let f2 = f1.update(i2).unwrap();
 
-        let i3 = generator.install(25, 30, [31]).await;
-        let f3 = f2.update(i3).await.unwrap();
+        let i3 = generator.install(25, 30, [31]);
+        let f3 = f2.update(i3).unwrap();
 
-        let i4 = generator.install(30, 35, []).await;
-        let f4 = f3.update(i4).await.unwrap();
+        let i4 = generator.install(30, 35, []);
+        let f4 = f3.update(i4).unwrap();
 
-        let i5 = generator.install(35, 40, []).await;
-        let f5 = f4.update(i5).await.unwrap();
+        let i5 = generator.install(35, 40, []);
+        let f5 = f4.update(i5).unwrap();
 
         let expected = &[
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 5, 5, 5, 5,
@@ -210,148 +207,148 @@ mod test {
         ];
 
         check_lookup(&f5, GENESIS_HEIGHT, expected);
-        check_frame(&f5, GENESIS_HEIGHT, [25, 35, 40], &generator).await;
+        check_frame(&f5, GENESIS_HEIGHT, [25, 35, 40], &generator);
     }
 
-    #[tokio::test]
-    async fn all_tailless() {
+    #[test]
+    fn all_tailless() {
         const GENESIS_HEIGHT: usize = 10;
         const MAX_HEIGHT: usize = 20;
 
-        let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
+        let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT);
 
         for i in GENESIS_HEIGHT..MAX_HEIGHT {
-            let install = generator.install(i, i + 1, []).await;
-            frame = frame.update(install).await.unwrap();
+            let install = generator.install(i, i + 1, []);
+            frame = frame.update(install).unwrap();
         }
 
         let expected = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
         check_lookup(&frame, GENESIS_HEIGHT, expected);
-        check_frame(&frame, GENESIS_HEIGHT, 10..21, &generator).await;
+        check_frame(&frame, GENESIS_HEIGHT, 10..21, &generator);
     }
 
-    #[tokio::test]
-    async fn no_tailless() {
+    #[test]
+    fn no_tailless() {
         const GENESIS_HEIGHT: usize = 10;
         const MAX_HEIGHT: usize = 21;
 
-        let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
+        let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT);
 
         for i in GENESIS_HEIGHT..(MAX_HEIGHT - 1) {
-            let install = generator.install(i, i + 1, [i + 2]).await;
-            frame = frame.update(install).await.unwrap();
+            let install = generator.install(i, i + 1, [i + 2]);
+            frame = frame.update(install).unwrap();
         }
 
         let expected = &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
         check_lookup(&frame, GENESIS_HEIGHT, expected);
-        check_frame(&frame, GENESIS_HEIGHT, [], &generator).await;
+        check_frame(&frame, GENESIS_HEIGHT, [], &generator);
     }
 
-    #[tokio::test]
-    async fn new_tailless() {
+    #[test]
+    fn new_tailless() {
         const GENESIS_HEIGHT: usize = 10;
         const MAX_HEIGHT: usize = 21;
 
-        let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
+        let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT);
 
         for i in GENESIS_HEIGHT..(MAX_HEIGHT - 1) {
-            let install = generator.install(i, i + 1, [i + 2]).await;
-            frame = frame.update(install).await.unwrap();
+            let install = generator.install(i, i + 1, [i + 2]);
+            frame = frame.update(install).unwrap();
         }
 
         let expected = &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
         check_lookup(&frame, GENESIS_HEIGHT, expected);
-        check_frame(&frame, GENESIS_HEIGHT, [], &generator).await;
+        check_frame(&frame, GENESIS_HEIGHT, [], &generator);
 
         for i in [15, 17] {
-            let install = generator.install(i - 1, i, []).await;
-            frame = frame.update(install).await.unwrap();
+            let install = generator.install(i - 1, i, []);
+            frame = frame.update(install).unwrap();
         }
 
         let expected = &[0, 0, 0, 0, 0, 5, 5, 7, 7, 7];
 
         check_lookup(&frame, GENESIS_HEIGHT, expected);
-        check_frame(&frame, GENESIS_HEIGHT, [15, 17], &generator).await;
+        check_frame(&frame, GENESIS_HEIGHT, [15, 17], &generator);
     }
 
-    #[tokio::test]
-    async fn shortcut_tailless() {
+    #[test]
+    fn shortcut_tailless() {
         const GENESIS_HEIGHT: usize = 10;
         const MAX_HEIGHT: usize = 21;
 
-        let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
+        let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT);
 
-        let i0 = generator.install(10, 11, [12, 13]).await;
-        frame = frame.update(i0).await.unwrap();
+        let i0 = generator.install(10, 11, [12, 13]);
+        frame = frame.update(i0).unwrap();
 
-        let i1 = generator.install(11, 12, [13]).await;
-        frame = frame.update(i1).await.unwrap();
+        let i1 = generator.install(11, 12, [13]);
+        frame = frame.update(i1).unwrap();
 
-        let i2 = generator.install(12, 13, []).await;
-        frame = frame.update(i2).await.unwrap();
+        let i2 = generator.install(12, 13, []);
+        frame = frame.update(i2).unwrap();
 
-        let i3 = generator.install(13, 14, [15]).await;
-        frame = frame.update(i3).await.unwrap();
+        let i3 = generator.install(13, 14, [15]);
+        frame = frame.update(i3).unwrap();
 
         let expected = &[0, 0, 0, 3];
 
         check_lookup(&frame, GENESIS_HEIGHT, expected);
-        check_frame(&frame, GENESIS_HEIGHT, [13], &generator).await;
+        check_frame(&frame, GENESIS_HEIGHT, [13], &generator);
 
-        let i4 = generator.install(10, 12, []).await;
-        frame = frame.update(i4).await.unwrap();
+        let i4 = generator.install(10, 12, []);
+        frame = frame.update(i4).unwrap();
 
         let expected = &[0, 0, 1, 2];
 
         check_lookup(&frame, GENESIS_HEIGHT, expected);
-        check_frame(&frame, GENESIS_HEIGHT, [12, 13], &generator).await;
+        check_frame(&frame, GENESIS_HEIGHT, [12, 13], &generator);
     }
 
-    #[tokio::test]
-    async fn shortcut_tails() {
+    #[test]
+    fn shortcut_tails() {
         const GENESIS_HEIGHT: usize = 10;
         const MAX_HEIGHT: usize = 21;
 
-        let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
+        let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT);
 
-        let i0 = generator.install(10, 11, [12, 13]).await;
-        frame = frame.update(i0).await.unwrap();
+        let i0 = generator.install(10, 11, [12, 13]);
+        frame = frame.update(i0).unwrap();
 
-        let i1 = generator.install(11, 12, [13]).await;
-        frame = frame.update(i1).await.unwrap();
+        let i1 = generator.install(11, 12, [13]);
+        frame = frame.update(i1).unwrap();
 
-        let i2 = generator.install(12, 13, []).await;
-        frame = frame.update(i2).await.unwrap();
+        let i2 = generator.install(12, 13, []);
+        frame = frame.update(i2).unwrap();
 
-        let i3 = generator.install(13, 14, [15]).await;
-        frame = frame.update(i3).await.unwrap();
+        let i3 = generator.install(13, 14, [15]);
+        frame = frame.update(i3).unwrap();
 
         let expected = &[0, 0, 0, 3];
 
         check_lookup(&frame, GENESIS_HEIGHT, expected);
-        check_frame(&frame, GENESIS_HEIGHT, [13], &generator).await;
+        check_frame(&frame, GENESIS_HEIGHT, [13], &generator);
 
-        let i4 = generator.install(10, 12, [13]).await;
-        frame = frame.update(i4).await.unwrap();
+        let i4 = generator.install(10, 12, [13]);
+        frame = frame.update(i4).unwrap();
 
         let expected = &[0, 0, 0, 2];
 
         check_lookup(&frame, GENESIS_HEIGHT, expected);
-        check_frame(&frame, GENESIS_HEIGHT, [13], &generator).await;
+        check_frame(&frame, GENESIS_HEIGHT, [13], &generator);
     }
 
-    #[tokio::test]
-    async fn stress_light_checks() {
+    #[test]
+    fn stress_light_checks() {
         const GENESIS_HEIGHT: usize = 10;
         const MAX_HEIGHT: usize = 50; // 100 ~= 2 seconds, 500 ~= 65 seconds
 
-        let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
+        let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT);
 
         let installs =
-            generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15).await;
+            generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15);
 
         let mut tailless = Vec::new();
 
@@ -360,27 +357,27 @@ mod test {
                 tailless.push(destination);
             }
 
-            let install = generator.install_dummy(source, destination, tail).await;
+            let install = generator.install_dummy(source, destination, tail);
 
-            if let Some(new) = frame.update(install).await {
+            if let Some(new) = frame.update(install) {
                 frame = new;
             }
         }
 
         assert_eq!(frame.top(), MAX_HEIGHT - 1);
-        check_frame(&frame, GENESIS_HEIGHT, tailless, &generator).await;
+        check_frame(&frame, GENESIS_HEIGHT, tailless, &generator);
     }
 
-    #[tokio::test]
+    #[test]
     #[ignore]
-    async fn stress_heavy_checks() {
+    fn stress_heavy_checks() {
         const GENESIS_HEIGHT: usize = 10;
         const MAX_HEIGHT: usize = 100; // 100 ~= 14 seconds
 
-        let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT).await;
+        let (mut frame, generator) = setup(GENESIS_HEIGHT, MAX_HEIGHT);
 
         let installs =
-            generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15).await;
+            generate_installs(GENESIS_HEIGHT, MAX_HEIGHT, MAX_HEIGHT / 5, MAX_HEIGHT / 15);
 
         let mut tailless = Vec::new();
         for (source, destination, tail) in installs.into_iter() {
@@ -388,11 +385,11 @@ mod test {
                 tailless.push(destination);
             }
 
-            let install = generator.install_dummy(source, destination, tail).await;
+            let install = generator.install_dummy(source, destination, tail);
 
-            if let Some(new) = frame.update(install).await {
+            if let Some(new) = frame.update(install) {
                 frame = new;
-                check_frame(&frame, GENESIS_HEIGHT, tailless.iter().cloned(), &generator).await;
+                check_frame(&frame, GENESIS_HEIGHT, tailless.iter().cloned(), &generator);
             }
         }
 

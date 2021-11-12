@@ -7,7 +7,7 @@ use crate::{
 use doomstack::{here, Doom, ResultExt, Top};
 
 use std::io;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Duration;
 use std::{borrow::BorrowMut, collections::HashMap};
 
@@ -19,7 +19,7 @@ use talk::sync::fuse::Fuse;
 use talk::sync::lenders::Lender;
 
 use tokio::sync::watch::{Receiver, Sender};
-use tokio::sync::{watch, Mutex};
+use tokio::sync::{watch, Mutex as TokioMutex};
 use tokio::time;
 
 use zebra::database::{Collection, CollectionTransaction, Family};
@@ -29,8 +29,8 @@ type TransitionOutlet = Receiver<Option<Transition>>;
 
 pub(crate) struct Client {
     server: Box<dyn TcpConnect>,
-    database: Arc<Mutex<Database>>,
-    transition_outlet: Mutex<TransitionOutlet>,
+    database: Arc<StdMutex<Database>>,
+    transition_outlet: TokioMutex<TransitionOutlet>,
     settings: ClientSettings,
     _fuse: Fuse,
 }
@@ -116,12 +116,12 @@ impl Client {
         let family = Family::new();
         let discovered = Lender::new(family.empty_collection());
 
-        let database = Arc::new(Mutex::new(Database { views, installs }));
+        let database = Arc::new(StdMutex::new(Database { views, installs }));
 
         let sync = Sync { top, discovered };
 
         let (transition_inlet, transition_outlet) = watch::channel(None);
-        let transition_outlet = Mutex::new(transition_outlet);
+        let transition_outlet = TokioMutex::new(transition_outlet);
 
         let fuse = Fuse::new();
 
@@ -146,12 +146,12 @@ impl Client {
         }
     }
 
-    pub(crate) async fn view(&self, identifier: &Hash) -> Option<View> {
-        self.database.lock().await.views.get(identifier).cloned()
+    pub(crate) fn view(&self, identifier: &Hash) -> Option<View> {
+        self.database.lock().unwrap().views.get(identifier).cloned()
     }
 
-    pub(crate) async fn install(&self, hash: &Hash) -> Option<Install> {
-        self.database.lock().await.installs.get(hash).cloned()
+    pub(crate) fn install(&self, hash: &Hash) -> Option<Install> {
+        self.database.lock().unwrap().installs.get(hash).cloned()
     }
 
     pub(crate) async fn next(&self) -> Transition {
@@ -219,7 +219,7 @@ impl Client {
 
     async fn subscribe<T>(
         server: T,
-        database: Arc<Mutex<Database>>,
+        database: Arc<StdMutex<Database>>,
         mut sync: Sync,
         mut transition_inlet: TransitionInlet,
         settings: ClientSettings,
@@ -251,7 +251,7 @@ impl Client {
 
     async fn subscribe_attempt<T>(
         server: &T,
-        database: &Mutex<Database>,
+        database: &StdMutex<Database>,
         sync: &mut Sync,
         transition_inlet: &mut TransitionInlet,
         settings: &ClientSettings,
@@ -353,7 +353,7 @@ impl Client {
 
     async fn listen(
         mut receiver: PlainReceiver,
-        database: &Mutex<Database>,
+        database: &StdMutex<Database>,
         sync: &mut Sync,
         transition_inlet: &mut TransitionInlet,
         progress: &mut bool,
@@ -367,7 +367,6 @@ impl Client {
             match response {
                 Response::Update(update) => {
                     Client::acquire(database, sync, transition_inlet, update)
-                        .await
                         .pot(ListenError::AcquireFailed, here!())?;
                 }
                 Response::KeepAlive => {}
@@ -395,16 +394,16 @@ impl Client {
         }
     }
 
-    async fn acquire(
-        database: &Mutex<Database>,
+    fn acquire(
+        database: &StdMutex<Database>,
         sync: &mut Sync,
         transition_inlet: &mut TransitionInlet,
         update: Vec<Install>,
     ) -> Result<(), Top<AcquireError>> {
-        let mut database = database.lock().await;
+        let mut database = database.lock().unwrap();
 
         for install in update {
-            let transition = install.clone().into_transition().await;
+            let transition = install.clone().into_transition();
 
             if database
                 .views

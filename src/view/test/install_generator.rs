@@ -22,17 +22,17 @@ impl InstallGenerator {
         self.keychains.len()
     }
 
-    pub async fn view(&self, height: usize) -> View {
+    pub fn view(&self, height: usize) -> View {
         let members = self.keycards[0..height].iter().cloned().collect::<Vec<_>>();
-        View::genesis(members).await
+        View::genesis(members)
     }
 
-    pub async fn install<T>(&self, source: usize, destination: usize, tail: T) -> Install
+    pub fn install<T>(&self, source: usize, destination: usize, tail: T) -> Install
     where
         T: IntoIterator<Item = usize>,
     {
         let increments = self.increments(source, destination, tail);
-        let source = self.view(source).await;
+        let source = self.view(source);
 
         let mut aggregator = InstallAggregator::new(source.clone(), increments.clone());
 
@@ -59,12 +59,12 @@ impl InstallGenerator {
     /// that assumes that install messages were correctly produced.
     /// Otherwise, it will likely result in a panic. See `Install::dummy` for
     /// more information.
-    pub async fn install_dummy<T>(&self, source: usize, destination: usize, tail: T) -> Install
+    pub fn install_dummy<T>(&self, source: usize, destination: usize, tail: T) -> Install
     where
         T: IntoIterator<Item = usize>,
     {
         let increments = self.increments(source, destination, tail);
-        let source = self.view(source).await;
+        let source = self.view(source);
 
         Install::dummy(&source, increments)
     }

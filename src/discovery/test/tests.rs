@@ -43,7 +43,7 @@ async fn light_single_publish_then_beyond() {
 
     let mut expected_installs = Vec::new();
 
-    let install = generator.install(8, 10, []).await;
+    let install = generator.install(8, 10, []);
     expected_installs.push(install.identifier());
     client.publish(install).await;
 
@@ -53,14 +53,11 @@ async fn light_single_publish_then_beyond() {
     assert_eq!(transition.destination().height(), 10);
 
     for height in [8, 10] {
-        assert!(client
-            .view(&generator.view(height).await.identifier())
-            .await
-            .is_some());
+        assert!(client.view(&generator.view(height).identifier()).is_some());
     }
 
     for install in expected_installs {
-        assert!(client.install(&install).await.is_some())
+        assert!(client.install(&install).is_some())
     }
 }
 
@@ -70,11 +67,11 @@ async fn light_single_adjacent_publishes_then_beyond() {
 
     let mut expected_installs = Vec::new();
 
-    let install = generator.install(8, 10, []).await;
+    let install = generator.install(8, 10, []);
     expected_installs.push(install.identifier());
     client.publish(install).await;
 
-    let install = generator.install(10, 12, []).await;
+    let install = generator.install(10, 12, []);
     expected_installs.push(install.identifier());
     client.publish(install).await;
 
@@ -84,14 +81,11 @@ async fn light_single_adjacent_publishes_then_beyond() {
     assert_eq!(transition.destination().height(), 12);
 
     for height in [8, 10, 12] {
-        assert!(client
-            .view(&generator.view(height).await.identifier())
-            .await
-            .is_some());
+        assert!(client.view(&generator.view(height).identifier()).is_some());
     }
 
     for install in expected_installs {
-        assert!(client.install(&install).await.is_some())
+        assert!(client.install(&install).is_some())
     }
 }
 
@@ -101,10 +95,10 @@ async fn light_single_overlapping_publishes_then_beyond() {
 
     let mut expected_installs = Vec::new();
 
-    let install = generator.install(8, 10, []).await;
+    let install = generator.install(8, 10, []);
     client.publish(install).await;
 
-    let install = generator.install(8, 12, []).await;
+    let install = generator.install(8, 12, []);
     expected_installs.push(install.identifier());
     client.publish(install).await;
 
@@ -114,14 +108,11 @@ async fn light_single_overlapping_publishes_then_beyond() {
     assert_eq!(transition.destination().height(), 12);
 
     for height in [8, 12] {
-        assert!(client
-            .view(&generator.view(height).await.identifier())
-            .await
-            .is_some());
+        assert!(client.view(&generator.view(height).identifier()).is_some());
     }
 
     for install in expected_installs {
-        assert!(client.install(&install).await.is_some())
+        assert!(client.install(&install).is_some())
     }
 }
 
@@ -131,15 +122,15 @@ async fn light_single_redundant_publishes_then_beyond() {
 
     let mut expected_installs = Vec::new();
 
-    let install = generator.install(8, 10, []).await;
+    let install = generator.install(8, 10, []);
     expected_installs.push(install.identifier());
     client.publish(install).await;
 
-    let install = generator.install(10, 12, []).await;
+    let install = generator.install(10, 12, []);
     expected_installs.push(install.identifier());
     client.publish(install).await;
 
-    let install = generator.install(8, 9, []).await;
+    let install = generator.install(8, 9, []);
     client.publish(install).await;
 
     let transition = client.beyond(10).await;
@@ -148,14 +139,11 @@ async fn light_single_redundant_publishes_then_beyond() {
     assert_eq!(transition.destination().height(), 12);
 
     for height in [8, 10, 12] {
-        assert!(client
-            .view(&generator.view(height).await.identifier())
-            .await
-            .is_some());
+        assert!(client.view(&generator.view(height).identifier()).is_some());
     }
 
     for install in expected_installs {
-        assert!(client.install(&install).await.is_some())
+        assert!(client.install(&install).is_some())
     }
 }
 
@@ -165,7 +153,7 @@ async fn light_pair_publish_then_beyond() {
 
     let mut expected_installs = Vec::new();
 
-    let install = generator.install(8, 10, []).await;
+    let install = generator.install(8, 10, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
@@ -175,14 +163,11 @@ async fn light_pair_publish_then_beyond() {
     assert_eq!(transition.destination().height(), 10);
 
     for height in [8, 10] {
-        assert!(bob
-            .view(&generator.view(height).await.identifier())
-            .await
-            .is_some());
+        assert!(bob.view(&generator.view(height).identifier()).is_some());
     }
 
     for install in expected_installs {
-        assert!(bob.install(&install).await.is_some())
+        assert!(bob.install(&install).is_some())
     }
 }
 
@@ -192,11 +177,11 @@ async fn light_pair_cross_publish() {
 
     let mut expected_installs = Vec::new();
 
-    let install = generator.install(8, 10, []).await;
+    let install = generator.install(8, 10, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
-    let install = generator.install(10, 12, []).await;
+    let install = generator.install(10, 12, []);
     expected_installs.push(install.identifier());
     bob.publish(install).await;
 
@@ -206,14 +191,11 @@ async fn light_pair_cross_publish() {
     assert_eq!(transition.destination().height(), 12);
 
     for height in [8, 10, 12] {
-        assert!(alice
-            .view(&generator.view(height).await.identifier())
-            .await
-            .is_some());
+        assert!(alice.view(&generator.view(height).identifier()).is_some());
     }
 
     for install in expected_installs {
-        assert!(alice.install(&install).await.is_some())
+        assert!(alice.install(&install).is_some())
     }
 }
 
@@ -223,19 +205,19 @@ async fn light_pair_stream_publish() {
 
     let mut expected_installs = Vec::new();
 
-    let install = generator.install(8, 10, []).await;
+    let install = generator.install(8, 10, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
-    let install = generator.install(10, 12, []).await;
+    let install = generator.install(10, 12, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
-    let install = generator.install(12, 14, []).await;
+    let install = generator.install(12, 14, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
-    let install = generator.install(14, 16, []).await;
+    let install = generator.install(14, 16, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
@@ -245,14 +227,11 @@ async fn light_pair_stream_publish() {
     assert_eq!(transition.destination().height(), 16);
 
     for height in [8, 10, 12, 14, 16] {
-        assert!(bob
-            .view(&generator.view(height).await.identifier())
-            .await
-            .is_some());
+        assert!(bob.view(&generator.view(height).identifier()).is_some());
     }
 
     for install in expected_installs {
-        assert!(bob.install(&install).await.is_some())
+        assert!(bob.install(&install).is_some())
     }
 }
 
@@ -265,15 +244,15 @@ async fn light_pair_redundant_delayed_join() {
 
     let alice = server_clients.next().unwrap();
 
-    let install = generator.install(8, 10, []).await;
+    let install = generator.install(8, 10, []);
     excluded_installs.push(install.identifier());
     alice.publish(install).await;
 
-    let install = generator.install(10, 12, []).await;
+    let install = generator.install(10, 12, []);
     excluded_installs.push(install.identifier());
     alice.publish(install).await;
 
-    let install = generator.install(8, 14, []).await;
+    let install = generator.install(8, 14, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
@@ -286,18 +265,15 @@ async fn light_pair_redundant_delayed_join() {
     assert_eq!(transition.destination().height(), 14);
 
     for height in [8, 14] {
-        assert!(bob
-            .view(&generator.view(height).await.identifier())
-            .await
-            .is_some());
+        assert!(bob.view(&generator.view(height).identifier()).is_some());
     }
 
     for install in expected_installs {
-        assert!(bob.install(&install).await.is_some())
+        assert!(bob.install(&install).is_some())
     }
 
     for install in excluded_installs {
-        assert!(bob.install(&install).await.is_none())
+        assert!(bob.install(&install).is_none())
     }
 }
 
@@ -307,7 +283,7 @@ async fn full_single_publish_then_beyond() {
 
     let mut expected_installs = Vec::new();
 
-    let install = generator.install(8, 10, []).await;
+    let install = generator.install(8, 10, []);
     expected_installs.push(install.identifier());
     client.publish(install).await;
 
@@ -317,14 +293,11 @@ async fn full_single_publish_then_beyond() {
     assert_eq!(transition.destination().height(), 10);
 
     for height in [8, 10] {
-        assert!(client
-            .view(&generator.view(height).await.identifier())
-            .await
-            .is_some());
+        assert!(client.view(&generator.view(height).identifier()).is_some());
     }
 
     for install in expected_installs {
-        assert!(client.install(&install).await.is_some())
+        assert!(client.install(&install).is_some())
     }
 }
 
@@ -334,11 +307,11 @@ async fn full_single_adjacent_publishes_then_beyond() {
 
     let mut expected_installs = Vec::new();
 
-    let install = generator.install(8, 10, []).await;
+    let install = generator.install(8, 10, []);
     expected_installs.push(install.identifier());
     client.publish(install).await;
 
-    let install = generator.install(10, 12, []).await;
+    let install = generator.install(10, 12, []);
     expected_installs.push(install.identifier());
     client.publish(install).await;
 
@@ -348,14 +321,11 @@ async fn full_single_adjacent_publishes_then_beyond() {
     assert_eq!(transition.destination().height(), 12);
 
     for height in [8, 10, 12] {
-        assert!(client
-            .view(&generator.view(height).await.identifier())
-            .await
-            .is_some());
+        assert!(client.view(&generator.view(height).identifier()).is_some());
     }
 
     for install in expected_installs {
-        assert!(client.install(&install).await.is_some())
+        assert!(client.install(&install).is_some())
     }
 }
 
@@ -365,11 +335,11 @@ async fn full_single_overlapping_publishes_then_beyond() {
 
     let mut expected_installs = Vec::new();
 
-    let install = generator.install(8, 10, []).await;
+    let install = generator.install(8, 10, []);
     expected_installs.push(install.identifier());
     client.publish(install).await;
 
-    let install = generator.install(8, 12, []).await;
+    let install = generator.install(8, 12, []);
     expected_installs.push(install.identifier());
     client.publish(install).await;
 
@@ -379,14 +349,11 @@ async fn full_single_overlapping_publishes_then_beyond() {
     assert_eq!(transition.destination().height(), 12);
 
     for height in [8, 12] {
-        assert!(client
-            .view(&generator.view(height).await.identifier())
-            .await
-            .is_some());
+        assert!(client.view(&generator.view(height).identifier()).is_some());
     }
 
     for install in expected_installs {
-        assert!(client.install(&install).await.is_some())
+        assert!(client.install(&install).is_some())
     }
 }
 
@@ -396,19 +363,19 @@ async fn full_single_redundant_publishes_then_beyond() {
 
     let mut expected_installs = Vec::new();
 
-    let install = generator.install(8, 10, []).await;
+    let install = generator.install(8, 10, []);
     expected_installs.push(install.identifier());
     client.publish(install).await;
 
-    let install = generator.install(10, 12, []).await;
+    let install = generator.install(10, 12, []);
     expected_installs.push(install.identifier());
     client.publish(install).await;
 
-    let install = generator.install(8, 9, []).await;
+    let install = generator.install(8, 9, []);
     expected_installs.push(install.identifier());
     client.publish(install).await;
 
-    let install = generator.install(12, 13, []).await;
+    let install = generator.install(12, 13, []);
     expected_installs.push(install.identifier());
     client.publish(install).await;
 
@@ -418,14 +385,11 @@ async fn full_single_redundant_publishes_then_beyond() {
     assert_eq!(transition.destination().height(), 13);
 
     for height in [8, 10, 12, 13] {
-        assert!(client
-            .view(&generator.view(height).await.identifier())
-            .await
-            .is_some());
+        assert!(client.view(&generator.view(height).identifier()).is_some());
     }
 
     for install in expected_installs {
-        assert!(client.install(&install).await.is_some())
+        assert!(client.install(&install).is_some())
     }
 }
 
@@ -435,7 +399,7 @@ async fn full_pair_publish_then_beyond() {
 
     let mut expected_installs = Vec::new();
 
-    let install = generator.install(8, 10, []).await;
+    let install = generator.install(8, 10, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
@@ -445,14 +409,11 @@ async fn full_pair_publish_then_beyond() {
     assert_eq!(transition.destination().height(), 10);
 
     for height in [8, 10] {
-        assert!(bob
-            .view(&generator.view(height).await.identifier())
-            .await
-            .is_some());
+        assert!(bob.view(&generator.view(height).identifier()).is_some());
     }
 
     for install in expected_installs {
-        assert!(bob.install(&install).await.is_some())
+        assert!(bob.install(&install).is_some())
     }
 }
 
@@ -462,11 +423,11 @@ async fn full_pair_cross_publish() {
 
     let mut expected_installs = Vec::new();
 
-    let install = generator.install(8, 10, []).await;
+    let install = generator.install(8, 10, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
-    let install = generator.install(10, 12, []).await;
+    let install = generator.install(10, 12, []);
     expected_installs.push(install.identifier());
     bob.publish(install).await;
 
@@ -476,14 +437,11 @@ async fn full_pair_cross_publish() {
     assert_eq!(transition.destination().height(), 12);
 
     for height in [8, 10, 12] {
-        assert!(alice
-            .view(&generator.view(height).await.identifier())
-            .await
-            .is_some());
+        assert!(alice.view(&generator.view(height).identifier()).is_some());
     }
 
     for install in expected_installs {
-        assert!(alice.install(&install).await.is_some())
+        assert!(alice.install(&install).is_some())
     }
 }
 
@@ -493,19 +451,19 @@ async fn full_pair_stream_publish() {
 
     let mut expected_installs = Vec::new();
 
-    let install = generator.install(8, 10, []).await;
+    let install = generator.install(8, 10, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
-    let install = generator.install(10, 12, []).await;
+    let install = generator.install(10, 12, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
-    let install = generator.install(12, 14, []).await;
+    let install = generator.install(12, 14, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
-    let install = generator.install(14, 16, []).await;
+    let install = generator.install(14, 16, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
@@ -515,14 +473,11 @@ async fn full_pair_stream_publish() {
     assert_eq!(transition.destination().height(), 16);
 
     for height in [8, 10, 12, 14, 16] {
-        assert!(bob
-            .view(&generator.view(height).await.identifier())
-            .await
-            .is_some());
+        assert!(bob.view(&generator.view(height).identifier()).is_some());
     }
 
     for install in expected_installs {
-        assert!(bob.install(&install).await.is_some())
+        assert!(bob.install(&install).is_some())
     }
 }
 
@@ -534,15 +489,15 @@ async fn full_pair_redundant_delayed_join() {
 
     let alice = server_clients.next().unwrap();
 
-    let install = generator.install(8, 10, []).await;
+    let install = generator.install(8, 10, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
-    let install = generator.install(10, 12, []).await;
+    let install = generator.install(10, 12, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
-    let install = generator.install(8, 14, []).await;
+    let install = generator.install(8, 14, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
@@ -555,14 +510,11 @@ async fn full_pair_redundant_delayed_join() {
     assert_eq!(transition.destination().height(), 14);
 
     for height in [8, 10, 12, 14] {
-        assert!(bob
-            .view(&generator.view(height).await.identifier())
-            .await
-            .is_some());
+        assert!(bob.view(&generator.view(height).identifier()).is_some());
     }
 
     for install in expected_installs {
-        assert!(bob.install(&install).await.is_some())
+        assert!(bob.install(&install).is_some())
     }
 }
 
@@ -577,15 +529,15 @@ async fn full_pair_double_sync() {
     let alice = server_clients.next().unwrap();
     let bob = proxy_clients.next().unwrap();
 
-    let install = generator.install(8, 10, []).await;
+    let install = generator.install(8, 10, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
-    let install = generator.install(10, 12, []).await;
+    let install = generator.install(10, 12, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
-    let install = generator.install(12, 14, []).await;
+    let install = generator.install(12, 14, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
@@ -593,15 +545,15 @@ async fn full_pair_double_sync() {
 
     proxy.stop().await;
 
-    let install = generator.install(14, 16, []).await;
+    let install = generator.install(14, 16, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
-    let install = generator.install(16, 18, []).await;
+    let install = generator.install(16, 18, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
-    let install = generator.install(18, 20, []).await;
+    let install = generator.install(18, 20, []);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
@@ -615,14 +567,11 @@ async fn full_pair_double_sync() {
     assert_eq!(transition.destination().height(), 20);
 
     for height in [8, 10, 12, 14, 16, 18, 20] {
-        assert!(bob
-            .view(&generator.view(height).await.identifier())
-            .await
-            .is_some());
+        assert!(bob.view(&generator.view(height).identifier()).is_some());
     }
 
     for install in expected_installs {
-        assert!(bob.install(&install).await.is_some())
+        assert!(bob.install(&install).is_some())
     }
 }
 
@@ -637,15 +586,15 @@ async fn full_pair_double_sync_server_lag() {
     let alice = server_clients.next().unwrap();
     let bob = proxy_clients.next().unwrap();
 
-    let install = generator.install(8, 10, [11]).await;
+    let install = generator.install(8, 10, [11]);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
-    let install = generator.install(10, 12, [13]).await;
+    let install = generator.install(10, 12, [13]);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
-    let install = generator.install(12, 14, [15]).await;
+    let install = generator.install(12, 14, [15]);
     expected_installs.push(install.identifier());
     alice.publish(install).await;
 
@@ -658,13 +607,13 @@ async fn full_pair_double_sync_server_lag() {
 
     time::sleep(Duration::from_millis(500)).await;
 
-    let _server = Server::new(generator.view(8).await, address, Default::default())
+    let _server = Server::new(generator.view(8), address, Default::default())
         .await
         .unwrap();
 
-    let charlie = Client::new(generator.view(8).await, address, Default::default());
+    let charlie = Client::new(generator.view(8), address, Default::default());
 
-    let install = generator.install(8, 16, []).await;
+    let install = generator.install(8, 16, []);
     charlie.publish(install).await;
 
     proxy.reset().await;
@@ -676,13 +625,10 @@ async fn full_pair_double_sync_server_lag() {
     assert_eq!(transition.destination().height(), 16);
 
     for height in [8, 10, 12, 14, 16] {
-        assert!(bob
-            .view(&generator.view(height).await.identifier())
-            .await
-            .is_some());
+        assert!(bob.view(&generator.view(height).identifier()).is_some());
     }
 
     for install in expected_installs {
-        assert!(bob.install(&install).await.is_some())
+        assert!(bob.install(&install).is_some())
     }
 }

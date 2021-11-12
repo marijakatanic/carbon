@@ -1,6 +1,6 @@
 use rand::seq::IteratorRandom;
 
-pub(crate) async fn generate_installs(
+pub(crate) fn generate_installs(
     genesis_height: usize,
     max_height: usize,
     unskippable_count: usize,
