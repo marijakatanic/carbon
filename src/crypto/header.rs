@@ -6,4 +6,6 @@ pub(crate) enum Header {
     Install = 0,
 
     LatticeDecisions = 1,
+
+    Resolution = 2,
 }

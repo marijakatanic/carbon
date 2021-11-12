@@ -8,10 +8,13 @@ mod data;
 mod discovery;
 
 #[allow(dead_code)]
+mod lattice;
+
+#[allow(dead_code)]
 mod view;
 
 #[allow(dead_code)]
-mod lattice;
+mod view_generator;
 
 #[allow(dead_code)]
 mod voting;
