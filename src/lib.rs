@@ -12,3 +12,6 @@ mod view;
 
 #[allow(dead_code)]
 mod lattice;
+
+#[allow(dead_code)]
+mod voting;
