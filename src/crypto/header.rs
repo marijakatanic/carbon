@@ -5,5 +5,5 @@ use serde::{Deserialize, Serialize};
 pub(crate) enum Header {
     Install = 0,
 
-    LatticeDecision = 1,
+    LatticeDecisions = 1,
 }

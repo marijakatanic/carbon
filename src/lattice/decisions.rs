@@ -8,16 +8,16 @@ use talk::crypto::primitives::hash::Hash;
 use talk::crypto::Statement;
 
 #[derive(Clone, Serialize, Deserialize)]
-pub(in crate::lattice) struct Decision<Instance> {
+pub(in crate::lattice) struct Decisions<Instance> {
     pub view: Hash,
     pub instance: Instance,
     pub elements: BTreeSet<Hash>,
 }
 
-impl<Instance> Statement for Decision<Instance>
+impl<Instance> Statement for Decisions<Instance>
 where
     Instance: LatticeInstance,
 {
     type Header = Header;
-    const HEADER: Header = Header::LatticeDecision;
+    const HEADER: Header = Header::LatticeDecisions;
 }
