@@ -29,11 +29,15 @@ where
         }
 
         if !message.differences.is_subset(&self.database.safe_set) {
-            return MessageError::InvalidElement.fail();
+            return MessageError::UnsafeElement.fail();
+        }
+
+        if message.differences.is_empty() {
+            return MessageError::EmptyCertificationUpdate.fail();
         }
 
         if !message.differences.is_disjoint(&self.database.proposed_set) {
-            return MessageError::NoNewElements.fail();
+            return MessageError::OverlappingCertificationUpdate.fail();
         }
 
         Ok(())

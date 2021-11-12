@@ -21,18 +21,24 @@ pub(in crate::lattice) enum Message<Element> {
 pub(in crate::lattice) enum MessageError {
     #[doom(description("`Message` contains an invalid `Element`"))]
     InvalidElement,
-    #[doom(description("`Message` pertains to a different `Instance`"))]
-    WrongInstance,
-    #[doom(description("`Message` pertains to a different `View`"))]
-    WrongView,
+    #[doom(description("`Message` contains an `Element` that is not (yet?) safe"))]
+    UnsafeElement,
+    #[doom(description("`Message` pertains to a foreign `View`"))]
+    ForeignView,
+    #[doom(description("`Message` pertains to a foreign `Instance`"))]
+    ForeignInstance,
     #[doom(description("`Message` cannot be processed during the current `State`"))]
     WrongState,
-    #[doom(description("`Message` is a reply to an old of non-existant `Message`"))]
+    #[doom(description("`Message` is a reply to an old or non-existant `Message`"))]
     StaleMessage,
     #[doom(description("`Message` contains an invalid `Signature`"))]
     InvalidSignature,
-    #[doom(description("`Message` contains no new `Element`"))]
-    NoNewElements,
-    #[doom(description("`Message`'s `Decision` must contain at least one `Element`"))]
-    EmptyDecision,
+    #[doom(description("`Message::CertificationRequest` contains no `Element`s"))]
+    EmptyCertificationRequest,
+    #[doom(description("`Message::CertificationUpdate` contains no `Element`s"))]
+    EmptyCertificationUpdate,
+    #[doom(description(
+        "`Message::CertificationUpdate` contains `Element`s that overlap with `proposed_set`"
+    ))]
+    OverlappingCertificationUpdate,
 }

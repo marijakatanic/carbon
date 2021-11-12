@@ -26,11 +26,11 @@ where
         message: &CertificationRequest,
     ) -> Result<(), Top<MessageError>> {
         if message.elements.is_empty() {
-            return MessageError::EmptyDecision.fail();
+            return MessageError::EmptyCertificationRequest.fail();
         }
 
         if !message.elements.is_subset(&self.database.safe_set) {
-            return MessageError::InvalidElement.fail();
+            return MessageError::UnsafeElement.fail();
         }
 
         Ok(())
