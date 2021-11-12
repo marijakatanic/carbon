@@ -39,7 +39,7 @@ where
             DisclosureSend::Brief {
                 proposal: identifier,
             } => {
-                let proposal = match self.database.disclosure.proposals.get(&identifier).cloned() {
+                let proposal = match self.database.elements.get(&identifier).cloned() {
                     Some(proposal) => proposal,
                     None => {
                         acknowledger.expand();
@@ -52,10 +52,7 @@ where
             DisclosureSend::Expanded { proposal } => {
                 let identifier = proposal.identifier();
 
-                self.database
-                    .disclosure
-                    .proposals
-                    .insert(identifier, proposal.clone());
+                self.database.elements.insert(identifier, proposal.clone());
 
                 (identifier, proposal)
             }

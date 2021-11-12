@@ -58,7 +58,7 @@ pub(in crate::lattice) enum State {
 }
 
 struct Database<Instance: LatticeInstance, Element: LatticeElement> {
-    disclosure: DisclosureDatabase<Element>,
+    disclosure: DisclosureDatabase,
     certification: Option<CertificationDatabase<Instance>>,
 
     elements: HashMap<Hash, Element>,
@@ -70,11 +70,9 @@ struct Database<Instance: LatticeInstance, Element: LatticeElement> {
     accepted_set: BTreeSet<Hash>,
 }
 
-struct DisclosureDatabase<Element: LatticeElement> {
+struct DisclosureDatabase {
     // `true` iff the local replica disclosed a value
     disclosed: bool,
-
-    proposals: HashMap<Hash, Element>,
 
     // origin is in `echoes_sent` iff the local replica issued an echo message
     // for _any_ message from origin
@@ -151,7 +149,6 @@ where
         let database = Database {
             disclosure: DisclosureDatabase {
                 disclosed: false,
-                proposals: HashMap::new(),
                 echoes_sent: HashSet::new(),
                 echoes_collected: HashSet::new(),
                 echo_support: HashMap::new(),

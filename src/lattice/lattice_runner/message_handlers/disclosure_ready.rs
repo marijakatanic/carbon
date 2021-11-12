@@ -40,7 +40,7 @@ where
                 origin,
                 proposal: identifier,
             } => {
-                let proposal = match self.database.disclosure.proposals.get(&identifier).cloned() {
+                let proposal = match self.database.elements.get(&identifier).cloned() {
                     Some(proposal) => proposal,
                     None => {
                         acknowledger.expand();
@@ -53,10 +53,7 @@ where
             DisclosureReady::Expanded { origin, proposal } => {
                 let identifier = proposal.identifier();
 
-                self.database
-                    .disclosure
-                    .proposals
-                    .insert(identifier, proposal.clone());
+                self.database.elements.insert(identifier, proposal.clone());
 
                 (origin, identifier, proposal)
             }
