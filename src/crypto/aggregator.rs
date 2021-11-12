@@ -2,13 +2,15 @@ use crate::{crypto::Certificate, view::View};
 
 use doomstack::Top;
 
+use std::collections::HashMap;
+
 use talk::crypto::primitives::multi::{MultiError, Signature as MultiSignature};
 use talk::crypto::{Identity, KeyCard, Statement};
 
 pub(crate) struct Aggregator<S: Statement> {
     view: View,
     statement: S,
-    components: Vec<(Identity, MultiSignature)>,
+    components: HashMap<Identity, MultiSignature>,
 }
 
 impl<S> Aggregator<S>
@@ -19,7 +21,7 @@ where
         Aggregator {
             view,
             statement,
-            components: Vec::new(),
+            components: HashMap::new(),
         }
     }
 
@@ -47,7 +49,7 @@ where
         }
 
         signature.verify([keycard], &self.statement)?;
-        self.components.push((identity, signature));
+        self.components.insert(identity, signature);
 
         Ok(())
     }
@@ -57,7 +59,9 @@ where
     }
 
     pub fn finalize(self) -> (S, Certificate) {
-        let certificate = Certificate::aggregate(&self.view, self.components);
+        let components = self.components.into_iter().collect::<Vec<_>>();
+        let certificate = Certificate::aggregate(&self.view, components);
+
         (self.statement, certificate)
     }
 
