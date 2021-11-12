@@ -21,13 +21,13 @@ where
     pub(in crate::lattice::lattice_runner) fn certify(&mut self, elements: BTreeSet<Hash>) {
         let identifier = elements.identifier();
 
-        let decision = Decisions {
+        let decisions = Decisions {
             view: self.view.identifier(),
             instance: self.instance.clone(),
             elements: elements.clone(),
         };
 
-        let aggregator = Aggregator::new(self.view.clone(), decision);
+        let aggregator = Aggregator::new(self.view.clone(), decisions);
 
         let message = CertificationRequest { elements };
 

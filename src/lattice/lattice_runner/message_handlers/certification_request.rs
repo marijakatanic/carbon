@@ -47,13 +47,13 @@ where
         if message.elements.is_superset(&self.database.accepted_set) {
             let identifier = message.elements.identifier();
 
-            let decision = Decisions {
+            let decisions = Decisions {
                 view: self.view.identifier(),
                 instance: self.instance.clone(),
                 elements: message.elements.clone(),
             };
 
-            let signature = self.keychain.multisign(&decision).unwrap();
+            let signature = self.keychain.multisign(&decisions).unwrap();
 
             let message = CertificationConfirmation {
                 identifier,

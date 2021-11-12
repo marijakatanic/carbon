@@ -42,14 +42,12 @@ where
     }
 
     pub(in crate::lattice::lattice_runner) fn deliver_disclosure(&mut self, proposal: Element) {
-        self.database.disclosures += 1;
         let identifier = proposal.identifier();
 
-        self.database.elements.insert(identifier, proposal.clone());
-
+        self.database.disclosures += 1;
         self.database.safe_set.insert(identifier);
 
-        if let State::Disclosing = &self.state {
+        if self.state == State::Disclosing {
             if !self.disclosed() {
                 self.disclose(proposal);
             }
