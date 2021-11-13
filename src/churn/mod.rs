@@ -1,9 +1,9 @@
-mod claim;
+mod churn;
 mod resignation;
 mod resolution;
 
 #[allow(unused_imports)]
-pub(crate) use claim::Claim;
+pub(crate) use churn::Churn;
 pub(crate) use resignation::Resignation;
 #[allow(unused_imports)]
 pub(crate) use resolution::Resolution;

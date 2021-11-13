@@ -1,12 +1,12 @@
 use crate::{
+    churn::{Resignation, ResolutionClaim},
     discovery::Client,
     view::View,
-    voting::{Resignation, ResolutionClaim},
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-pub(crate) enum Claim {
+pub(crate) enum Churn {
     ResolutionClaim(ResolutionClaim),
     Resignation(Resignation),
 }
@@ -19,17 +19,17 @@ pub(crate) enum ChangeRequestError {
     ResignationInvalid,
 }
 
-impl Claim {
+impl Churn {
     pub fn validate(
         &self,
         client: &Client,
         current_view: &View,
     ) -> Result<(), Top<ChangeRequestError>> {
         match self {
-            Claim::ResolutionClaim(resolution_claim) => resolution_claim
+            Churn::ResolutionClaim(resolution_claim) => resolution_claim
                 .validate(client, current_view)
                 .pot(ChangeRequestError::ResolutionInvalid, here!()),
-            Claim::Resignation(resignation) => resignation
+            Churn::Resignation(resignation) => resignation
                 .validate(client, current_view)
                 .pot(ChangeRequestError::ResignationInvalid, here!()),
         }

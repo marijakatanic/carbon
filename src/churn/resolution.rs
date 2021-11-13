@@ -39,16 +39,8 @@ pub(crate) enum ResolutionError {
 }
 
 impl Resolution {
-    pub fn view(&self) -> Hash {
-        self.0.view
-    }
-
     pub fn change(&self) -> Change {
         self.0.statement.change.clone()
-    }
-
-    pub fn certificate(&self) -> &Certificate {
-        &self.0.certificate
     }
 }
 
