@@ -25,13 +25,15 @@ impl Churn {
         client: &Client,
         current_view: &View,
     ) -> Result<(), Top<ChangeRequestError>> {
-        match self {
-            Churn::ResolutionClaim(resolution_claim) => resolution_claim
-                .validate(client, current_view)
-                .pot(ChangeRequestError::ResolutionInvalid, here!()),
-            Churn::Resignation(resignation) => resignation
-                .validate(client, current_view)
-                .pot(ChangeRequestError::ResignationInvalid, here!()),
-        }
+        // match self {
+        //     Churn::ResolutionClaim(resolution_claim) => resolution_claim
+        //         .validate(client, current_view)
+        //         .pot(ChangeRequestError::ResolutionInvalid, here!()),
+        //     Churn::Resignation(resignation) => resignation
+        //         .validate(client, current_view)
+        //         .pot(ChangeRequestError::ResignationInvalid, here!()),
+        // }
+
+        todo!()
     }
 }

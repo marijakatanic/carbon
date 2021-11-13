@@ -8,4 +8,5 @@ pub(crate) enum Header {
     LatticeDecisions = 1,
 
     Resolution = 2,
+    Resignation = 3,
 }
