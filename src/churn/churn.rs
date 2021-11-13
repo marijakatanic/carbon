@@ -1,5 +1,6 @@
 use crate::{
     churn::{ResignationClaim, ResolutionClaim},
+    crypto::Identify,
     discovery::Client,
     view::{Change, View},
 };
@@ -7,6 +8,8 @@ use crate::{
 use doomstack::{here, Doom, ResultExt, Top};
 
 use serde::{Deserialize, Serialize};
+
+use talk::crypto::primitives::hash::Hash;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) enum Churn {
@@ -50,6 +53,15 @@ impl Churn {
                 .to_resignation(current_view)
                 .map(|resignation| resignation.change())
                 .pot(ChurnError::ResignationInvalid, here!()),
+        }
+    }
+}
+
+impl Identify for Churn {
+    fn identifier(&self) -> Hash {
+        match self {
+            Churn::Resolution(resolution_claim) => resolution_claim.identifier(),
+            Churn::Resignation(resignation_claim) => resignation_claim.identifier(),
         }
     }
 }
