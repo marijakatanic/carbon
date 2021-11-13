@@ -87,15 +87,15 @@ impl ResolutionClaim {
     }
 }
 
-impl From<Resolution> for ResolutionClaim {
-    fn from(resolution: Resolution) -> Self {
-        resolution.0
-    }
-}
-
 impl Identify for Resolution {
     fn identifier(&self) -> Hash {
         self.0.identifier()
+    }
+}
+
+impl From<Resolution> for ResolutionClaim {
+    fn from(resolution: Resolution) -> Self {
+        resolution.0
     }
 }
 
