@@ -1,4 +1,7 @@
-use crate::{discovery::Client, view::{Change, View}};
+use crate::{
+    discovery::Client,
+    view::{Change, View},
+};
 
 use doomstack::{Doom, Top};
 
@@ -8,11 +11,11 @@ pub(crate) struct Resignation(ResignationClaim);
 
 pub(crate) struct ResignationClaim {
     statement: Statement,
-    signature: Signature
+    signature: Signature,
 }
 
 struct Statement {
-    change: Change
+    change: Change,
 }
 
 #[derive(Doom)]
