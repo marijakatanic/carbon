@@ -101,7 +101,7 @@ impl View {
 
         let mut members = self.data.members.clone();
 
-        for change in increment.into_iter() {
+        for change in increment {
             match change {
                 Change::Join(replica) => {
                     members.insert(replica);
