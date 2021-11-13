@@ -1,5 +1,5 @@
 use crate::{
-    crypto::{Certificate, Header},
+    crypto::{Certificate, Header, Identify},
     discovery::Client,
     view::{Change, View},
 };
@@ -8,7 +8,9 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use serde::{Deserialize, Serialize};
 
-use talk::crypto::{primitives::hash::Hash, Statement as CryptoStatement};
+use talk::crypto::primitives::hash;
+use talk::crypto::primitives::hash::Hash;
+use talk::crypto::Statement as CryptoStatement;
 
 #[derive(Clone, Serialize)]
 #[serde(into = "ResolutionClaim")]
@@ -32,7 +34,7 @@ pub(crate) enum ResolutionError {
     UnknownView,
     #[doom(description("The `Resolution` did not pass in a past or current `View`"))]
     FutureVote,
-    #[doom(description("Certificate invalid"))]
+    #[doom(description("The `Resolution`'s `Certificate` is invalid"))]
     CertificateInvalid,
     #[doom(description("The `Resolution`'s `Change` cannot be applied to the current `View`"))]
     ViewError,
@@ -50,19 +52,24 @@ impl ResolutionClaim {
         client: &Client,
         current_view: &View,
     ) -> Result<(), Top<ResolutionError>> {
+        // Verify that `self.view` is known to `client`
         let view = client
             .view(&self.view)
             .ok_or(ResolutionError::UnknownView.into_top())
             .spot(here!())?;
 
+        // Verify that `self.view` is not in the future
         if view.height() > current_view.height() {
             return ResolutionError::FutureVote.fail().spot(here!());
         }
 
+        // Verify that `self.statement.change` can be used to extend `current_view`
         current_view
             .validate_extension(&self.statement.change)
             .pot(ResolutionError::ViewError, here!())?;
 
+        // (TODO: determine whether a quorum or a plurality are necessary to sign a `Resolution`)
+        // Verify `self.certificate`
         self.certificate
             .verify_quorum(&view, &self.statement)
             .pot(ResolutionError::CertificateInvalid, here!())?;
@@ -80,13 +87,25 @@ impl ResolutionClaim {
     }
 }
 
-impl CryptoStatement for Statement {
-    type Header = Header;
-    const HEADER: Header = Header::Resolution;
-}
-
 impl From<Resolution> for ResolutionClaim {
     fn from(resolution: Resolution) -> Self {
         resolution.0
     }
+}
+
+impl Identify for Resolution {
+    fn identifier(&self) -> Hash {
+        self.0.identifier()
+    }
+}
+
+impl Identify for ResolutionClaim {
+    fn identifier(&self) -> Hash {
+        hash::hash(&self.statement.change).unwrap()
+    }
+}
+
+impl CryptoStatement for Statement {
+    type Header = Header;
+    const HEADER: Header = Header::Resolution;
 }
