@@ -6,6 +6,9 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Serialize, Deserialize)]
 pub(crate) enum Churn {
     Resolution(ResolutionClaim),
     Resignation(ResignationClaim),
