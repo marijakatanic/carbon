@@ -180,7 +180,7 @@ impl View {
 
 impl Identify for View {
     fn identifier(&self) -> Hash {
-        self.data.changes.commit()
+        self.data.changes.identifier()
     }
 }
 

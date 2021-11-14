@@ -1,6 +1,10 @@
+use serde::Serialize;
+
 use std::collections::BTreeSet;
 
 use talk::crypto::primitives::hash::{Hash, Hasher};
+
+use zebra::database::Collection;
 
 /// ## `Identify` and `Eq`
 ///
@@ -73,6 +77,15 @@ where
         hasher.update(&self.2.identifier()).unwrap();
         hasher.update(&self.3.identifier()).unwrap();
         hasher.finalize()
+    }
+}
+
+impl<T> Identify for Collection<T>
+where
+    T: 'static + Serialize + Send + Sync,
+{
+    fn identifier(&self) -> Hash {
+        self.commit()
     }
 }
 
