@@ -88,6 +88,10 @@ impl LatticeElement for ViewProposal {
     }
 }
 
+// TODO: Determine if this implementation could be made
+// more relaxed: for example, all tailless `Install`
+// messages have the same effect (i.e., enabling the
+// application of `Churn`s)
 impl Identify for ViewProposal {
     fn identifier(&self) -> Hash {
         match self {
