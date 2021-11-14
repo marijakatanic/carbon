@@ -1,6 +1,5 @@
 mod compress;
 mod sequence_proposal;
-mod view_decision;
 mod view_proposal;
 
 #[allow(unused_imports)]
