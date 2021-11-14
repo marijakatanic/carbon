@@ -22,6 +22,60 @@ impl Identify for Hash {
     }
 }
 
+impl<T> Identify for &T
+where
+    T: Identify,
+{
+    fn identifier(&self) -> Hash {
+        (*self).identifier()
+    }
+}
+
+impl<A, B> Identify for (A, B)
+where
+    A: Identify,
+    B: Identify,
+{
+    fn identifier(&self) -> Hash {
+        let mut hasher = Hasher::new();
+        hasher.update(&self.0.identifier()).unwrap();
+        hasher.update(&self.1.identifier()).unwrap();
+        hasher.finalize()
+    }
+}
+
+impl<A, B, C> Identify for (A, B, C)
+where
+    A: Identify,
+    B: Identify,
+    C: Identify,
+{
+    fn identifier(&self) -> Hash {
+        let mut hasher = Hasher::new();
+        hasher.update(&self.0.identifier()).unwrap();
+        hasher.update(&self.1.identifier()).unwrap();
+        hasher.update(&self.2.identifier()).unwrap();
+        hasher.finalize()
+    }
+}
+
+impl<A, B, C, D> Identify for (A, B, C, D)
+where
+    A: Identify,
+    B: Identify,
+    C: Identify,
+    D: Identify,
+{
+    fn identifier(&self) -> Hash {
+        let mut hasher = Hasher::new();
+        hasher.update(&self.0.identifier()).unwrap();
+        hasher.update(&self.1.identifier()).unwrap();
+        hasher.update(&self.2.identifier()).unwrap();
+        hasher.update(&self.3.identifier()).unwrap();
+        hasher.finalize()
+    }
+}
+
 impl<T> Identify for Vec<T>
 where
     T: Identify,
