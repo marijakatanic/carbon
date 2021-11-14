@@ -9,6 +9,8 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use serde::{Deserialize, Serialize};
 
+use std::cmp::{Ord, Ordering, PartialOrd};
+
 use talk::crypto::primitives::hash::Hash;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -54,6 +56,26 @@ impl Churn {
                 .map(|resignation| resignation.change())
                 .pot(ChurnError::ResignationInvalid, here!()),
         }
+    }
+}
+
+impl PartialEq for Churn {
+    fn eq(&self, rho: &Self) -> bool {
+        self.identifier() == rho.identifier()
+    }
+}
+
+impl Eq for Churn {}
+
+impl PartialOrd for Churn {
+    fn partial_cmp(&self, rho: &Self) -> Option<Ordering> {
+        Some(self.cmp(rho))
+    }
+}
+
+impl Ord for Churn {
+    fn cmp(&self, rho: &Self) -> Ordering {
+        self.identifier().cmp(&rho.identifier())
     }
 }
 
