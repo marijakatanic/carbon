@@ -8,7 +8,6 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use serde::{Deserialize, Serialize};
 
-use talk::crypto::primitives::hash;
 use talk::crypto::primitives::hash::Hash;
 use talk::crypto::Statement as CryptoStatement;
 
@@ -101,7 +100,7 @@ impl From<Resolution> for ResolutionClaim {
 
 impl Identify for ResolutionClaim {
     fn identifier(&self) -> Hash {
-        hash::hash(&self.statement.change).unwrap()
+        self.statement.change.identifier()
     }
 }
 

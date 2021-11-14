@@ -9,13 +9,21 @@ use crate::{
 use doomstack::{here, Doom, ResultExt, Top};
 
 use serde::{Deserialize, Serialize};
+
+use std::collections::BTreeSet;
+
 use talk::crypto::primitives::hash;
-use talk::crypto::primitives::hash::{Hash, Hasher};
+use talk::crypto::primitives::hash::Hash;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) enum ViewProposal {
-    Churn { install: Hash, churn: Vec<Churn> },
-    Tail { install: Hash },
+    Churn {
+        install: Hash,
+        churn: BTreeSet<Churn>,
+    },
+    Tail {
+        install: Hash,
+    },
 }
 
 #[derive(Doom)]
@@ -94,19 +102,26 @@ impl LatticeElement for ViewProposal {
 // application of `Churn`s)
 impl Identify for ViewProposal {
     fn identifier(&self) -> Hash {
-        match self {
-            ViewProposal::Churn { install, churn } => {
-                let mut hasher = Hasher::new();
+        #[derive(Serialize)]
+        #[repr(u8)]
+        enum ProposalType {
+            Churn,
+            Tail,
+        }
 
-                for churn in churn.iter() {
-                    hasher.update(&churn.identifier()).unwrap();
-                }
-
-                let churn = hasher.finalize();
-
-                hash::hash(&(install, churn)).unwrap()
+        impl Identify for ProposalType {
+            fn identifier(&self) -> Hash {
+                hash::hash(&self).unwrap()
             }
-            ViewProposal::Tail { install } => *install,
+        }
+
+        match self {
+            ViewProposal::Churn { churn, .. } => {
+                (ProposalType::Churn.identifier(), churn.identifier()).identifier()
+            }
+            ViewProposal::Tail { install } => {
+                (ProposalType::Tail.identifier(), install.identifier()).identifier()
+            }
         }
     }
 }

@@ -63,7 +63,7 @@ impl LatticeElement for Element {
 
 impl Identify for Element {
     fn identifier(&self) -> Hash {
-        hash::hash(&self.0).unwrap()
+        hash::hash(&self).unwrap()
     }
 }
 

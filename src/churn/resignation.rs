@@ -7,7 +7,6 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use serde::{Deserialize, Serialize};
 
-use talk::crypto::primitives::hash;
 use talk::crypto::primitives::hash::Hash;
 use talk::crypto::primitives::sign::Signature;
 use talk::crypto::{KeyCard, Statement as CryptoStatement};
@@ -36,7 +35,7 @@ pub(crate) enum ResignationError {
 
 impl Resignation {
     pub fn change(&self) -> Change {
-        Change::Leave(self.0.member.clone())
+        self.0.change()
     }
 }
 
@@ -61,6 +60,10 @@ impl ResignationClaim {
         self.validate(current_view)?;
         Ok(Resignation(self))
     }
+
+    fn change(&self) -> Change {
+        Change::Leave(self.member.clone())
+    }
 }
 
 impl Identify for Resignation {
@@ -77,8 +80,7 @@ impl From<Resignation> for ResignationClaim {
 
 impl Identify for ResignationClaim {
     fn identifier(&self) -> Hash {
-        let change = Change::Leave(self.member.clone());
-        hash::hash(&change).unwrap()
+        self.change().identifier()
     }
 }
 
