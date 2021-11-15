@@ -41,7 +41,7 @@ pub(crate) enum ResolutionError {
 
 impl Resolution {
     pub fn change(&self) -> Change {
-        self.0.statement.change.clone()
+        self.0.change()
     }
 }
 
@@ -83,6 +83,10 @@ impl ResolutionClaim {
     ) -> Result<Resolution, Top<ResolutionError>> {
         self.validate(client, current_view)?;
         Ok(Resolution(self))
+    }
+
+    pub(in crate::churn) fn change(&self) -> Change {
+        self.statement.change.clone()
     }
 }
 

@@ -61,7 +61,7 @@ impl ResignationClaim {
         Ok(Resignation(self))
     }
 
-    fn change(&self) -> Change {
+    pub(in crate::churn) fn change(&self) -> Change {
         Change::Leave(self.member.clone())
     }
 }

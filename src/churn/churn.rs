@@ -57,11 +57,18 @@ impl Churn {
                 .pot(ChurnError::ResignationInvalid, here!()),
         }
     }
+
+    fn change(&self) -> Change {
+        match self {
+            Churn::Resolution(resolution_claim) => resolution_claim.change(),
+            Churn::Resignation(resignation_claim) => resignation_claim.change(),
+        }
+    }
 }
 
 impl PartialEq for Churn {
     fn eq(&self, rho: &Self) -> bool {
-        self.identifier() == rho.identifier()
+        self.change() == rho.change()
     }
 }
 
@@ -75,7 +82,7 @@ impl PartialOrd for Churn {
 
 impl Ord for Churn {
     fn cmp(&self, rho: &Self) -> Ordering {
-        self.identifier().cmp(&rho.identifier())
+        self.change().cmp(&rho.change())
     }
 }
 
