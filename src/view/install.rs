@@ -8,7 +8,6 @@ use doomstack::{here, Doom, ResultExt, Top};
 use serde::de;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use talk::crypto::primitives::hash;
 use talk::crypto::primitives::hash::Hash;
 use talk::crypto::primitives::multi::{MultiError, Signature as MultiSignature};
 use talk::crypto::{KeyCard, KeyChain, Statement as CryptoStatement};
@@ -144,7 +143,7 @@ impl Identify for Install {
 
 impl Identify for Statement {
     fn identifier(&self) -> Hash {
-        hash::hash(self).unwrap()
+        (self.source.identifier(), self.increments.identifier()).identifier()
     }
 }
 
