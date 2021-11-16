@@ -3,7 +3,8 @@ use crate::{
     crypto::Identify,
     discovery::Client,
     lattice::{Element as LatticeElement, ElementError as LatticeElementError},
-    view::View,
+    view::{Increment, View},
+    view_generator::ViewDecision,
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
@@ -101,8 +102,8 @@ impl Identify for ViewProposal {
         #[derive(Serialize)]
         #[repr(u8)]
         enum ProposalType {
-            Churn,
-            Tail,
+            Churn = 0,
+            Tail = 1,
         }
 
         impl Identify for ProposalType {
@@ -118,6 +119,26 @@ impl Identify for ViewProposal {
             ViewProposal::Tail { install } => {
                 (ProposalType::Tail.identifier(), install.identifier()).identifier()
             }
+        }
+    }
+}
+
+impl ViewProposal {
+    pub(in crate::view_generator) fn into_decision(
+        self,
+        client: &Client,
+        current_view: &View,
+    ) -> ViewDecision {
+        match self {
+            ViewProposal::Churn { churn, .. } => {
+                let churn: Increment = churn
+                    .into_iter()
+                    .map(|churn| churn.to_change(client, current_view).unwrap())
+                    .collect();
+
+                ViewDecision::Churn { churn }
+            }
+            ViewProposal::Tail { install } => ViewDecision::Tail { install },
         }
     }
 }
