@@ -105,6 +105,10 @@ impl InstallAggregator {
         self.0.add(keycard, signature)
     }
 
+    pub fn multiplicity(&self) -> usize {
+        self.0.multiplicity()
+    }
+
     pub fn finalize(self) -> Install {
         let (statement, certificate) = self.0.finalize_plurality();
 

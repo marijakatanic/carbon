@@ -1,10 +1,15 @@
 mod lattice_instance;
+mod message;
+mod messages;
+mod precursor;
 mod sequence_proposal;
 mod view_decision;
 mod view_generator;
 mod view_proposal;
 
 use lattice_instance::LatticeInstance;
+use message::Message;
+use precursor::Precursor;
 use sequence_proposal::SequenceProposal;
 use view_decision::ViewDecision;
 
