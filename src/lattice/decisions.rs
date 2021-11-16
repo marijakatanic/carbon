@@ -1,4 +1,7 @@
-use crate::{crypto::Header, lattice::Instance as LatticeInstance};
+use crate::{
+    crypto::{Header, Identify},
+    lattice::{Element as LatticeElement, Instance as LatticeInstance},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -8,10 +11,26 @@ use talk::crypto::primitives::hash::Hash;
 use talk::crypto::Statement;
 
 #[derive(Clone, Serialize, Deserialize)]
-pub(in crate::lattice) struct Decisions<Instance> {
-    pub view: Hash,
-    pub instance: Instance,
-    pub elements: BTreeSet<Hash>,
+pub(crate) struct Decisions<Instance> {
+    pub(in crate::lattice) view: Hash,
+    pub(in crate::lattice) instance: Instance,
+    pub(in crate::lattice) elements: BTreeSet<Hash>,
+}
+
+impl<Instance> Decisions<Instance> {
+    pub fn new<'i, E, I>(view: Hash, instance: Instance, elements: E) -> Self
+    where
+        E: IntoIterator<Item = &'i I>,
+        I: LatticeElement,
+    {
+        let elements = elements.into_iter().map(Identify::identifier).collect();
+
+        Decisions {
+            view,
+            instance,
+            elements,
+        }
+    }
 }
 
 impl<Instance> Statement for Decisions<Instance>
