@@ -3,7 +3,8 @@ use crate::{
     crypto::Identify,
     discovery::Client,
     lattice::{Element as LatticeElement, ElementError as LatticeElementError},
-    view::View,
+    view::{Increment, View},
+    view_generator::ViewDecision,
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
@@ -38,6 +39,26 @@ pub(crate) enum ViewProposalError {
     InstallTailless,
     #[doom(description("`ViewProposal` contains an invalid `Churn`"))]
     InvalidChurn,
+}
+
+impl ViewProposal {
+    pub(in crate::view_generator) fn into_decision(
+        self,
+        client: &Client,
+        current_view: &View,
+    ) -> ViewDecision {
+        match self {
+            ViewProposal::Churn { churn, .. } => {
+                let churn: Increment = churn
+                    .into_iter()
+                    .map(|churn| churn.to_change(client, current_view).unwrap())
+                    .collect();
+
+                ViewDecision::Churn { churn }
+            }
+            ViewProposal::Tail { install } => ViewDecision::Tail { install },
+        }
+    }
 }
 
 impl LatticeElement for ViewProposal {
@@ -96,17 +117,13 @@ impl LatticeElement for ViewProposal {
     }
 }
 
-// TODO: Determine if this implementation could be made
-// more relaxed: for example, all tailless `Install`
-// messages have the same effect (i.e., enabling the
-// application of `Churn`s)
 impl Identify for ViewProposal {
     fn identifier(&self) -> Hash {
         #[derive(Serialize)]
         #[repr(u8)]
         enum ProposalType {
-            Churn,
-            Tail,
+            Churn = 0,
+            Tail = 1,
         }
 
         impl Identify for ProposalType {

@@ -1,8 +1,12 @@
-mod compress;
 mod sequence_proposal;
+mod view_decision;
+mod view_generator;
 mod view_proposal;
 
+use sequence_proposal::SequenceProposal;
+use view_decision::ViewDecision;
+
 #[allow(unused_imports)]
-pub(crate) use sequence_proposal::SequenceProposal;
+pub(crate) use view_generator::ViewGenerator;
 #[allow(unused_imports)]
 pub(crate) use view_proposal::ViewProposal;
