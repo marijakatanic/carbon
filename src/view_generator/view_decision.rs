@@ -1,9 +1,10 @@
 use crate::{crypto::Identify, view::Increment};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use talk::crypto::primitives::hash;
 use talk::crypto::primitives::hash::Hash;
 
+#[derive(Clone, Serialize, Deserialize)]
 pub(in crate::view_generator) enum ViewDecision {
     Churn { churn: Increment },
     Tail { install: Hash },

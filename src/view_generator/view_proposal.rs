@@ -41,6 +41,26 @@ pub(crate) enum ViewProposalError {
     InvalidChurn,
 }
 
+impl ViewProposal {
+    pub(in crate::view_generator) fn into_decision(
+        self,
+        client: &Client,
+        current_view: &View,
+    ) -> ViewDecision {
+        match self {
+            ViewProposal::Churn { churn, .. } => {
+                let churn: Increment = churn
+                    .into_iter()
+                    .map(|churn| churn.to_change(client, current_view).unwrap())
+                    .collect();
+
+                ViewDecision::Churn { churn }
+            }
+            ViewProposal::Tail { install } => ViewDecision::Tail { install },
+        }
+    }
+}
+
 impl LatticeElement for ViewProposal {
     fn validate(&self, client: &Client, view: &View) -> Result<(), Top<LatticeElementError>> {
         match self {
@@ -119,26 +139,6 @@ impl Identify for ViewProposal {
             ViewProposal::Tail { install } => {
                 (ProposalType::Tail.identifier(), install.identifier()).identifier()
             }
-        }
-    }
-}
-
-impl ViewProposal {
-    pub(in crate::view_generator) fn into_decision(
-        self,
-        client: &Client,
-        current_view: &View,
-    ) -> ViewDecision {
-        match self {
-            ViewProposal::Churn { churn, .. } => {
-                let churn: Increment = churn
-                    .into_iter()
-                    .map(|churn| churn.to_change(client, current_view).unwrap())
-                    .collect();
-
-                ViewDecision::Churn { churn }
-            }
-            ViewProposal::Tail { install } => ViewDecision::Tail { install },
         }
     }
 }
