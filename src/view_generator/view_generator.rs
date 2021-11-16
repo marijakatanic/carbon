@@ -141,7 +141,7 @@ impl ViewGenerator {
         let sequence_proposal = SequenceProposal {
             proposal: view_proposals
                 .into_iter()
-                .map(|proposal| proposal.into_decision(&discovery, &view))
+                .map(|proposal| proposal.to_decision(&discovery, &view))
                 .collect(),
             proof: proof,
         };

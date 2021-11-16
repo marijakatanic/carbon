@@ -35,14 +35,14 @@ pub(crate) enum ViewProposalError {
     InvalidInstallDestination,
     #[doom(description("`ViewProposal` is `Churn`, but `Install` message has a tail"))]
     InstallTailed,
-    #[doom(description("`ViewProposal` is `Churn`, but `Install` message is tailless"))]
+    #[doom(description("`ViewProposal` is `Tail`, but `Install` message is tailless"))]
     InstallTailless,
     #[doom(description("`ViewProposal` contains an invalid `Churn`"))]
     InvalidChurn,
 }
 
 impl ViewProposal {
-    pub(in crate::view_generator) fn into_decision(
+    pub(in crate::view_generator) fn to_decision(
         self,
         client: &Client,
         current_view: &View,
