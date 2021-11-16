@@ -1,6 +1,7 @@
 use crate::{crypto::Identify, view::Increment};
 
 use serde::{Deserialize, Serialize};
+
 use talk::crypto::primitives::hash;
 use talk::crypto::primitives::hash::Hash;
 
