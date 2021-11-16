@@ -3,10 +3,8 @@ use crate::{
     discovery::Client,
     lattice::LatticeAgreement,
     view::{Install, View},
-    view_generator::{SequenceProposal, ViewProposal},
+    view_generator::{LatticeInstance, SequenceProposal, ViewProposal},
 };
-
-use serde::{Deserialize, Serialize};
 
 use std::sync::Arc;
 
@@ -29,13 +27,6 @@ type DecisionOutlet = Receiver<Install>;
 pub(crate) struct ViewGenerator {
     proposal_inlet: ProposalInlet,
     _fuse: Fuse,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-#[repr(u8)]
-enum LatticeInstance {
-    ViewLattice = 0,
-    SequenceLattice = 1,
 }
 
 impl ViewGenerator {
@@ -143,7 +134,7 @@ impl ViewGenerator {
                 .into_iter()
                 .map(|proposal| proposal.to_decision(&discovery, &view))
                 .collect(),
-            proof: proof,
+            certificate: proof,
         };
 
         let _ = sequence_lattice.propose(sequence_proposal).await;
