@@ -46,6 +46,10 @@ impl Resolution {
 }
 
 impl ResolutionClaim {
+    pub(in crate::churn) fn change(&self) -> Change {
+        self.statement.change.clone()
+    }
+
     pub fn validate(
         &self,
         client: &Client,
@@ -62,16 +66,16 @@ impl ResolutionClaim {
             return ResolutionError::FutureVote.fail().spot(here!());
         }
 
-        // Verify that `self.statement.change` can be used to extend `current_view`
-        current_view
-            .validate_extension(&self.statement.change)
-            .pot(ResolutionError::ViewError, here!())?;
-
         // (TODO: determine whether a quorum or a plurality are necessary to sign a `Resolution`)
         // Verify `self.certificate`
         self.certificate
             .verify_quorum(&view, &self.statement)
             .pot(ResolutionError::CertificateInvalid, here!())?;
+
+        // Verify that `self.statement.change` can be used to extend `current_view`
+        current_view
+            .validate_extension(&self.statement.change)
+            .pot(ResolutionError::ViewError, here!())?;
 
         Ok(())
     }
@@ -83,10 +87,6 @@ impl ResolutionClaim {
     ) -> Result<Resolution, Top<ResolutionError>> {
         self.validate(client, current_view)?;
         Ok(Resolution(self))
-    }
-
-    pub(in crate::churn) fn change(&self) -> Change {
-        self.statement.change.clone()
     }
 }
 
