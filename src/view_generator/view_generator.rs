@@ -32,12 +32,9 @@ type ProposalOutlet = OneshotReceiver<ViewProposal>;
 type InstallInlet = OneshotSender<Install>;
 type InstallOutlet = OneshotReceiver<Install>;
 
-type DecisionInlet = OneshotSender<Install>;
-type DecisionOutlet = OneshotReceiver<Install>;
-
 pub(crate) struct ViewGenerator {
-    proposal_inlet: ProposalInlet,
-    install_outlet: InstallOutlet,
+    proposal_inlet: Option<ProposalInlet>,
+    install_outlet: Option<InstallOutlet>,
     _fuse: Fuse,
 }
 
@@ -148,10 +145,14 @@ impl ViewGenerator {
         });
 
         Self {
-            proposal_inlet,
-            install_outlet,
+            proposal_inlet: Some(proposal_inlet),
+            install_outlet: Some(install_outlet),
             _fuse: fuse,
         }
+    }
+
+    async fn decide(&mut self) -> Install {
+        self.install_outlet.take().unwrap().await.unwrap()
     }
 
     async fn agree(
@@ -236,17 +237,20 @@ impl ViewGenerator {
 
         let mut local_aggregator: Option<InstallAggregator> = None;
 
+        let members = view
+            .members()
+            .iter()
+            .map(|member| (member.identity(), member.clone()))
+            .collect::<HashMap<_, _>>();
+
+        let mut install_inlet = Some(install_inlet);
+
         loop {
             let (source, message, acknowledger) = summarization_receiver.receive().await;
 
-            let keycard = view
-                .members()
-                .iter()
-                .find(|keycard| keycard.identity() == source);
-            let keycard = if keycard.is_some() {
-                keycard.unwrap()
-            } else {
-                continue;
+            let keycard = match members.get(&source) {
+                Some(keycard) => keycard,
+                None => continue,
             };
 
             match message {
@@ -271,6 +275,7 @@ impl ViewGenerator {
                 }
                 Message::SummarizeSend(SummarizeSend::Expanded { precursor }) => {
                     acknowledger.strong();
+
                     let identifier = precursor.identifier();
 
                     let Precursor {
@@ -310,22 +315,21 @@ impl ViewGenerator {
                     );
                 }
                 Message::SummarizeConfirm(confirm) => {
+                    acknowledger.strong();
+
                     if local_aggregator.is_none() {
                         local_aggregator = aggregator.lock().unwrap().take();
                     }
 
                     if let Some(mut aggregator) = local_aggregator.take() {
-                        acknowledger.strong();
-                        
                         let _ = aggregator.add(keycard, confirm.signature);
 
-                        if aggregator.multiplicity() == view.plurality() {
+                        if aggregator.multiplicity() >= view.plurality() {
                             let install = aggregator.finalize();
-                            let _ = install_inlet.send(install);
-                            return;
+                            let _ = install_inlet.take().unwrap().send(install);
+                        } else {
+                            local_aggregator = Some(aggregator);
                         }
-
-                        local_aggregator = Some(aggregator);
                     }
                 }
             }
