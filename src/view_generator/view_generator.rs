@@ -1,4 +1,5 @@
 use crate::{
+    churn::Churn,
     crypto::Identify,
     discovery::Client,
     lattice::{Decisions, LatticeAgreement},
@@ -151,7 +152,22 @@ impl ViewGenerator {
         }
     }
 
-    async fn decide(&mut self) -> Install {
+    pub fn propose_churn<C>(&mut self, install: Hash, churn: C)
+    where
+        C: IntoIterator<Item = Churn>,
+    {
+        let churn = churn.into_iter().collect();
+        let proposal = ViewProposal::Churn { install, churn };
+
+        let _ = self.proposal_inlet.take().unwrap().send(proposal);
+    }
+
+    pub fn propose_tail(&mut self, install: Hash) {
+        let proposal = ViewProposal::Tail { install };
+        let _ = self.proposal_inlet.take().unwrap().send(proposal);
+    }
+
+    pub async fn decide(&mut self) -> Install {
         self.install_outlet.take().unwrap().await.unwrap()
     }
 
@@ -407,6 +423,3 @@ impl ViewGenerator {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {}
