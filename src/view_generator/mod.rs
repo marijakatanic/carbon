@@ -7,6 +7,9 @@ mod sequence_precursor;
 mod view_generator;
 mod view_lattice_element;
 
+#[cfg(test)]
+mod test;
+
 use install_precursor::InstallPrecursor;
 use lattice_instance::LatticeInstance;
 use message::Message;
