@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use talk::crypto::primitives::hash::Hash;
 use talk::crypto::primitives::sign::Signature;
-use talk::crypto::{KeyCard, Statement as CryptoStatement};
+use talk::crypto::{KeyCard, KeyChain, Statement as CryptoStatement};
 
 #[derive(Clone, Serialize)]
 #[serde(into = "ResignationClaim")]
@@ -34,6 +34,18 @@ pub(crate) enum ResignationError {
 }
 
 impl Resignation {
+    pub fn new(keychain: &KeyChain) -> Self {
+        let member = keychain.keycard();
+        let statement = Statement {};
+        let signature = keychain.sign(&statement).unwrap();
+
+        Resignation(ResignationClaim {
+            member,
+            statement,
+            signature,
+        })
+    }
+
     pub fn change(&self) -> Change {
         self.0.change()
     }
