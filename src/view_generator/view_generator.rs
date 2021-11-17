@@ -6,8 +6,9 @@ use crate::{
     view::{Increment, Install, InstallAggregator, View},
     view_generator::{
         messages::{SummarizeConfirm, SummarizeSend},
-        sequence_precursor::SequencePrecursor,
-        InstallPrecursor, LatticeInstance, Message, SequenceLatticeElement, ViewLatticeElement,
+        view_lattice_brief::ViewLatticeBrief,
+        InstallPrecursor, LatticeInstance, Message, SequenceLatticeBrief, SequenceLatticeElement,
+        ViewLatticeElement,
     },
 };
 
@@ -197,7 +198,7 @@ impl ViewGenerator {
         let sequence_proposal = SequenceLatticeElement {
             proposal: view_proposals
                 .into_iter()
-                .map(|proposal| proposal.to_decision(&discovery, &view))
+                .map(|proposal| proposal.to_brief(&discovery, &view))
                 .collect(),
             certificate: proof,
         };
@@ -207,13 +208,23 @@ impl ViewGenerator {
 
         // Set my proposal
 
-        let increments = ViewGenerator::summarize(&discovery, sequence_proposals.clone());
+        let increments = ViewGenerator::summarize(
+            &discovery,
+            sequence_proposals
+                .clone()
+                .into_iter()
+                .map(SequenceLatticeElement::to_brief)
+                .collect(),
+        );
         *aggregator.lock().unwrap() = Some(InstallAggregator::new(view.clone(), increments));
 
         // Summarize
 
         let precursor = InstallPrecursor {
-            decisions: sequence_proposals,
+            decisions: sequence_proposals
+                .into_iter()
+                .map(SequenceLatticeElement::to_brief)
+                .collect(),
             certificate,
         };
 
@@ -352,7 +363,7 @@ impl ViewGenerator {
         }
     }
 
-    fn summarize(client: &Client, decisions: Vec<SequenceLatticeElement>) -> Vec<Increment> {
+    fn summarize(client: &Client, decisions: Vec<SequenceLatticeBrief>) -> Vec<Increment> {
         let sequences = decisions
             .into_iter()
             .map(|proposal| ViewGenerator::summarize_proposal(proposal, client))
@@ -387,16 +398,16 @@ impl ViewGenerator {
             .collect::<Vec<_>>()
     }
 
-    fn summarize_proposal(proposal: SequenceLatticeElement, client: &Client) -> Vec<Increment> {
+    fn summarize_proposal(proposal: SequenceLatticeBrief, client: &Client) -> Vec<Increment> {
         let mut tails = Vec::new();
         let mut views = Vec::new();
 
         for decision in proposal.proposal {
             match decision {
-                SequencePrecursor::Churn { churn } => {
+                ViewLatticeBrief::Churn { churn } => {
                     views.push(churn);
                 }
-                SequencePrecursor::Tail { install } => {
+                ViewLatticeBrief::Tail { install } => {
                     let install = client.install(&install).unwrap();
                     tails.push(install.increments()[1..].to_owned());
                 }

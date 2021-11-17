@@ -3,7 +3,7 @@ use crate::{
     discovery::Client,
     lattice::{Decisions, Element as LatticeElement, ElementError as LatticeElementError},
     view::View,
-    view_generator::{LatticeInstance, SequencePrecursor},
+    view_generator::{LatticeInstance, SequenceLatticeBrief, ViewLatticeBrief},
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
@@ -14,7 +14,7 @@ use talk::crypto::primitives::hash::Hash;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(in crate::view_generator) struct SequenceLatticeElement {
-    pub proposal: Vec<SequencePrecursor>, // Sorted by `Identify::identifier()`
+    pub proposal: Vec<ViewLatticeBrief>, // Sorted by `Identify::identifier()`
     pub certificate: Certificate,
 }
 
@@ -22,6 +22,14 @@ pub(in crate::view_generator) struct SequenceLatticeElement {
 enum SequenceProposalError {
     #[doom(description("Invalid `Certificate`"))]
     InvalidCertificate,
+}
+
+impl SequenceLatticeElement {
+    pub(in crate::view_generator) fn to_brief(self) -> SequenceLatticeBrief {
+        SequenceLatticeBrief {
+            proposal: self.proposal,
+        }
+    }
 }
 
 impl LatticeElement for SequenceLatticeElement {

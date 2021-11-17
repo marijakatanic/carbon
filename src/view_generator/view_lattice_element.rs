@@ -4,7 +4,7 @@ use crate::{
     discovery::Client,
     lattice::{Element as LatticeElement, ElementError as LatticeElementError},
     view::{Increment, View},
-    view_generator::SequencePrecursor,
+    view_generator::ViewLatticeBrief,
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
@@ -42,11 +42,11 @@ pub(crate) enum ViewLatticeElementError {
 }
 
 impl ViewLatticeElement {
-    pub(in crate::view_generator) fn to_decision(
+    pub(in crate::view_generator) fn to_brief(
         self,
         client: &Client,
         current_view: &View,
-    ) -> SequencePrecursor {
+    ) -> ViewLatticeBrief {
         match self {
             ViewLatticeElement::Churn { churn, .. } => {
                 let churn: Increment = churn
@@ -54,9 +54,9 @@ impl ViewLatticeElement {
                     .map(|churn| churn.to_change(client, current_view).unwrap())
                     .collect();
 
-                SequencePrecursor::Churn { churn }
+                ViewLatticeBrief::Churn { churn }
             }
-            ViewLatticeElement::Tail { install } => SequencePrecursor::Tail { install },
+            ViewLatticeElement::Tail { install } => ViewLatticeBrief::Tail { install },
         }
     }
 }

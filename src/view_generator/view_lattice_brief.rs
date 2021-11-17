@@ -6,12 +6,12 @@ use talk::crypto::primitives::hash;
 use talk::crypto::primitives::hash::Hash;
 
 #[derive(Clone, Serialize, Deserialize)]
-pub(in crate::view_generator) enum SequencePrecursor {
+pub(in crate::view_generator) enum ViewLatticeBrief {
     Churn { churn: Increment },
     Tail { install: Hash },
 }
 
-impl Identify for SequencePrecursor {
+impl Identify for ViewLatticeBrief {
     fn identifier(&self) -> Hash {
         #[derive(Serialize)]
         #[repr(u8)]
@@ -27,10 +27,10 @@ impl Identify for SequencePrecursor {
         }
 
         match self {
-            SequencePrecursor::Churn { churn, .. } => {
+            ViewLatticeBrief::Churn { churn, .. } => {
                 (ProposalType::Churn.identifier(), churn.identifier()).identifier()
             }
-            SequencePrecursor::Tail { install } => {
+            ViewLatticeBrief::Tail { install } => {
                 (ProposalType::Tail.identifier(), install.identifier()).identifier()
             }
         }
