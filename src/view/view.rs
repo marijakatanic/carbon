@@ -185,7 +185,7 @@ impl Identify for View {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     use std::iter;

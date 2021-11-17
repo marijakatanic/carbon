@@ -407,3 +407,6 @@ impl ViewGenerator {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {}
