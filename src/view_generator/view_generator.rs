@@ -6,8 +6,8 @@ use crate::{
     view::{Increment, Install, InstallAggregator, View},
     view_generator::{
         messages::{SummarizeConfirm, SummarizeSend},
-        view_decision::ViewDecision,
-        LatticeInstance, Message, Precursor, SequenceProposal, ViewProposal,
+        sequence_precursor::SequencePrecursor,
+        InstallPrecursor, LatticeInstance, Message, SequenceLatticeElement, ViewLatticeElement,
     },
 };
 
@@ -27,8 +27,8 @@ use talk::unicast::{Acknowledgement, PushSettings, Receiver, Sender};
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::{Receiver as OneshotReceiver, Sender as OneshotSender};
 
-type ProposalInlet = OneshotSender<ViewProposal>;
-type ProposalOutlet = OneshotReceiver<ViewProposal>;
+type ProposalInlet = OneshotSender<ViewLatticeElement>;
+type ProposalOutlet = OneshotReceiver<ViewLatticeElement>;
 
 type InstallInlet = OneshotSender<Install>;
 type InstallOutlet = OneshotReceiver<Install>;
@@ -62,7 +62,7 @@ impl ViewGenerator {
         let view_lattice_connector = connect_dispatcher.register(view_lattice_context.clone());
         let view_lattice_listener = listen_dispatcher.register(view_lattice_context);
 
-        let view_lattice = LatticeAgreement::<LatticeInstance, ViewProposal>::new(
+        let view_lattice = LatticeAgreement::<LatticeInstance, ViewLatticeElement>::new(
             view.clone(),
             LatticeInstance::ViewLattice,
             keychain.clone(),
@@ -81,7 +81,7 @@ impl ViewGenerator {
 
         let sequence_lattice_listener = listen_dispatcher.register(sequence_lattice_context);
 
-        let sequence_lattice = LatticeAgreement::<LatticeInstance, SequenceProposal>::new(
+        let sequence_lattice = LatticeAgreement::<LatticeInstance, SequenceLatticeElement>::new(
             view.clone(),
             LatticeInstance::SequenceLattice,
             keychain.clone(),
@@ -157,13 +157,13 @@ impl ViewGenerator {
         C: IntoIterator<Item = Churn>,
     {
         let churn = churn.into_iter().collect();
-        let proposal = ViewProposal::Churn { install, churn };
+        let proposal = ViewLatticeElement::Churn { install, churn };
 
         let _ = self.proposal_inlet.take().unwrap().send(proposal);
     }
 
     pub fn propose_tail(&mut self, install: Hash) {
-        let proposal = ViewProposal::Tail { install };
+        let proposal = ViewLatticeElement::Tail { install };
         let _ = self.proposal_inlet.take().unwrap().send(proposal);
     }
 
@@ -175,8 +175,8 @@ impl ViewGenerator {
         view: View,
         discovery: Arc<Client>,
         aggregator: Arc<Mutex<Option<InstallAggregator>>>,
-        mut view_lattice: LatticeAgreement<LatticeInstance, ViewProposal>,
-        mut sequence_lattice: LatticeAgreement<LatticeInstance, SequenceProposal>,
+        mut view_lattice: LatticeAgreement<LatticeInstance, ViewLatticeElement>,
+        mut sequence_lattice: LatticeAgreement<LatticeInstance, SequenceLatticeElement>,
         proposal_outlet: ProposalOutlet,
         summarization_sender: Sender<Message>,
     ) {
@@ -194,7 +194,7 @@ impl ViewGenerator {
             }
         };
 
-        let sequence_proposal = SequenceProposal {
+        let sequence_proposal = SequenceLatticeElement {
             proposal: view_proposals
                 .into_iter()
                 .map(|proposal| proposal.to_decision(&discovery, &view))
@@ -212,7 +212,7 @@ impl ViewGenerator {
 
         // Summarize
 
-        let precursor = Precursor {
+        let precursor = InstallPrecursor {
             decisions: sequence_proposals,
             certificate,
         };
@@ -294,7 +294,7 @@ impl ViewGenerator {
 
                     let identifier = precursor.identifier();
 
-                    let Precursor {
+                    let InstallPrecursor {
                         decisions,
                         certificate,
                     } = precursor;
@@ -352,7 +352,7 @@ impl ViewGenerator {
         }
     }
 
-    fn summarize(client: &Client, decisions: Vec<SequenceProposal>) -> Vec<Increment> {
+    fn summarize(client: &Client, decisions: Vec<SequenceLatticeElement>) -> Vec<Increment> {
         let sequences = decisions
             .into_iter()
             .map(|proposal| ViewGenerator::summarize_proposal(proposal, client))
@@ -387,16 +387,16 @@ impl ViewGenerator {
             .collect::<Vec<_>>()
     }
 
-    fn summarize_proposal(proposal: SequenceProposal, client: &Client) -> Vec<Increment> {
+    fn summarize_proposal(proposal: SequenceLatticeElement, client: &Client) -> Vec<Increment> {
         let mut tails = Vec::new();
         let mut views = Vec::new();
 
         for decision in proposal.proposal {
             match decision {
-                ViewDecision::Churn { churn } => {
+                SequencePrecursor::Churn { churn } => {
                     views.push(churn);
                 }
-                ViewDecision::Tail { install } => {
+                SequencePrecursor::Tail { install } => {
                     let install = client.install(&install).unwrap();
                     tails.push(install.increments()[1..].to_owned());
                 }

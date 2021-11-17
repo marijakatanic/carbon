@@ -4,7 +4,7 @@ use crate::{
     discovery::Client,
     lattice::{Element as LatticeElement, ElementError as LatticeElementError},
     view::{Increment, View},
-    view_generator::ViewDecision,
+    view_generator::SequencePrecursor,
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
@@ -17,7 +17,7 @@ use talk::crypto::primitives::hash;
 use talk::crypto::primitives::hash::Hash;
 
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) enum ViewProposal {
+pub(crate) enum ViewLatticeElement {
     Churn {
         install: Hash,
         churn: BTreeSet<Churn>,
@@ -28,7 +28,7 @@ pub(crate) enum ViewProposal {
 }
 
 #[derive(Doom)]
-pub(crate) enum ViewProposalError {
+pub(crate) enum ViewLatticeElementError {
     #[doom(description("Unknown `Install` message"))]
     InstallUnknown,
     #[doom(description("`Install` message does not reach the `View` provided"))]
@@ -41,45 +41,45 @@ pub(crate) enum ViewProposalError {
     InvalidChurn,
 }
 
-impl ViewProposal {
+impl ViewLatticeElement {
     pub(in crate::view_generator) fn to_decision(
         self,
         client: &Client,
         current_view: &View,
-    ) -> ViewDecision {
+    ) -> SequencePrecursor {
         match self {
-            ViewProposal::Churn { churn, .. } => {
+            ViewLatticeElement::Churn { churn, .. } => {
                 let churn: Increment = churn
                     .into_iter()
                     .map(|churn| churn.to_change(client, current_view).unwrap())
                     .collect();
 
-                ViewDecision::Churn { churn }
+                SequencePrecursor::Churn { churn }
             }
-            ViewProposal::Tail { install } => ViewDecision::Tail { install },
+            ViewLatticeElement::Tail { install } => SequencePrecursor::Tail { install },
         }
     }
 }
 
-impl LatticeElement for ViewProposal {
+impl LatticeElement for ViewLatticeElement {
     fn validate(&self, client: &Client, view: &View) -> Result<(), Top<LatticeElementError>> {
         match self {
-            ViewProposal::Churn { install, churn } => {
+            ViewLatticeElement::Churn { install, churn } => {
                 let install = client
                     .install(install)
-                    .ok_or(ViewProposalError::InstallUnknown.into_top())
+                    .ok_or(ViewLatticeElementError::InstallUnknown.into_top())
                     .pot(LatticeElementError::ElementInvalid, here!())?;
 
                 let transition = install.into_transition();
 
                 if transition.destination().identifier() != view.identifier() {
-                    return ViewProposalError::InvalidInstallDestination
+                    return ViewLatticeElementError::InvalidInstallDestination
                         .fail()
                         .pot(LatticeElementError::ElementInvalid, here!());
                 }
 
                 if !transition.tailless() {
-                    return ViewProposalError::InstallTailed
+                    return ViewLatticeElementError::InstallTailed
                         .fail()
                         .pot(LatticeElementError::ElementInvalid, here!());
                 }
@@ -87,26 +87,26 @@ impl LatticeElement for ViewProposal {
                 for churn in churn.iter() {
                     churn
                         .validate(client, view)
-                        .pot(ViewProposalError::InvalidChurn, here!())
+                        .pot(ViewLatticeElementError::InvalidChurn, here!())
                         .pot(LatticeElementError::ElementInvalid, here!())?;
                 }
             }
-            ViewProposal::Tail { install } => {
+            ViewLatticeElement::Tail { install } => {
                 let install = client
                     .install(install)
-                    .ok_or(ViewProposalError::InstallUnknown.into_top())
+                    .ok_or(ViewLatticeElementError::InstallUnknown.into_top())
                     .pot(LatticeElementError::ElementInvalid, here!())?;
 
                 let transition = install.into_transition();
 
                 if transition.destination().identifier() != view.identifier() {
-                    return ViewProposalError::InvalidInstallDestination
+                    return ViewLatticeElementError::InvalidInstallDestination
                         .fail()
                         .pot(LatticeElementError::ElementInvalid, here!());
                 }
 
                 if transition.tailless() {
-                    return ViewProposalError::InstallTailless
+                    return ViewLatticeElementError::InstallTailless
                         .fail()
                         .pot(LatticeElementError::ElementInvalid, here!());
                 }
@@ -117,7 +117,7 @@ impl LatticeElement for ViewProposal {
     }
 }
 
-impl Identify for ViewProposal {
+impl Identify for ViewLatticeElement {
     fn identifier(&self) -> Hash {
         #[derive(Serialize)]
         #[repr(u8)]
@@ -133,10 +133,10 @@ impl Identify for ViewProposal {
         }
 
         match self {
-            ViewProposal::Churn { churn, .. } => {
+            ViewLatticeElement::Churn { churn, .. } => {
                 (ProposalType::Churn.identifier(), churn.identifier()).identifier()
             }
-            ViewProposal::Tail { install } => {
+            ViewLatticeElement::Tail { install } => {
                 (ProposalType::Tail.identifier(), install.identifier()).identifier()
             }
         }

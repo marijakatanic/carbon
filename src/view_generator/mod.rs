@@ -1,19 +1,19 @@
+mod install_precursor;
 mod lattice_instance;
 mod message;
 mod messages;
-mod precursor;
-mod sequence_proposal;
-mod view_decision;
+mod sequence_lattice_element;
+mod sequence_precursor;
 mod view_generator;
-mod view_proposal;
+mod view_lattice_element;
 
+use install_precursor::InstallPrecursor;
 use lattice_instance::LatticeInstance;
 use message::Message;
-use precursor::Precursor;
-use sequence_proposal::SequenceProposal;
-use view_decision::ViewDecision;
+use sequence_lattice_element::SequenceLatticeElement;
+use sequence_precursor::SequencePrecursor;
 
 #[allow(unused_imports)]
 pub(crate) use view_generator::ViewGenerator;
 #[allow(unused_imports)]
-pub(crate) use view_proposal::ViewProposal;
+pub(crate) use view_lattice_element::ViewLatticeElement;
