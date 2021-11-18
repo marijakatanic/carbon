@@ -14,7 +14,7 @@ use talk::crypto::primitives::hash::Hash;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(in crate::view_generator) struct SequenceLatticeElement {
-    pub proposal: Vec<ViewLatticeBrief>, // Sorted by `Identify::identifier()`
+    pub view_lattice_decisions: Vec<ViewLatticeBrief>, // Sorted by `Identify::identifier()`
     pub certificate: Certificate,
 }
 
@@ -27,7 +27,7 @@ enum SequenceProposalError {
 impl SequenceLatticeElement {
     pub(in crate::view_generator) fn to_brief(self) -> SequenceLatticeBrief {
         SequenceLatticeBrief {
-            proposal: self.proposal,
+            view_lattice_decisions: self.view_lattice_decisions,
         }
     }
 }
@@ -37,7 +37,7 @@ impl LatticeElement for SequenceLatticeElement {
         let decisions = Decisions {
             view: view.identifier(),
             instance: LatticeInstance::ViewLattice,
-            elements: self.proposal.iter().map(Identify::identifier).collect(),
+            elements: self.view_lattice_decisions.iter().map(Identify::identifier).collect(),
         };
 
         self.certificate
@@ -49,6 +49,6 @@ impl LatticeElement for SequenceLatticeElement {
 
 impl Identify for SequenceLatticeElement {
     fn identifier(&self) -> Hash {
-        self.proposal.identifier()
+        self.view_lattice_decisions.identifier()
     }
 }

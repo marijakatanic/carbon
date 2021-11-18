@@ -6,11 +6,11 @@ use talk::crypto::primitives::hash::Hash;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(in crate::view_generator) struct SequenceLatticeBrief {
-    pub proposal: Vec<ViewLatticeBrief>, // Sorted by `Identify::identifier()`
+    pub view_lattice_decisions: Vec<ViewLatticeBrief>, // Sorted by `Identify::identifier()`
 }
 
 impl Identify for SequenceLatticeBrief {
     fn identifier(&self) -> Hash {
-        self.proposal.identifier()
+        self.view_lattice_decisions.identifier()
     }
 }

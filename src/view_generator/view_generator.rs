@@ -196,7 +196,7 @@ impl ViewGenerator {
         };
 
         let sequence_proposal = SequenceLatticeElement {
-            proposal: view_proposals
+            view_lattice_decisions: view_proposals
                 .into_iter()
                 .map(|proposal| proposal.to_brief(&discovery, &view))
                 .collect(),
@@ -221,7 +221,7 @@ impl ViewGenerator {
         // Summarize
 
         let precursor = InstallPrecursor {
-            decisions: sequence_proposals
+            sequence_lattice_decisions: sequence_proposals
                 .into_iter()
                 .map(SequenceLatticeElement::to_brief)
                 .collect(),
@@ -306,7 +306,7 @@ impl ViewGenerator {
                     let identifier = precursor.identifier();
 
                     let InstallPrecursor {
-                        decisions,
+                        sequence_lattice_decisions: decisions,
                         certificate,
                     } = precursor;
 
@@ -402,7 +402,7 @@ impl ViewGenerator {
         let mut tails = Vec::new();
         let mut views = Vec::new();
 
-        for decision in proposal.proposal {
+        for decision in proposal.view_lattice_decisions {
             match decision {
                 ViewLatticeBrief::Churn { churn } => {
                     views.push(churn);
