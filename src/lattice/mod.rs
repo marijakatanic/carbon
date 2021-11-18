@@ -1,4 +1,4 @@
-mod decisions;
+mod decision;
 mod element;
 mod instance;
 mod lattice_agreement;
@@ -12,7 +12,7 @@ use message::Message;
 use message::MessageError;
 
 #[allow(unused_imports)]
-pub(crate) use decisions::Decisions;
+pub(crate) use decision::Decision;
 
 #[allow(unused_imports)]
 pub(crate) use element::Element;

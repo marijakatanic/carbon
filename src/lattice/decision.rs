@@ -8,13 +8,13 @@ use talk::crypto::primitives::hash::Hash;
 use talk::crypto::Statement;
 
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct Decisions<Instance> {
+pub(crate) struct Decision<Instance> {
     pub view: Hash,
     pub instance: Instance,
     pub elements: BTreeSet<Hash>,
 }
 
-impl<Instance> Statement for Decisions<Instance>
+impl<Instance> Statement for Decision<Instance>
 where
     Instance: LatticeInstance,
 {

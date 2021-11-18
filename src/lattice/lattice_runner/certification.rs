@@ -3,7 +3,7 @@ use crate::{
     lattice::{
         lattice_runner::{CertificationDatabase, State},
         messages::CertificationRequest,
-        Decisions, Element as LatticeElement, Instance as LatticeInstance, LatticeRunner, Message,
+        Decision, Element as LatticeElement, Instance as LatticeInstance, LatticeRunner, Message,
     },
 };
 
@@ -21,13 +21,13 @@ where
     pub(in crate::lattice::lattice_runner) fn certify(&mut self, elements: BTreeSet<Hash>) {
         let identifier = elements.identifier();
 
-        let decisions = Decisions {
+        let decision = Decision {
             view: self.view.identifier(),
             instance: self.instance.clone(),
             elements: elements.clone(),
         };
 
-        let aggregator = Aggregator::new(self.view.clone(), decisions);
+        let aggregator = Aggregator::new(self.view.clone(), decision);
 
         let message = CertificationRequest { elements };
 

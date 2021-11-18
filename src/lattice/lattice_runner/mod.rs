@@ -2,7 +2,7 @@ use crate::{
     crypto::{Aggregator, Certificate},
     discovery::Client,
     lattice::{
-        Decisions, Element as LatticeElement, Instance as LatticeInstance, Message, MessageError,
+        Decision, Element as LatticeElement, Instance as LatticeInstance, Message, MessageError,
     },
     view::View,
 };
@@ -106,7 +106,7 @@ struct DisclosureDatabase {
 
 pub(in crate::lattice) struct CertificationDatabase<Instance: LatticeInstance> {
     identifier: Hash,
-    aggregator: Aggregator<Decisions<Instance>>,
+    aggregator: Aggregator<Decision<Instance>>,
     fuse: Fuse,
 }
 

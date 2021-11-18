@@ -1,7 +1,7 @@
 use crate::{
     crypto::{Certificate, Identify},
     discovery::Client,
-    lattice::{Decisions, Element as LatticeElement, ElementError as LatticeElementError},
+    lattice::{Decision, Element as LatticeElement, ElementError as LatticeElementError},
     view::View,
     view_generator::{LatticeInstance, SequenceLatticeBrief, ViewLatticeBrief},
 };
@@ -14,7 +14,7 @@ use talk::crypto::primitives::hash::Hash;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(in crate::view_generator) struct SequenceLatticeElement {
-    pub view_lattice_decisions: Vec<ViewLatticeBrief>, // Sorted by `Identify::identifier()`
+    pub view_lattice_decision: Vec<ViewLatticeBrief>, // Sorted by `Identify::identifier()`
     pub certificate: Certificate,
 }
 
@@ -27,21 +27,25 @@ enum SequenceProposalError {
 impl SequenceLatticeElement {
     pub(in crate::view_generator) fn to_brief(self) -> SequenceLatticeBrief {
         SequenceLatticeBrief {
-            view_lattice_decisions: self.view_lattice_decisions,
+            view_lattice_decision: self.view_lattice_decision,
         }
     }
 }
 
 impl LatticeElement for SequenceLatticeElement {
     fn validate(&self, _client: &Client, view: &View) -> Result<(), Top<LatticeElementError>> {
-        let decisions = Decisions {
+        let decision = Decision {
             view: view.identifier(),
             instance: LatticeInstance::ViewLattice,
-            elements: self.view_lattice_decisions.iter().map(Identify::identifier).collect(),
+            elements: self
+                .view_lattice_decision
+                .iter()
+                .map(Identify::identifier)
+                .collect(),
         };
 
         self.certificate
-            .verify(view, &decisions)
+            .verify(view, &decision)
             .pot(SequenceProposalError::InvalidCertificate, here!())
             .pot(LatticeElementError::ElementInvalid, here!())
     }
@@ -49,6 +53,6 @@ impl LatticeElement for SequenceLatticeElement {
 
 impl Identify for SequenceLatticeElement {
     fn identifier(&self) -> Hash {
-        self.view_lattice_decisions.identifier()
+        self.view_lattice_decision.identifier()
     }
 }

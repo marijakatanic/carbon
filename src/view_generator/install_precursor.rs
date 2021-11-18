@@ -9,12 +9,12 @@ use talk::crypto::primitives::hash::Hash;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(in crate::view_generator) struct InstallPrecursor {
-    pub sequence_lattice_decisions: Vec<SequenceLatticeBrief>,
+    pub sequence_lattice_decision: Vec<SequenceLatticeBrief>,
     pub certificate: Certificate,
 }
 
 impl Identify for InstallPrecursor {
     fn identifier(&self) -> Hash {
-        self.sequence_lattice_decisions.identifier()
+        self.sequence_lattice_decision.identifier()
     }
 }
