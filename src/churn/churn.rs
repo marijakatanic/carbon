@@ -28,31 +28,27 @@ pub(crate) enum ChurnError {
 }
 
 impl Churn {
-    pub fn validate(&self, client: &Client, current_view: &View) -> Result<(), Top<ChurnError>> {
+    pub fn validate(&self, client: &Client, view: &View) -> Result<(), Top<ChurnError>> {
         match self {
             Churn::Resolution(resolution_claim) => resolution_claim
-                .validate(client, current_view)
+                .validate(client, view)
                 .pot(ChurnError::ResolutionInvalid, here!()),
 
             Churn::Resignation(resignation) => resignation
-                .validate(current_view)
+                .validate(view)
                 .pot(ChurnError::ResignationInvalid, here!()),
         }
     }
 
-    pub fn to_change(
-        self,
-        client: &Client,
-        current_view: &View,
-    ) -> Result<Change, Top<ChurnError>> {
+    pub fn to_change(self, client: &Client, view: &View) -> Result<Change, Top<ChurnError>> {
         match self {
             Churn::Resolution(resolution_claim) => resolution_claim
-                .to_resolution(client, current_view)
+                .to_resolution(client, view)
                 .map(|resolution| resolution.change())
                 .pot(ChurnError::ResolutionInvalid, here!()),
 
             Churn::Resignation(resignation_claim) => resignation_claim
-                .to_resignation(current_view)
+                .to_resignation(view)
                 .map(|resignation| resignation.change())
                 .pot(ChurnError::ResignationInvalid, here!()),
         }

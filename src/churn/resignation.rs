@@ -56,22 +56,21 @@ impl ResignationClaim {
         Change::Leave(self.member.clone())
     }
 
-    pub fn validate(&self, current_view: &View) -> Result<(), Top<ResignationError>> {
+    pub fn validate(&self, view: &View) -> Result<(), Top<ResignationError>> {
         // Verify `self.signature`
         self.signature
             .verify(&self.member, &self.statement)
             .pot(ResignationError::SignatureInvalid, here!())?;
 
-        // Verify that `self.change()` can be used to extend `current_view`
-        current_view
-            .validate_extension(&self.change())
+        // Verify that `self.change()` can be used to extend `view`
+        view.validate_extension(&self.change())
             .pot(ResignationError::ViewError, here!())?;
 
         Ok(())
     }
 
-    pub fn to_resignation(self, current_view: &View) -> Result<Resignation, Top<ResignationError>> {
-        self.validate(current_view)?;
+    pub fn to_resignation(self, view: &View) -> Result<Resignation, Top<ResignationError>> {
+        self.validate(view)?;
         Ok(Resignation(self))
     }
 }

@@ -50,31 +50,26 @@ impl ResolutionClaim {
         self.statement.change.clone()
     }
 
-    pub fn validate(
-        &self,
-        client: &Client,
-        current_view: &View,
-    ) -> Result<(), Top<ResolutionError>> {
+    pub fn validate(&self, client: &Client, view: &View) -> Result<(), Top<ResolutionError>> {
         // Verify that `self.view` is known to `client`
-        let view = client
+        let resolution_view = client
             .view(&self.view)
             .ok_or(ResolutionError::UnknownView.into_top())
             .spot(here!())?;
 
         // Verify that `self.view` is not in the future
-        if view.height() > current_view.height() {
+        if resolution_view.height() > view.height() {
             return ResolutionError::FutureVote.fail().spot(here!());
         }
 
         // (TODO: determine whether a quorum or a plurality are necessary to sign a `Resolution`)
         // Verify `self.certificate`
         self.certificate
-            .verify_quorum(&view, &self.statement)
+            .verify_quorum(&resolution_view, &self.statement)
             .pot(ResolutionError::CertificateInvalid, here!())?;
 
-        // Verify that `self.statement.change` can be used to extend `current_view`
-        current_view
-            .validate_extension(&self.statement.change)
+        // Verify that `self.statement.change` can be used to extend `view`
+        view.validate_extension(&self.statement.change)
             .pot(ResolutionError::ViewError, here!())?;
 
         Ok(())
@@ -83,9 +78,9 @@ impl ResolutionClaim {
     pub fn to_resolution(
         self,
         client: &Client,
-        current_view: &View,
+        view: &View,
     ) -> Result<Resolution, Top<ResolutionError>> {
-        self.validate(client, current_view)?;
+        self.validate(client, view)?;
         Ok(Resolution(self))
     }
 }
