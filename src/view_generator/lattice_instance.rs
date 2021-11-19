@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
 pub(in crate::view_generator) enum LatticeInstance {
-    ViewLattice = 0,
-    SequenceLattice = 1,
+    ViewLattice,
+    SequenceLattice,
 }
