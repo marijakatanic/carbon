@@ -17,8 +17,7 @@ use message::Message;
 use sequence_lattice_brief::SequenceLatticeBrief;
 use sequence_lattice_element::SequenceLatticeElement;
 use view_lattice_brief::ViewLatticeBrief;
+use view_lattice_element::ViewLatticeElement;
 
 #[allow(unused_imports)]
 pub(crate) use view_generator::ViewGenerator;
-#[allow(unused_imports)]
-pub(crate) use view_lattice_element::ViewLatticeElement;

@@ -17,7 +17,7 @@ use talk::crypto::primitives::hash;
 use talk::crypto::primitives::hash::Hash;
 
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) enum ViewLatticeElement {
+pub(in crate::view_generator) enum ViewLatticeElement {
     Churn {
         install: Hash,
         churn: BTreeSet<Churn>,
