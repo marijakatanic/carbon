@@ -27,7 +27,7 @@ impl Identify for ViewLatticeBrief {
         }
 
         match self {
-            ViewLatticeBrief::Churn { churn, .. } => {
+            ViewLatticeBrief::Churn { churn } => {
                 (ProposalType::Churn.identifier(), churn.identifier()).identifier()
             }
             ViewLatticeBrief::Tail { install } => {

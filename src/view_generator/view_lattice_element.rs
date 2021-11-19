@@ -33,10 +33,10 @@ pub(crate) enum ViewLatticeElementError {
     InstallUnknown,
     #[doom(description("`Install` message does not reach the `View` provided"))]
     InvalidInstallDestination,
-    #[doom(description("`ViewProposal` is `Churn`, but `Install` message has a tail"))]
-    InstallTailed,
-    #[doom(description("`ViewProposal` is `Tail`, but `Install` message is tailless"))]
-    InstallTailless,
+    #[doom(description("`ViewProposal` is `Churn`, but `Install` message is not tailless"))]
+    InstallNotTailless,
+    #[doom(description("`ViewProposal` is `Tail`, but `Install` message is not tailed"))]
+    InstallNotTailed,
     #[doom(description("`ViewProposal` contains an invalid `Churn`"))]
     InvalidChurn,
 }
@@ -45,13 +45,13 @@ impl ViewLatticeElement {
     pub(in crate::view_generator) fn to_brief(
         self,
         client: &Client,
-        current_view: &View,
+        view: &View,
     ) -> ViewLatticeBrief {
         match self {
             ViewLatticeElement::Churn { churn, .. } => {
                 let churn: Increment = churn
                     .into_iter()
-                    .map(|churn| churn.to_change(client, current_view).unwrap())
+                    .map(|churn| churn.to_change(client, view).unwrap())
                     .collect();
 
                 ViewLatticeBrief::Churn { churn }
@@ -79,7 +79,7 @@ impl LatticeElement for ViewLatticeElement {
                 }
 
                 if !transition.tailless() {
-                    return ViewLatticeElementError::InstallTailed
+                    return ViewLatticeElementError::InstallNotTailless
                         .fail()
                         .pot(LatticeElementError::ElementInvalid, here!());
                 }
@@ -106,7 +106,7 @@ impl LatticeElement for ViewLatticeElement {
                 }
 
                 if transition.tailless() {
-                    return ViewLatticeElementError::InstallTailless
+                    return ViewLatticeElementError::InstallNotTailed
                         .fail()
                         .pot(LatticeElementError::ElementInvalid, here!());
                 }

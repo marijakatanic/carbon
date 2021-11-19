@@ -34,15 +34,11 @@ impl SequenceLatticeElement {
 
 impl LatticeElement for SequenceLatticeElement {
     fn validate(&self, _client: &Client, view: &View) -> Result<(), Top<LatticeElementError>> {
-        let decision = Decision {
-            view: view.identifier(),
-            instance: LatticeInstance::ViewLattice,
-            elements: self
-                .view_lattice_decision
-                .iter()
-                .map(Identify::identifier)
-                .collect(),
-        };
+        let decision = Decision::new(
+            view.identifier(),
+            LatticeInstance::ViewLattice,
+            self.view_lattice_decision.iter(),
+        );
 
         self.certificate
             .verify(view, &decision)
