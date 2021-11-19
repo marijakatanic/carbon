@@ -1,5 +1,5 @@
-mod summarize_confirm;
-mod summarize_send;
+mod summarization_request;
+mod summarization_response;
 
-pub(in crate::view_generator) use summarize_confirm::SummarizeConfirm;
-pub(in crate::view_generator) use summarize_send::SummarizeSend;
+pub(in crate::view_generator) use summarization_request::SummarizationRequest;
+pub(in crate::view_generator) use summarization_response::SummarizationResponse;

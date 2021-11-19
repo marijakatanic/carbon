@@ -1,11 +1,11 @@
 use crate::view_generator::InstallPrecursor;
 
-use talk::crypto::primitives::hash::Hash;
-
 use serde::{Deserialize, Serialize};
 
+use talk::crypto::primitives::hash::Hash;
+
 #[derive(Clone, Serialize, Deserialize)]
-pub(in crate::view_generator) enum SummarizeSend {
+pub(in crate::view_generator) enum SummarizationRequest {
     Brief { precursor: Hash },
     Expanded { precursor: InstallPrecursor },
 }

@@ -5,7 +5,7 @@ use crate::{
     lattice::{Decision, LatticeAgreement},
     view::{Increment, Install, InstallAggregator, View},
     view_generator::{
-        messages::{SummarizeConfirm, SummarizeSend},
+        messages::{SummarizationRequest, SummarizationResponse},
         view_lattice_brief::ViewLatticeBrief,
         InstallPrecursor, LatticeInstance, Message, SequenceLatticeBrief, SequenceLatticeElement,
         ViewLatticeElement,
@@ -228,11 +228,11 @@ impl ViewGenerator {
             certificate,
         };
 
-        let brief = Message::SummarizeSend(SummarizeSend::Brief {
+        let brief = Message::SummarizationRequest(SummarizationRequest::Brief {
             precursor: precursor.identifier(),
         });
 
-        let expanded = Message::SummarizeSend(SummarizeSend::Expanded { precursor });
+        let expanded = Message::SummarizationRequest(SummarizationRequest::Expanded { precursor });
 
         let broadcast = BestEffort::brief(
             summarization_sender,
@@ -281,11 +281,12 @@ impl ViewGenerator {
             };
 
             match message {
-                Message::SummarizeSend(SummarizeSend::Brief { precursor }) => {
+                Message::SummarizationRequest(SummarizationRequest::Brief { precursor }) => {
                     if let Some(signature) = cache.get(&precursor).cloned() {
                         acknowledger.strong();
 
-                        let message = Message::SummarizeConfirm(SummarizeConfirm { signature });
+                        let message =
+                            Message::SummarizationResponse(SummarizationResponse { signature });
 
                         summarization_sender.spawn_push(
                             source,
@@ -300,7 +301,7 @@ impl ViewGenerator {
                         acknowledger.expand();
                     }
                 }
-                Message::SummarizeSend(SummarizeSend::Expanded { precursor }) => {
+                Message::SummarizationRequest(SummarizationRequest::Expanded { precursor }) => {
                     acknowledger.strong();
 
                     let identifier = precursor.identifier();
@@ -329,7 +330,7 @@ impl ViewGenerator {
 
                     cache.insert(identifier, signature);
 
-                    let message = Message::SummarizeConfirm(SummarizeConfirm { signature });
+                    let message = Message::SummarizationResponse(SummarizationResponse { signature });
 
                     summarization_sender.spawn_push(
                         source,
@@ -341,7 +342,7 @@ impl ViewGenerator {
                         &fuse,
                     );
                 }
-                Message::SummarizeConfirm(confirm) => {
+                Message::SummarizationResponse(confirm) => {
                     acknowledger.strong();
 
                     if local_aggregator.is_none() {
