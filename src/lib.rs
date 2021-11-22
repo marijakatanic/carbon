@@ -5,6 +5,9 @@ mod account;
 mod batch;
 
 #[allow(dead_code)]
+mod broadcast;
+
+#[allow(dead_code)]
 mod crypto;
 
 #[allow(dead_code)]
