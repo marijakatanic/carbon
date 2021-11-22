@@ -3,8 +3,8 @@ use crate::view::{Change, Increment, Install, InstallAggregator, View};
 use talk::crypto::{KeyCard, KeyChain};
 
 pub(crate) struct InstallGenerator {
-    keychains: Vec<KeyChain>,
-    keycards: Vec<KeyCard>,
+    pub keychains: Vec<KeyChain>,
+    pub keycards: Vec<KeyCard>,
 }
 
 impl InstallGenerator {

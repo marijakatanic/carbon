@@ -101,7 +101,7 @@ impl View {
 
         let mut members = self.data.members.clone();
 
-        for change in increment.into_iter() {
+        for change in increment {
             match change {
                 Change::Join(replica) => {
                     members.insert(replica);
@@ -180,12 +180,12 @@ impl View {
 
 impl Identify for View {
     fn identifier(&self) -> Hash {
-        self.data.changes.commit()
+        self.data.changes.identifier()
     }
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     use std::iter;

@@ -3,7 +3,7 @@ use crate::{
     lattice::{
         message::Message,
         messages::{CertificationConfirmation, CertificationRequest, CertificationUpdate},
-        Decisions, Element as LatticeElement, Instance as LatticeInstance, LatticeRunner,
+        Decision, Element as LatticeElement, Instance as LatticeInstance, LatticeRunner,
         MessageError,
     },
 };
@@ -47,13 +47,13 @@ where
         if message.elements.is_superset(&self.database.accepted_set) {
             let identifier = message.elements.identifier();
 
-            let decisions = Decisions {
+            let decision = Decision {
                 view: self.view.identifier(),
                 instance: self.instance.clone(),
                 elements: message.elements.clone(),
             };
 
-            let signature = self.keychain.multisign(&decisions).unwrap();
+            let signature = self.keychain.multisign(&decision).unwrap();
 
             let message = CertificationConfirmation {
                 identifier,

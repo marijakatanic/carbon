@@ -29,7 +29,7 @@ type DecisionOutlet<Element> = OneshotReceiver<(Vec<Element>, Certificate)>;
 pub(crate) struct LatticeAgreement<Instance: LatticeInstance, Element: LatticeElement> {
     instance: Instance,
     proposal_inlet: Option<ProposalInlet<Element>>,
-    decision_outlet: Option<DecisionOutlet<Element>>,
+    decision_outlet: DecisionOutlet<Element>,
     _fuse: Fuse,
 }
 
@@ -85,7 +85,7 @@ where
         LatticeAgreement {
             instance,
             proposal_inlet: Some(proposal_inlet),
-            decision_outlet: Some(decision_outlet),
+            decision_outlet: decision_outlet,
             _fuse: fuse,
         }
     }
@@ -111,6 +111,6 @@ where
     }
 
     pub async fn decide(&mut self) -> (Vec<Element>, Certificate) {
-        self.decision_outlet.take().unwrap().await.unwrap()
+        (&mut self.decision_outlet).await.unwrap()
     }
 }

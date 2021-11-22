@@ -1,4 +1,4 @@
-mod decisions;
+mod decision;
 mod element;
 mod instance;
 mod lattice_agreement;
@@ -7,10 +7,12 @@ mod message;
 
 mod messages;
 
-use decisions::Decisions;
 use lattice_runner::LatticeRunner;
 use message::Message;
 use message::MessageError;
+
+#[allow(unused_imports)]
+pub(crate) use decision::Decision;
 
 #[allow(unused_imports)]
 pub(crate) use element::Element;

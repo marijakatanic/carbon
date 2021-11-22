@@ -1,5 +1,5 @@
 use crate::{
-    crypto::{Certificate, Header},
+    crypto::{Certificate, Header, Identify},
     discovery::Client,
     view::{Change, View},
 };
@@ -8,7 +8,8 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use serde::{Deserialize, Serialize};
 
-use talk::crypto::{primitives::hash::Hash, Statement as CryptoStatement};
+use talk::crypto::primitives::hash::Hash;
+use talk::crypto::Statement as CryptoStatement;
 
 #[derive(Clone, Serialize)]
 #[serde(into = "ResolutionClaim")]
@@ -32,48 +33,44 @@ pub(crate) enum ResolutionError {
     UnknownView,
     #[doom(description("The `Resolution` did not pass in a past or current `View`"))]
     FutureVote,
-    #[doom(description("Certificate invalid"))]
+    #[doom(description("The `Resolution`'s `Certificate` is invalid"))]
     CertificateInvalid,
     #[doom(description("The `Resolution`'s `Change` cannot be applied to the current `View`"))]
     ViewError,
 }
 
 impl Resolution {
-    pub fn view(&self) -> Hash {
-        self.0.view
-    }
-
     pub fn change(&self) -> Change {
-        self.0.statement.change.clone()
-    }
-
-    pub fn certificate(&self) -> &Certificate {
-        &self.0.certificate
+        self.0.change()
     }
 }
 
 impl ResolutionClaim {
-    pub fn validate(
-        &self,
-        client: &Client,
-        current_view: &View,
-    ) -> Result<(), Top<ResolutionError>> {
-        let view = client
+    pub(in crate::churn) fn change(&self) -> Change {
+        self.statement.change.clone()
+    }
+
+    pub fn validate(&self, client: &Client, view: &View) -> Result<(), Top<ResolutionError>> {
+        // Verify that `self.view` is known to `client`
+        let resolution_view = client
             .view(&self.view)
             .ok_or(ResolutionError::UnknownView.into_top())
             .spot(here!())?;
 
-        if view.height() > current_view.height() {
+        // Verify that `self.view` is not in the future
+        if resolution_view.height() > view.height() {
             return ResolutionError::FutureVote.fail().spot(here!());
         }
 
-        current_view
-            .validate_extension(&self.statement.change)
-            .pot(ResolutionError::ViewError, here!())?;
-
+        // (TODO: determine whether a quorum or a plurality are necessary to sign a `Resolution`)
+        // Verify `self.certificate`
         self.certificate
-            .verify_quorum(&view, &self.statement)
+            .verify_quorum(&resolution_view, &self.statement)
             .pot(ResolutionError::CertificateInvalid, here!())?;
+
+        // Verify that `self.statement.change` can be used to extend `view`
+        view.validate_extension(&self.statement.change)
+            .pot(ResolutionError::ViewError, here!())?;
 
         Ok(())
     }
@@ -81,20 +78,32 @@ impl ResolutionClaim {
     pub fn to_resolution(
         self,
         client: &Client,
-        current_view: &View,
+        view: &View,
     ) -> Result<Resolution, Top<ResolutionError>> {
-        self.validate(client, current_view)?;
+        self.validate(client, view)?;
         Ok(Resolution(self))
     }
 }
 
-impl CryptoStatement for Statement {
-    type Header = Header;
-    const HEADER: Header = Header::Resolution;
+impl Identify for Resolution {
+    fn identifier(&self) -> Hash {
+        self.0.identifier()
+    }
 }
 
 impl From<Resolution> for ResolutionClaim {
     fn from(resolution: Resolution) -> Self {
         resolution.0
     }
+}
+
+impl Identify for ResolutionClaim {
+    fn identifier(&self) -> Hash {
+        self.statement.change.identifier()
+    }
+}
+
+impl CryptoStatement for Statement {
+    type Header = Header;
+    const HEADER: Header = Header::Resolution;
 }

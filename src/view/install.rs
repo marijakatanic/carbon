@@ -8,7 +8,6 @@ use doomstack::{here, Doom, ResultExt, Top};
 use serde::de;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use talk::crypto::primitives::hash;
 use talk::crypto::primitives::hash::Hash;
 use talk::crypto::primitives::multi::{MultiError, Signature as MultiSignature};
 use talk::crypto::{KeyCard, KeyChain, Statement as CryptoStatement};
@@ -106,6 +105,10 @@ impl InstallAggregator {
         self.0.add(keycard, signature)
     }
 
+    pub fn multiplicity(&self) -> usize {
+        self.0.multiplicity()
+    }
+
     pub fn finalize(self) -> Install {
         let (statement, certificate) = self.0.finalize_plurality();
 
@@ -144,7 +147,7 @@ impl Identify for Install {
 
 impl Identify for Statement {
     fn identifier(&self) -> Hash {
-        hash::hash(self).unwrap()
+        (self.source.identifier(), self.increments.identifier()).identifier()
     }
 }
 
@@ -154,7 +157,7 @@ impl CryptoStatement for Statement {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     use bit_vec::BitVec;

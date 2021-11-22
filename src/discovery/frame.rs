@@ -134,7 +134,7 @@ impl Frame {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     use crate::view::test::{generate_installs, last_installable, Client, InstallGenerator};

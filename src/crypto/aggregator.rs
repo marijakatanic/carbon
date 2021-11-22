@@ -37,7 +37,7 @@ where
         #[cfg(debug_assertions)]
         {
             if !self.view.members().contains(&keycard) {
-                panic!("Called `Aggregator::add` with foreign `identity`");
+                panic!("Called `Aggregator::add` with foreign `KeyCard`");
             }
         }
 
