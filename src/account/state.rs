@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use talk::crypto::primitives::hash::Hash;
 use talk::crypto::KeyCard;
 
@@ -6,13 +8,13 @@ pub(crate) enum State {
         keycard: KeyCard,
         height: u64,
         balance: u64,
-        deposit: Deposit,
-        motions: Vec<Hash>,
+        deposits: Deposits,
+        motions: BTreeSet<Hash>,
     },
     Corrupted,
 }
 
-pub(crate) struct Deposit {
+pub(crate) struct Deposits {
     slot: u64,
     root: Hash,
 }
