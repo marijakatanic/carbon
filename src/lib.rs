@@ -2,6 +2,9 @@
 mod account;
 
 #[allow(dead_code)]
+mod batch;
+
+#[allow(dead_code)]
 mod crypto;
 
 #[allow(dead_code)]
