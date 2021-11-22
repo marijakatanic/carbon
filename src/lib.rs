@@ -8,6 +8,9 @@ mod crypto;
 mod data;
 
 #[allow(dead_code)]
+mod database;
+
+#[allow(dead_code)]
 mod discovery;
 
 #[allow(dead_code)]
