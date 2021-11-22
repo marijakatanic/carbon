@@ -1,4 +1,7 @@
 #[allow(dead_code)]
+mod account;
+
+#[allow(dead_code)]
 mod crypto;
 
 #[allow(dead_code)]
