@@ -13,6 +13,7 @@ pub(crate) enum Header {
     Resignation = 4,
 
     IdRequest = 5,
+    IdAllocation = 6,
 
-    Prepare = 6,
+    Prepare = 7,
 }
