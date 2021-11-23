@@ -1,4 +1,4 @@
-use crate::{database::Database, processor::Processor, view::View};
+use crate::{database::Database, processing::Processor, view::View};
 
 use doomstack::{Doom, Top};
 
@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use talk::net::{Listener, SecureConnection};
 use talk::sync::fuse::Fuse;
-use talk::sync::lenders::AtomicLender;
+use talk::sync::voidable::Voidable;
 
 #[derive(Doom)]
 enum ServeSignupError {
@@ -15,9 +15,9 @@ enum ServeSignupError {
 }
 
 impl Processor {
-    pub(in crate::processor) async fn signup<L>(
+    pub(in crate::processing) async fn signup<L>(
         _view: View,
-        database: Arc<AtomicLender<Database>>,
+        database: Arc<Voidable<Database>>,
         mut listener: L,
     ) where
         L: Listener,
@@ -36,7 +36,7 @@ impl Processor {
     }
 
     async fn serve_signup(
-        _database: Arc<AtomicLender<Database>>,
+        _database: Arc<Voidable<Database>>,
         _connection: SecureConnection,
     ) -> Result<(), Top<ServeSignupError>> {
         loop {}

@@ -23,7 +23,7 @@ mod discovery;
 mod lattice;
 
 #[allow(dead_code)]
-mod processor;
+mod processing;
 
 #[allow(dead_code)]
 mod signup;

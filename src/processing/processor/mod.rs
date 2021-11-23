@@ -5,10 +5,10 @@ use std::sync::Arc;
 use talk::link::context::{ConnectDispatcher, ListenDispatcher};
 use talk::net::{Connector, Listener};
 use talk::sync::fuse::Fuse;
-use talk::sync::lenders::AtomicLender;
+use talk::sync::voidable::Voidable;
 
 pub(crate) struct Processor {
-    database: Arc<AtomicLender<Database>>,
+    database: Arc<Voidable<Database>>,
     _fuse: Fuse,
 }
 
@@ -18,7 +18,7 @@ impl Processor {
         C: Connector,
         L: Listener,
     {
-        let database = Arc::new(AtomicLender::new(database));
+        let database = Arc::new(Voidable::new(database));
 
         let _connect_dispatcher = ConnectDispatcher::new(connector);
         let listen_dispatcher = ListenDispatcher::new(listener, Default::default()); // TODO: Forward settings
@@ -41,7 +41,7 @@ impl Processor {
     }
 
     pub fn shutdown(self) -> Database {
-        self.database.take()
+        self.database.void()
     }
 }
 
