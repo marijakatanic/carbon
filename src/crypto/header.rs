@@ -3,12 +3,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(i8)]
 pub(crate) enum Header {
-    Install = 0,
+    RogueChallenge = 0,
 
-    LatticeDecisions = 1,
+    Install = 1,
 
-    Resolution = 2,
-    Resignation = 3,
+    LatticeDecisions = 2,
 
-    Prepare = 4,
+    Resolution = 3,
+    Resignation = 4,
+
+    Prepare = 5,
 }
