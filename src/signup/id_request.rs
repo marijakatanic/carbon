@@ -110,7 +110,7 @@ mod tests {
     #[test]
     fn correct() {
         let install_generator = InstallGenerator::new(4);
-        
+
         let view = install_generator.view(4);
         let assigner = install_generator.keycards[0].identity();
 
