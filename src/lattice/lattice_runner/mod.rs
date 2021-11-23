@@ -32,8 +32,6 @@ pub(in crate::lattice) struct LatticeRunner<Instance: LatticeInstance, Element: 
     view: View,
     instance: Instance,
 
-    members: HashMap<Identity, KeyCard>,
-
     keychain: KeyChain,
 
     state: State,
@@ -137,13 +135,6 @@ where
         proposal_outlet: ProposalOutlet<Element>,
         decision_inlet: DecisionInlet<Element>,
     ) -> Self {
-        let members = view
-            .members()
-            .iter()
-            .cloned()
-            .map(|keycard| (keycard.identity(), keycard))
-            .collect();
-
         let state = State::Disclosing;
 
         let database = Database {
@@ -184,7 +175,6 @@ where
         LatticeRunner {
             view,
             instance,
-            members,
             keychain,
             state,
             database,
@@ -230,7 +220,7 @@ where
         message: Message<Element>,
         acknowledger: Acknowledger,
     ) -> Result<(), Top<HandleError>> {
-        if let Some(keycard) = self.members.get(&source).cloned() {
+        if let Some(keycard) = self.view.members().get(&source).cloned() {
             self.validate_message(&keycard, &message)
                 .pot(HandleError::InvalidMessage, here!())?;
 

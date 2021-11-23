@@ -6,10 +6,11 @@ use crate::{
 use doomstack::{here, Doom, ResultExt, Top};
 
 use std::collections::hash_map::Entry;
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use talk::crypto::primitives::hash::Hash;
+use talk::crypto::Identity;
 use talk::crypto::KeyCard;
 
 use zebra::database::{Collection, CollectionTransaction};
@@ -22,7 +23,7 @@ pub(crate) struct View {
 struct Data {
     height: usize,
     changes: Collection<Change>,
-    members: BTreeSet<KeyCard>,
+    members: BTreeMap<Identity, KeyCard>,
 }
 
 #[derive(Doom)]
@@ -40,7 +41,10 @@ impl View {
     where
         M: IntoIterator<Item = KeyCard>,
     {
-        let members = members.into_iter().collect::<BTreeSet<_>>();
+        let members = members
+            .into_iter()
+            .map(|keycard| (keycard.identity(), keycard))
+            .collect::<BTreeMap<_, _>>();
 
         #[cfg(debug_assertions)]
         {
@@ -50,7 +54,11 @@ impl View {
         }
 
         let height = members.len();
-        let increment = members.iter().cloned().map(|replica| Change::Join(replica));
+
+        let increment = members
+            .values()
+            .cloned()
+            .map(|replica| Change::Join(replica));
 
         let mut changes = FAMILY.empty_collection();
         let mut transaction = CollectionTransaction::new();
@@ -104,10 +112,10 @@ impl View {
         for change in increment {
             match change {
                 Change::Join(replica) => {
-                    members.insert(replica);
+                    members.insert(replica.identity(), replica);
                 }
                 Change::Leave(replica) => {
-                    members.remove(&replica);
+                    members.remove(&replica.identity());
                 }
             }
         }
@@ -142,7 +150,7 @@ impl View {
         self.data.members.len() - (self.data.members.len() - 1) / 3
     }
 
-    pub fn members(&self) -> &BTreeSet<KeyCard> {
+    pub fn members(&self) -> &BTreeMap<Identity, KeyCard> {
         &self.data.members
     }
 

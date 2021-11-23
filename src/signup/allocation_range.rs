@@ -8,10 +8,10 @@ impl View {
     pub fn allocation_range(&self, assigner: Identity) -> Range<Id> {
         let index =
             self.members()
-                .iter()
+                .keys()
                 .enumerate()
-                .find_map(|(index, keycard)| {
-                    if keycard.identity() == assigner {
+                .find_map(|(index, identity)| {
+                    if *identity == assigner {
                         Some(index)
                     } else {
                         None

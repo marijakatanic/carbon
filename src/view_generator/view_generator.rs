@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex};
 use talk::broadcast::BestEffort;
 use talk::crypto::primitives::hash::Hash;
 use talk::crypto::primitives::multi::Signature as MultiSignature;
-use talk::crypto::{KeyCard, KeyChain};
+use talk::crypto::KeyChain;
 use talk::link::context::{ConnectDispatcher, ListenDispatcher};
 use talk::net::{Connector, Listener};
 use talk::sync::fuse::Fuse;
@@ -244,7 +244,7 @@ impl ViewGenerator {
 
         let broadcast = BestEffort::brief(
             summarization_sender,
-            view.members().iter().map(KeyCard::identity),
+            view.members().keys().cloned(),
             brief,
             expanded,
             Default::default(), // TODO: Add settings
@@ -266,12 +266,6 @@ impl ViewGenerator {
         mut summarization_receiver: Receiver<Message>,
         decision_inlet: DecisionInlet,
     ) {
-        let members = view
-            .members()
-            .iter()
-            .map(|member| (member.identity(), member.clone()))
-            .collect::<HashMap<_, _>>();
-
         let mut aggregator: Option<InstallAggregator> = None;
         let mut signature_cache: HashMap<Hash, MultiSignature> = HashMap::new();
 
@@ -282,7 +276,7 @@ impl ViewGenerator {
         loop {
             let (source, message, acknowledger) = summarization_receiver.receive().await;
 
-            let keycard = match members.get(&source) {
+            let keycard = match view.members().get(&source) {
                 Some(keycard) => keycard,
                 None => continue,
             };

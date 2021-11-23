@@ -38,8 +38,8 @@ impl Certificate {
         // elements of `signers` to set to `true`, loop thorugh all elements of `view.members()`:
         // for every `member`, if `member` is the next element of `signer_ids`, then set the
         // corresponding element of `signers` to `true`, and move `signer_ids` on.
-        for (index, member) in view.members().iter().enumerate() {
-            if signer_ids.peek() == Some(&member.identity()) {
+        for (index, member) in view.members().keys().enumerate() {
+            if signer_ids.peek() == Some(&member) {
                 signers.set(index, true);
                 signer_ids.next().unwrap();
             }
@@ -100,7 +100,7 @@ impl Certificate {
         self.signature
             .verify(
                 view.members()
-                    .iter()
+                    .values()
                     .enumerate()
                     .filter_map(|(index, card)| {
                         if self.signers[index] {

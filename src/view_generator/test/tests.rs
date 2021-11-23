@@ -108,10 +108,7 @@ async fn stress_simple() {
         view = install.clone().into_transition().destination().clone();
 
         assert_eq!(
-            view.members()
-                .iter()
-                .map(|member| member.identity())
-                .collect::<BTreeSet<_>>(),
+            view.members().keys().cloned().collect::<BTreeSet<_>>(),
             keychains[0..MAX_N - i - 1]
                 .iter()
                 .map(|keychain| keychain.keycard().identity())

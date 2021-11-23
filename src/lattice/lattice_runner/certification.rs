@@ -33,7 +33,7 @@ where
 
         let broadcast = BestEffort::new(
             self.sender.clone(),
-            self.members.keys().cloned(),
+            self.view.members().keys().cloned(),
             Message::CertificationRequest(message),
             self.settings.broadcast.clone(),
         );

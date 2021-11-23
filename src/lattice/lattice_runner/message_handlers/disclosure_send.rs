@@ -73,7 +73,7 @@ where
 
             let broadcast = BestEffort::brief(
                 self.sender.clone(),
-                self.members.keys().cloned(),
+                self.view.members().keys().cloned(),
                 Message::DisclosureEcho(brief),
                 Message::DisclosureEcho(expanded),
                 self.settings.broadcast.clone(),
