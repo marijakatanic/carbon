@@ -12,7 +12,7 @@ pub(crate) struct Processor {
 }
 
 impl Processor {
-    pub fn new<C, L>(view: View, database: Database, connector: C, listener: L) -> Self
+    pub fn new<C, L>(_view: View, _database: Database, _connector: C, _listener: L) -> Self
     where
         C: Connector,
         L: Listener,
