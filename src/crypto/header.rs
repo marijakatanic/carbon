@@ -12,5 +12,7 @@ pub(crate) enum Header {
     Resolution = 3,
     Resignation = 4,
 
-    Prepare = 5,
+    IdRequest = 5,
+
+    Prepare = 6,
 }

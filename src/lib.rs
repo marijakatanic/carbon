@@ -26,6 +26,9 @@ mod lattice;
 mod processor;
 
 #[allow(dead_code)]
+mod signup;
+
+#[allow(dead_code)]
 mod view;
 
 #[allow(dead_code)]
