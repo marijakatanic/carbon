@@ -1,4 +1,4 @@
-use crate::{brokers::prepare::Attachment, broadcast::Prepare};
+use crate::{broadcast::Prepare, brokers::prepare::Attachment};
 
 use talk::crypto::primitives::multi::Signature as MultiSignature;
 
