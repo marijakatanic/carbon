@@ -69,12 +69,12 @@ impl IdRequest {
         }
     }
 
-    pub fn validate(&self, view: &View, verifier: Identity) -> Result<(), Top<RequestIdError>> {
+    pub fn validate(&self, view: &View, assigner: Identity) -> Result<(), Top<RequestIdError>> {
         if self.request.view != view.identifier() {
             return RequestIdError::ForeignView.fail().spot(here!());
         }
 
-        if self.request.assigner != verifier {
+        if self.request.assigner != assigner {
             return RequestIdError::ForeignVerifier.fail().spot(here!());
         }
 
@@ -99,4 +99,24 @@ impl IdRequest {
 impl Statement for Request {
     type Header = Header;
     const HEADER: Header = Header::IdRequest;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::view::test::InstallGenerator;
+
+    #[test]
+    fn correct() {
+        let install_generator = InstallGenerator::new(4);
+        
+        let view = install_generator.view(4);
+        let assigner = install_generator.keycards[0].identity();
+
+        let keychain = KeyChain::random();
+
+        let id_request = IdRequest::new(&keychain, &view, assigner);
+        id_request.validate(&view, assigner).unwrap();
+    }
 }
