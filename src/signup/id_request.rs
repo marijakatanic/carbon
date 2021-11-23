@@ -3,6 +3,8 @@ use crate::{
     view::View,
 };
 
+use doomstack::{here, Doom, ResultExt, Top};
+
 use serde::{Deserialize, Serialize};
 
 use talk::crypto::primitives::hash::Hash;
@@ -30,6 +32,18 @@ struct Rogue {
     multi: MultiSignature,
 }
 
+#[derive(Doom)]
+pub(crate) enum RequestIdError {
+    #[doom(description("Foreign view"))]
+    ForeignView,
+    #[doom(description("Foreign verifier"))]
+    ForeignVerifier,
+    #[doom(description("Work invalid"))]
+    WorkInvalid,
+    #[doom(description("Rogue-safety proof invalid"))]
+    RogueInvalid,
+}
+
 impl IdRequest {
     pub fn new(keychain: &KeyChain, view: &View, assigner: Identity) -> Self {
         let keycard = keychain.keycard();
@@ -53,6 +67,32 @@ impl IdRequest {
             work,
             rogue,
         }
+    }
+
+    pub fn validate(&self, view: &View, verifier: Identity) -> Result<(), Top<RequestIdError>> {
+        if self.request.view != view.identifier() {
+            return RequestIdError::ForeignView.fail().spot(here!());
+        }
+
+        if self.request.assigner != verifier {
+            return RequestIdError::ForeignVerifier.fail().spot(here!());
+        }
+
+        self.work
+            .verify(10, &self.request)
+            .pot(RequestIdError::WorkInvalid, here!())?;
+
+        self.rogue
+            .sign
+            .verify(&self.request.keycard, &RogueChallenge)
+            .pot(RequestIdError::RogueInvalid, here!())?;
+
+        self.rogue
+            .multi
+            .verify([&self.request.keycard], &RogueChallenge)
+            .pot(RequestIdError::RogueInvalid, here!())?;
+
+        Ok(())
     }
 }
 
