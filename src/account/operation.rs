@@ -1,7 +1,6 @@
-use crate::account::operations::{Abandon, Claim, Collect, Deposit, Mint, Support, Withdraw};
+use crate::account::operations::{Abandon, Collect, Deposit, Mint, Support, Withdraw};
 
 pub(crate) enum Operation {
-    Claim(Claim),
     Mint(Mint),
     Withdraw(Withdraw),
     Deposit(Deposit),
