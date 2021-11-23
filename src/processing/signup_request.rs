@@ -4,5 +4,5 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub(crate) enum SignupRequest {
-    IdRequests(Vec<IdRequest>)
+    IdRequests(Vec<IdRequest>),
 }
