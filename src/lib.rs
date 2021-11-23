@@ -23,6 +23,9 @@ mod discovery;
 mod lattice;
 
 #[allow(dead_code)]
+mod processor;
+
+#[allow(dead_code)]
 mod view;
 
 #[allow(dead_code)]
