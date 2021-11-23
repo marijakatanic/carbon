@@ -13,6 +13,7 @@ use talk::crypto::primitives::sign::Signature;
 use talk::crypto::primitives::work::Work;
 use talk::crypto::{Identity, KeyCard, KeyChain, Statement};
 
+#[derive(Serialize, Deserialize)]
 pub(crate) struct IdRequest {
     request: Request,
     work: Work,
