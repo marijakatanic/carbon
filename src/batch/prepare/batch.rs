@@ -6,6 +6,6 @@ use zebra::vector::Vector;
 
 pub(crate) struct Batch {
     prepares: Vector<Prepare>,
-    certificate: MultiSignature,
+    multisignature: MultiSignature,
     attachments: Vec<Attachment>,
 }
