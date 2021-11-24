@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use talk::crypto::{primitives::hash::Hash, KeyCard};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct IdClaim {
     request: IdRequest,
     allocation: IdAllocation,

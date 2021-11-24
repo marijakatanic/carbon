@@ -2,7 +2,7 @@ use crate::{
     crypto::Identify,
     database::Database,
     processing::{Processor, SignupRequest, SignupResponse},
-    signup::{IdAllocation, IdRequest},
+    signup::{IdAllocation, IdAssignment, IdRequest},
     view::View,
 };
 
@@ -13,10 +13,12 @@ use rand::{self, seq::IteratorRandom};
 use std::{iter, sync::Arc};
 
 use talk::{
-    crypto::{Identity, KeyChain},
+    crypto::{primitives::multi::Signature as MultiSignature, Identity, KeyChain},
     net::{Listener, SecureConnection},
     sync::{fuse::Fuse, voidable::Voidable},
 };
+
+use zebra::database::CollectionTransaction;
 
 #[derive(Doom)]
 enum ServeSignupError {
@@ -104,6 +106,43 @@ impl Processor {
 
                         SignupResponse::IdAllocations(allocations)
                     }
+
+                    SignupRequest::IdClaims(claims) => {
+                        let mut transaction = CollectionTransaction::new();
+
+                        let signatures = claims
+                            .into_iter()
+                            .map(|claim| {
+                                if claim.view() != view.identifier() {
+                                    return ServeSignupError::ForeignView.fail().spot(here!());
+                                }
+
+                                claim
+                                    .validate()
+                                    .pot(ServeSignupError::InvalidRequest, here!())?;
+
+                                let stored = database
+                                    .signup
+                                    .claims
+                                    .entry(claim.id())
+                                    .or_insert(claim.clone());
+
+                                if stored.client() == claim.client() {
+                                    // Double-inserts are harmless
+                                    let _ = transaction.insert(claim.id());
+                                    Ok(Some(IdAssignment::certify(&keychain, &claim)))
+                                } else {
+                                    Ok(None) // Already claimed by another identity
+                                }
+                            })
+                            .collect::<Result<Vec<Option<MultiSignature>>, Top<ServeSignupError>>>(
+                            );
+
+                        // In order to keep `claims` in sync with `claimed`, `transaction` is
+                        // executed before bailing (if `signatures` is `Err`)
+                        database.signup.claimed.execute(transaction);
+                        SignupResponse::IdAssignments(signatures?)
+                    }
                 }
             };
 
@@ -121,8 +160,12 @@ impl Processor {
         database: &mut Database,
         request: IdRequest,
     ) -> IdAllocation {
-        if let Some(allocation) = database.signup.assignments.get(&request.client()) {
-            return allocation.clone();
+        if let Some(id) = database
+            .signup
+            .allocations
+            .get(&request.client().identity())
+        {
+            return IdAllocation::new(&keychain, &request, *id);
         }
 
         let full_range = view.allocation_range(identity);
@@ -141,21 +184,28 @@ impl Processor {
                 .choose(&mut rand::thread_rng())
                 .unwrap();
 
-            if !database.keycards.contains_key(&id) && !database.signup.assigned.contains(&id) {
+            // `database.signup.allocated` contains all `Id`s the local replica has assigned in
+            // the current view; because it is state-transferred, `database.signup.claims` contains
+            // all `Id`s for which an `IdAssignment` has been generated in a past view. As a result,
+            // every `Id` in `database.assignments` is necessarily in either `allocated` or `claims`:
+            // if the `IdAssignment` was collected in this view, then necessarily its `Id` is in
+            // `allocated` (as the local replica was the one that allocated the `Id`); if the
+            // `IdAssignment` was collected in a previous view, then necessarily its `Id` is in
+            // `claims` (due to the properties of state-transfer with a quorum of past members).
+            if !database.signup.claims.contains_key(&id) && !database.signup.allocated.contains(&id)
+            {
                 break id;
             }
         };
 
-        let allocation = IdAllocation::new(&keychain, &request, id);
+        database.signup.allocated.insert(id);
 
         database
             .signup
-            .assignments
-            .insert(request.client(), allocation.clone());
+            .allocations
+            .insert(request.client().identity(), id);
 
-        database.signup.assigned.insert(id);
-
-        allocation
+        IdAllocation::new(&keychain, &request, id)
     }
 }
 
@@ -184,7 +234,8 @@ mod tests {
             SignupResponse::IdAllocations(mut allocations) => {
                 assert_eq!(allocations.len(), 1);
                 allocations.remove(0)
-            } // _ => panic!("unexpected response"),
+            }
+            _ => panic!("unexpected response"),
         };
 
         id_allocation.validate(&id_request).unwrap();
