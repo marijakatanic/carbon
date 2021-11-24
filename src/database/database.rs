@@ -18,3 +18,16 @@ pub(crate) struct Signup {
     pub assignments: HashMap<Identity, IdAllocation>,
     pub assigned: HashSet<Id>,
 }
+
+impl Database {
+    pub fn new() -> Self {
+        Database {
+            keycards: HashMap::new(),
+            states: HashMap::new(),
+            signup: Signup {
+                assignments: HashMap::new(),
+                assigned: HashSet::new(),
+            },
+        }
+    }
+}

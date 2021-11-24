@@ -32,7 +32,7 @@ impl Processor {
 
         let fuse = Fuse::new();
 
-        let signup_context = format!("{:?}::processor::signup", view.identifier(),);
+        let signup_context = format!("{:?}::processor::signup", view.identifier());
         let signup_listener = listen_dispatcher.register(signup_context);
 
         {

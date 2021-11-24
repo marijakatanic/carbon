@@ -147,3 +147,45 @@ impl Processor {
         allocation
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::{crypto::Identify, processing::test::System};
+
+    #[tokio::test]
+    async fn priority() {
+        let System {
+            view,
+            brokers,
+            processors,
+        } = System::setup(4, 1).await;
+
+        let assigner_identity = processors[0].0.keycard().identity();
+
+        let client_keychain = KeyChain::random();
+        let id_request = IdRequest::new(&client_keychain, &view, assigner_identity);
+
+        let response = brokers[0].id_requests(vec![id_request]).await;
+
+        let id_allocation = match response {
+            SignupResponse::IdAllocations(mut allocations) => {
+                assert_eq!(allocations.len(), 1);
+                allocations.remove(0)
+            } // _ => panic!("unexpected response"),
+        };
+
+        assert_eq!(id_allocation.assigner(), assigner_identity);
+
+        assert_eq!(id_allocation.view().identifier(), view.identifier());
+        assert!(id_allocation.id() <= u32::MAX as u64);
+
+        assert_eq!(
+            id_allocation.identity(),
+            client_keychain.keycard().identity()
+        );
+
+        id_allocation.validate(&view).unwrap();
+    }
+}
