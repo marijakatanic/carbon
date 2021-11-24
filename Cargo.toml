@@ -11,12 +11,11 @@ futures = { version = "0.3" }
 
 serde = { version = "~1.0", features = [ "derive", "rc" ] }
 
+rand = { version = "0.8" }
+
 bit-vec = { version = "0.6", features = ["serde"] }
-lazy_static = "1.4.0"
+lazy_static = { version = "1.4.0" }
 
 talk = { git = "https://github.com/Distributed-EPFL/talk", features=[ "test_utilities" ] }
 zebra = { git = "https://github.com/Distributed-EPFL/zebra" }
 doomstack = { git = "https://github.com/Distributed-EPFL/doomstack" }
-
-[dev-dependencies]
-rand = { version = "0.8" }

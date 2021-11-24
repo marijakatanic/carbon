@@ -12,14 +12,14 @@ use talk::crypto::primitives::hash::Hash;
 use talk::crypto::primitives::sign::Signature;
 use talk::crypto::{Identity, KeyChain, Statement};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct IdAllocation {
     assigner: Identity,
     allocation: Allocation,
     signature: Signature,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 struct Allocation {
     view: Hash,
     id: Id,

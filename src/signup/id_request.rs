@@ -70,6 +70,10 @@ impl IdRequest {
         }
     }
 
+    pub fn identity(&self) -> Identity {
+        self.request.keycard.identity()
+    }
+
     pub fn validate(&self, view: &View, assigner: Identity) -> Result<(), Top<RequestIdError>> {
         if self.request.view != view.identifier() {
             return RequestIdError::ForeignView.fail().spot(here!());
