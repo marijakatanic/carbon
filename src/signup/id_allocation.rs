@@ -26,7 +26,7 @@ struct Allocation {
 pub(crate) enum IdAllocationError {
     #[doom(description("Invalid signature"))]
     InvalidSignature,
-    #[doom(description("Assigned `Id` is out of the assigner's allocation range"))]
+    #[doom(description("Assigned `Id` is out of the allocator's allocation range"))]
     IdOutOfRange,
 }
 
@@ -48,7 +48,7 @@ impl IdAllocation {
     // In order to avoid panics, `request` must have been validated beforehand
     pub fn validate(&self, request: &IdRequest) -> Result<(), Top<IdAllocationError>> {
         let view = View::get(request.view()).unwrap();
-        let keycard = view.members().get(&request.assigner()).unwrap();
+        let keycard = view.members().get(&request.allocator()).unwrap();
 
         let allocation = Allocation {
             view: request.view(),
@@ -60,7 +60,7 @@ impl IdAllocation {
             .verify(&keycard, &allocation)
             .pot(IdAllocationError::InvalidSignature, here!())?;
 
-        if !view.allocation_range(request.assigner()).contains(&self.id) {
+        if !view.allocation_range(request.allocator()).contains(&self.id) {
             return IdAllocationError::IdOutOfRange.fail().spot(here!());
         }
 
@@ -85,7 +85,7 @@ mod tests {
 
         let view = install_generator.view(4);
 
-        let assigner = install_generator
+        let allocator = install_generator
             .keychains
             .iter()
             .find(|keychain| {
@@ -95,9 +95,9 @@ mod tests {
             .unwrap();
 
         let client = KeyChain::random();
-        let request = IdRequest::new(&client, &view, assigner.keycard().identity());
+        let request = IdRequest::new(&client, &view, allocator.keycard().identity());
 
-        let allocation = IdAllocation::new(&assigner, &request, 0);
+        let allocation = IdAllocation::new(&allocator, &request, 0);
         allocation.validate(&request).unwrap();
     }
 
@@ -107,7 +107,7 @@ mod tests {
 
         let view = install_generator.view(4);
 
-        let assigner = install_generator
+        let allocator = install_generator
             .keychains
             .iter()
             .find(|keychain| {
@@ -117,9 +117,9 @@ mod tests {
             .unwrap();
 
         let client = KeyChain::random();
-        let request = IdRequest::new(&client, &view, assigner.keycard().identity());
+        let request = IdRequest::new(&client, &view, allocator.keycard().identity());
 
-        let allocation = IdAllocation::new(&assigner, &request, 0);
+        let allocation = IdAllocation::new(&allocator, &request, 0);
         assert!(allocation.validate(&request).is_err());
     }
 }

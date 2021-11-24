@@ -37,14 +37,14 @@ impl TestBroker {
             .iter()
             .all(|id_request| id_request.view() == self.view.identifier()));
 
-        let assigner = id_requests[0].assigner();
+        let allocator = id_requests[0].allocator();
 
-        assert!(self.view.members().contains_key(&assigner));
+        assert!(self.view.members().contains_key(&allocator));
         assert!(id_requests
             .iter()
-            .all(|id_request| id_request.assigner() == assigner));
+            .all(|id_request| id_request.allocator() == allocator));
 
-        let mut connection = broker_connector.connect(assigner).await.unwrap();
+        let mut connection = broker_connector.connect(allocator).await.unwrap();
 
         connection
             .send(&SignupRequest::IdRequests(id_requests))

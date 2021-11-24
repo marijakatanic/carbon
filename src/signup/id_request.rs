@@ -22,7 +22,7 @@ pub(crate) struct IdRequest {
 #[derive(Clone, Serialize, Deserialize)]
 struct Request {
     view: Hash,
-    assigner: Identity,
+    allocator: Identity,
     client: KeyCard,
 }
 
@@ -30,8 +30,8 @@ struct Request {
 pub(crate) enum RequestIdError {
     #[doom(description("View is unknown"))]
     UnknownView,
-    #[doom(description("Assigner is not a member of view"))]
-    ForeignAssigner,
+    #[doom(description("Allocator is not a member of view"))]
+    ForeignAllocator,
     #[doom(description("Work invalid"))]
     WorkInvalid,
     #[doom(description("Rogue-safety proof invalid"))]
@@ -39,13 +39,13 @@ pub(crate) enum RequestIdError {
 }
 
 impl IdRequest {
-    pub fn new(keychain: &KeyChain, view: &View, assigner: Identity) -> Self {
+    pub fn new(keychain: &KeyChain, view: &View, allocator: Identity) -> Self {
         let view = view.identifier();
         let client = keychain.keycard();
 
         let request = Request {
             view,
-            assigner,
+            allocator,
             client,
         };
 
@@ -63,8 +63,8 @@ impl IdRequest {
         self.request.view
     }
     
-    pub fn assigner(&self) -> Identity {
-        self.request.assigner
+    pub fn allocator(&self) -> Identity {
+        self.request.allocator
     }
 
     pub fn client(&self) -> Identity {
@@ -76,8 +76,8 @@ impl IdRequest {
             .ok_or(RequestIdError::UnknownView.into_top())
             .spot(here!())?;
 
-        if !view.members().contains_key(&self.request.assigner) {
-            return RequestIdError::ForeignAssigner.fail().spot(here!());
+        if !view.members().contains_key(&self.request.allocator) {
+            return RequestIdError::ForeignAllocator.fail().spot(here!());
         }
 
         self.work
@@ -108,11 +108,11 @@ mod tests {
         let install_generator = InstallGenerator::new(4);
 
         let view = install_generator.view(4);
-        let assigner = install_generator.keycards[0].identity();
+        let allocator = install_generator.keycards[0].identity();
 
         let client = KeyChain::random();
 
-        let request = IdRequest::new(&client, &view, assigner);
+        let request = IdRequest::new(&client, &view, allocator);
         request.validate().unwrap();
     }
 }

@@ -5,19 +5,19 @@ use std::ops::Range;
 use talk::crypto::Identity;
 
 impl View {
-    pub fn allocation_range(&self, assigner: Identity) -> Range<Id> {
+    pub fn allocation_range(&self, allocator: Identity) -> Range<Id> {
         let index =
             self.members()
                 .keys()
                 .enumerate()
                 .find_map(|(index, identity)| {
-                    if *identity == assigner {
+                    if *identity == allocator {
                         Some(index)
                     } else {
                         None
                     }
                 })
-                .expect("this `View` does not contain the provided `assigner`") as u64;
+                .expect("this `View` does not contain the provided `allocator`") as u64;
 
         let width = u64::MAX / self.members().len() as u64;
         let start = index * width;

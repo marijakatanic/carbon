@@ -28,8 +28,8 @@ enum ServeSignupError {
     InvalidRequest,
     #[doom(description("Foreign view"))]
     ForeignView,
-    #[doom(description("Foreign assigner"))]
-    ForeignAssigner,
+    #[doom(description("Foreign allocator"))]
+    ForeignAllocator,
 }
 
 impl Processor {
@@ -84,8 +84,8 @@ impl Processor {
                                     return ServeSignupError::ForeignView.fail().spot(here!());
                                 }
 
-                                if request.assigner() != identity {
-                                    return ServeSignupError::ForeignAssigner.fail().spot(here!());
+                                if request.allocator() != identity {
+                                    return ServeSignupError::ForeignAllocator.fail().spot(here!());
                                 }
 
                                 request
@@ -173,10 +173,10 @@ mod tests {
             processors,
         } = System::setup(4, 1).await;
 
-        let assigner_identity = processors[0].0.keycard().identity();
+        let allocator_identity = processors[0].0.keycard().identity();
 
         let client_keychain = KeyChain::random();
-        let id_request = IdRequest::new(&client_keychain, &view, assigner_identity);
+        let id_request = IdRequest::new(&client_keychain, &view, allocator_identity);
 
         let response = brokers[0].id_requests(vec![id_request.clone()]).await;
 
