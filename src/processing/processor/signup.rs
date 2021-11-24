@@ -1,4 +1,5 @@
 use crate::{
+    crypto::Identify,
     database::Database,
     processing::{Processor, SignupRequest, SignupResponse},
     signup::{IdAllocation, IdRequest},
@@ -25,6 +26,10 @@ enum ServeSignupError {
     DatabaseVoid,
     #[doom(description("Invalid request"))]
     InvalidRequest,
+    #[doom(description("Foreign view"))]
+    ForeignView,
+    #[doom(description("Foreign assigner"))]
+    ForeignAssigner,
 }
 
 impl Processor {
@@ -57,8 +62,8 @@ impl Processor {
         database: Arc<Voidable<Database>>,
         mut connection: SecureConnection,
     ) -> Result<(), Top<ServeSignupError>> {
-        let assigner = keychain.keycard().identity();
-
+        let identity = keychain.keycard().identity();
+        
         loop {
             let request = connection
                 .receive::<SignupRequest>()
@@ -76,11 +81,19 @@ impl Processor {
                             .into_iter()
                             .map(|request| {
                                 request
-                                    .validate(&view, assigner)
+                                    .validate()
                                     .pot(ServeSignupError::InvalidRequest, here!())?;
 
+                                if request.view() != view.identifier() {
+                                    return ServeSignupError::ForeignView.fail().spot(here!());
+                                }
+
+                                if request.assigner() != identity {
+                                    return ServeSignupError::ForeignAssigner.fail().spot(here!());
+                                }
+
                                 Ok(Processor::allocate_id(
-                                    assigner,
+                                    identity,
                                     &keychain,
                                     &view,
                                     &mut database,
@@ -102,7 +115,7 @@ impl Processor {
     }
 
     fn allocate_id(
-        assigner: Identity,
+        identity: Identity,
         keychain: &KeyChain,
         view: &View,
         database: &mut Database,
@@ -112,7 +125,7 @@ impl Processor {
             return allocation.clone();
         }
 
-        let full_range = view.allocation_range(assigner);
+        let full_range = view.allocation_range(identity);
 
         let priority_available = full_range.start == 0;
         let priority_range = 0..(u32::MAX as u64);

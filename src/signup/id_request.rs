@@ -28,10 +28,6 @@ struct Request {
 
 #[derive(Doom)]
 pub(crate) enum RequestIdError {
-    #[doom(description("Foreign view"))]
-    ForeignView,
-    #[doom(description("Foreign verifier"))]
-    ForeignVerifier,
     #[doom(description("Work invalid"))]
     WorkInvalid,
     #[doom(description("Rogue-safety proof invalid"))]
@@ -71,15 +67,7 @@ impl IdRequest {
         self.request.assigner
     }
 
-    pub fn validate(&self, view: &View, assigner: Identity) -> Result<(), Top<RequestIdError>> {
-        if self.request.view != view.identifier() {
-            return RequestIdError::ForeignView.fail().spot(here!());
-        }
-
-        if self.request.assigner != assigner {
-            return RequestIdError::ForeignVerifier.fail().spot(here!());
-        }
-
+    pub fn validate(&self) -> Result<(), Top<RequestIdError>> {
         self.work
             .verify(10, &self.request)
             .pot(RequestIdError::WorkInvalid, here!())?;
@@ -113,6 +101,6 @@ mod tests {
         let keychain = KeyChain::random();
 
         let id_request = IdRequest::new(&keychain, &view, assigner);
-        id_request.validate(&view, assigner).unwrap();
+        id_request.validate().unwrap();
     }
 }
