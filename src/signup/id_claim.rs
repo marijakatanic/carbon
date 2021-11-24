@@ -2,8 +2,11 @@ use crate::{account::Id, crypto::Rogue, signup::IdAllocation, view::View};
 
 use doomstack::{here, Doom, ResultExt, Top};
 
+use serde::{Deserialize, Serialize};
+
 use talk::crypto::{Identity, KeyCard};
 
+#[derive(Serialize, Deserialize)]
 pub(crate) struct IdClaim {
     keycard: KeyCard,
     allocation: IdAllocation,
