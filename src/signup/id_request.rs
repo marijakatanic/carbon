@@ -21,9 +21,9 @@ pub(crate) struct IdRequest {
 
 #[derive(Clone, Serialize, Deserialize)]
 struct Request {
-    keycard: KeyCard,
     view: Hash,
     assigner: Identity,
+    client: KeyCard,
 }
 
 #[derive(Doom)]
@@ -40,13 +40,13 @@ pub(crate) enum RequestIdError {
 
 impl IdRequest {
     pub fn new(keychain: &KeyChain, view: &View, assigner: Identity) -> Self {
-        let keycard = keychain.keycard();
         let view = view.identifier();
+        let client = keychain.keycard();
 
         let request = Request {
-            keycard,
             view,
             assigner,
+            client,
         };
 
         let work = Work::new(10, &request).unwrap(); // TODO: Add settings
@@ -59,18 +59,18 @@ impl IdRequest {
         }
     }
 
-    pub fn identity(&self) -> Identity {
-        self.request.keycard.identity()
-    }
-
     pub fn view(&self) -> Hash {
         self.request.view
     }
-
+    
     pub fn assigner(&self) -> Identity {
         self.request.assigner
     }
 
+    pub fn client(&self) -> Identity {
+        self.request.client.identity()
+    }
+    
     pub fn validate(&self) -> Result<(), Top<RequestIdError>> {
         let view = View::get(self.request.view)
             .ok_or(RequestIdError::UnknownView.into_top())
@@ -85,7 +85,7 @@ impl IdRequest {
             .pot(RequestIdError::WorkInvalid, here!())?;
 
         self.rogue
-            .validate(&self.request.keycard)
+            .validate(&self.request.client)
             .pot(RequestIdError::RogueInvalid, here!())?;
 
         Ok(())
@@ -110,9 +110,9 @@ mod tests {
         let view = install_generator.view(4);
         let assigner = install_generator.keycards[0].identity();
 
-        let keychain = KeyChain::random();
+        let client = KeyChain::random();
 
-        let id_request = IdRequest::new(&keychain, &view, assigner);
-        id_request.validate().unwrap();
+        let request = IdRequest::new(&client, &view, assigner);
+        request.validate().unwrap();
     }
 }

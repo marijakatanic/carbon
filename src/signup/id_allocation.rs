@@ -19,7 +19,7 @@ pub(crate) struct IdAllocation {
 struct Allocation {
     view: Hash,
     id: Id,
-    identity: Identity,
+    client: Identity,
 }
 
 #[derive(Doom)]
@@ -33,9 +33,9 @@ pub(crate) enum IdAllocationError {
 impl IdAllocation {
     pub fn new(keychain: &KeyChain, request: &IdRequest, id: Id) -> Self {
         let view = request.view();
-        let identity = request.identity();
+        let identity = request.client();
 
-        let allocation = Allocation { view, id, identity };
+        let allocation = Allocation { view, id, client: identity };
         let signature = keychain.sign(&allocation).unwrap();
 
         IdAllocation { id, signature }
@@ -53,7 +53,7 @@ impl IdAllocation {
         let allocation = Allocation {
             view: request.view(),
             id: self.id,
-            identity: request.identity(),
+            client: request.client(),
         };
 
         self.signature
@@ -94,11 +94,11 @@ mod tests {
             .cloned()
             .unwrap();
 
-        let user = KeyChain::random();
-        let id_request = IdRequest::new(&user, &view, assigner.keycard().identity());
+        let client = KeyChain::random();
+        let request = IdRequest::new(&client, &view, assigner.keycard().identity());
 
-        let id_allocation = IdAllocation::new(&assigner, &id_request, 0);
-        id_allocation.validate(&id_request).unwrap();
+        let allocation = IdAllocation::new(&assigner, &request, 0);
+        allocation.validate(&request).unwrap();
     }
 
     #[test]
@@ -116,10 +116,10 @@ mod tests {
             .cloned()
             .unwrap();
 
-        let user = KeyChain::random();
-        let id_request = IdRequest::new(&user, &view, assigner.keycard().identity());
+        let client = KeyChain::random();
+        let request = IdRequest::new(&client, &view, assigner.keycard().identity());
 
-        let id_allocation = IdAllocation::new(&assigner, &id_request, 0);
-        assert!(id_allocation.validate(&id_request).is_err());
+        let allocation = IdAllocation::new(&assigner, &request, 0);
+        assert!(allocation.validate(&request).is_err());
     }
 }

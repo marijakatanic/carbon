@@ -39,8 +39,8 @@ impl IdClaim {
         self.allocation.id()
     }
 
-    pub fn identity(&self) -> Identity {
-        self.request.identity()
+    pub fn client(&self) -> Identity {
+        self.request.client()
     }
 
     pub fn validate(&self) -> Result<(), Top<IdClaimError>> {

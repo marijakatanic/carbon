@@ -80,10 +80,6 @@ impl Processor {
                         let allocations = requests
                             .into_iter()
                             .map(|request| {
-                                request
-                                    .validate()
-                                    .pot(ServeSignupError::InvalidRequest, here!())?;
-
                                 if request.view() != view.identifier() {
                                     return ServeSignupError::ForeignView.fail().spot(here!());
                                 }
@@ -91,6 +87,10 @@ impl Processor {
                                 if request.assigner() != identity {
                                     return ServeSignupError::ForeignAssigner.fail().spot(here!());
                                 }
+
+                                request
+                                    .validate()
+                                    .pot(ServeSignupError::InvalidRequest, here!())?;
 
                                 Ok(Processor::allocate_id(
                                     identity,
@@ -121,7 +121,7 @@ impl Processor {
         database: &mut Database,
         request: IdRequest,
     ) -> IdAllocation {
-        if let Some(allocation) = database.signup.assignments.get(&request.identity()) {
+        if let Some(allocation) = database.signup.assignments.get(&request.client()) {
             return allocation.clone();
         }
 
@@ -151,7 +151,7 @@ impl Processor {
         database
             .signup
             .assignments
-            .insert(request.identity(), allocation.clone());
+            .insert(request.client(), allocation.clone());
 
         database.signup.assigned.insert(id);
 
