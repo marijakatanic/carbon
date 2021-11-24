@@ -241,4 +241,22 @@ mod tests {
         id_allocation.validate(&id_request).unwrap();
         assert!(id_allocation.id() <= u32::MAX as u64);
     }
+
+    #[tokio::test]
+    async fn full_signup() {
+        let System {
+            view,
+            brokers,
+            processors,
+        } = System::setup(4, 1).await;
+
+        let allocator_identity = processors[0].0.keycard().identity();
+
+        let client_keychain = KeyChain::random();
+        let id_request = IdRequest::new(&client_keychain, &view, allocator_identity);
+
+        let multi_sigs = brokers[0].signup(vec![id_request.clone()]).await;
+
+        println!("Sigs: {:?}", multi_sigs);
+    }
 }
