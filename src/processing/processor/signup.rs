@@ -8,8 +8,10 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use rand::prelude::*;
+use rand;
+use rand::seq::IteratorRandom;
 
+use std::iter;
 use std::sync::Arc;
 
 use talk::crypto::{Identity, KeyChain};
@@ -112,11 +114,19 @@ impl Processor {
             return allocation.clone();
         }
 
-        // TODO: If allocation range includes the `u32` range, prioritize picking 32-bit `Id`s
+        let full_range = view.allocation_range(assigner);
+
+        let priority_available = full_range.start == 0;
+        let priority_range = 0..(u32::MAX as u64);
+
+        let mut ranges = iter::repeat(priority_range)
+            .take(if priority_available { 30 } else { 0 }) // TODO: Add settings
+            .chain(iter::repeat(full_range));
 
         let id = loop {
-            let id = view
-                .allocation_range(assigner)
+            let id = ranges
+                .next()
+                .unwrap()
                 .choose(&mut rand::thread_rng())
                 .unwrap();
 
