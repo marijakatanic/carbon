@@ -1,5 +1,5 @@
 use crate::{
-    crypto::{Header, Identify, RogueChallenge},
+    crypto::{Header, Identify, Rogue},
     view::View,
 };
 
@@ -8,8 +8,6 @@ use doomstack::{here, Doom, ResultExt, Top};
 use serde::{Deserialize, Serialize};
 
 use talk::crypto::primitives::hash::Hash;
-use talk::crypto::primitives::multi::Signature as MultiSignature;
-use talk::crypto::primitives::sign::Signature;
 use talk::crypto::primitives::work::Work;
 use talk::crypto::{Identity, KeyCard, KeyChain, Statement};
 
@@ -25,12 +23,6 @@ struct Request {
     keycard: KeyCard,
     view: Hash,
     assigner: Identity,
-}
-
-#[derive(Serialize, Deserialize)]
-struct Rogue {
-    sign: Signature,
-    multi: MultiSignature,
 }
 
 #[derive(Doom)]
@@ -57,11 +49,7 @@ impl IdRequest {
         };
 
         let work = Work::new(10, &request).unwrap(); // TODO: Add settings
-
-        let rogue = Rogue {
-            sign: keychain.sign(&RogueChallenge).unwrap(),
-            multi: keychain.multisign(&RogueChallenge).unwrap(),
-        };
+        let rogue = Rogue::new(keychain);
 
         IdRequest {
             request,
@@ -72,6 +60,14 @@ impl IdRequest {
 
     pub fn identity(&self) -> Identity {
         self.request.keycard.identity()
+    }
+
+    pub fn view(&self) -> Hash {
+        self.request.view
+    }
+
+    pub fn assigner(&self) -> Identity {
+        self.request.assigner
     }
 
     pub fn validate(&self, view: &View, assigner: Identity) -> Result<(), Top<RequestIdError>> {
@@ -88,13 +84,7 @@ impl IdRequest {
             .pot(RequestIdError::WorkInvalid, here!())?;
 
         self.rogue
-            .sign
-            .verify(&self.request.keycard, &RogueChallenge)
-            .pot(RequestIdError::RogueInvalid, here!())?;
-
-        self.rogue
-            .multi
-            .verify([&self.request.keycard], &RogueChallenge)
+            .validate(&self.request.keycard)
             .pot(RequestIdError::RogueInvalid, here!())?;
 
         Ok(())
