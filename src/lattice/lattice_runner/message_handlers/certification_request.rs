@@ -12,8 +12,10 @@ use doomstack::{Doom, Top};
 
 use std::collections::BTreeSet;
 
-use talk::crypto::KeyCard;
-use talk::unicast::{Acknowledgement, Acknowledger, PushSettings};
+use talk::{
+    crypto::KeyCard,
+    unicast::{Acknowledgement, Acknowledger, PushSettings},
+};
 
 impl<Instance, Element> LatticeRunner<Instance, Element>
 where

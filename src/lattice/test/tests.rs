@@ -7,15 +7,20 @@ use crate::{
 
 use serde::{Deserialize, Serialize};
 
-use std::collections::BTreeSet;
-use std::iter::{self, FromIterator, Iterator};
-use std::net::Ipv4Addr;
-use std::sync::Arc;
+use std::{
+    collections::BTreeSet,
+    iter::{self, FromIterator, Iterator},
+    net::Ipv4Addr,
+    sync::Arc,
+};
 
-use talk::crypto::primitives::hash;
-use talk::crypto::primitives::hash::Hash;
-use talk::crypto::KeyChain;
-use talk::net::test::System;
+use talk::{
+    crypto::{
+        primitives::{hash, hash::Hash},
+        KeyChain,
+    },
+    net::test::System,
+};
 
 pub(crate) async fn setup_discovery(
     genesis: View,

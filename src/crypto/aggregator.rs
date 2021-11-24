@@ -4,8 +4,10 @@ use doomstack::Top;
 
 use std::collections::HashMap;
 
-use talk::crypto::primitives::multi::{MultiError, Signature as MultiSignature};
-use talk::crypto::{Identity, KeyCard, Statement};
+use talk::crypto::{
+    primitives::multi::{MultiError, Signature as MultiSignature},
+    Identity, KeyCard, Statement,
+};
 
 pub(crate) struct Aggregator<S: Statement> {
     view: View,

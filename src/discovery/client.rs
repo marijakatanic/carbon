@@ -6,21 +6,28 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use std::io;
-use std::sync::{Arc, Mutex as StdMutex};
-use std::time::Duration;
-use std::{borrow::BorrowMut, collections::HashMap};
+use std::{
+    borrow::BorrowMut,
+    collections::HashMap,
+    io,
+    sync::{Arc, Mutex as StdMutex},
+    time::Duration,
+};
 
-use talk::crypto::primitives::hash::Hash;
-use talk::net::traits::TcpConnect;
-use talk::net::PlainConnection;
-use talk::net::{PlainReceiver, PlainSender};
-use talk::sync::fuse::Fuse;
-use talk::sync::lenders::Lender;
+use talk::{
+    crypto::primitives::hash::Hash,
+    net::{traits::TcpConnect, PlainConnection, PlainReceiver, PlainSender},
+    sync::{fuse::Fuse, lenders::Lender},
+};
 
-use tokio::sync::watch::{Receiver, Sender};
-use tokio::sync::{watch, Mutex as TokioMutex};
-use tokio::time;
+use tokio::{
+    sync::{
+        watch,
+        watch::{Receiver, Sender},
+        Mutex as TokioMutex,
+    },
+    time,
+};
 
 use zebra::database::{Collection, CollectionTransaction, Family};
 

@@ -1,10 +1,8 @@
 use crate::discovery::Mode;
 
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
-use talk::time::sleep_schedules::CappedExponential;
-use talk::time::SleepSchedule;
+use talk::time::{sleep_schedules::CappedExponential, SleepSchedule};
 
 #[derive(Debug, Clone)]
 pub(crate) struct ClientSettings {

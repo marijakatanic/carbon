@@ -6,21 +6,27 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+};
 
-use talk::crypto::primitives::hash::Hash;
-use talk::net::PlainConnection;
-use talk::sync::fuse::Fuse;
+use talk::{crypto::primitives::hash::Hash, net::PlainConnection, sync::fuse::Fuse};
 
-use tokio::io;
-use tokio::net::{TcpListener, ToSocketAddrs};
-use tokio::sync::broadcast;
-use tokio::sync::broadcast::error::RecvError as BroadcastRecvError;
-use tokio::sync::broadcast::{Receiver as BroadcastReceiver, Sender as BroadcastSender};
-use tokio::sync::watch;
-use tokio::sync::watch::{Receiver as WatchReceiver, Sender as WatchSender};
+use tokio::{
+    io,
+    net::{TcpListener, ToSocketAddrs},
+    sync::{
+        broadcast,
+        broadcast::{
+            error::RecvError as BroadcastRecvError, Receiver as BroadcastReceiver,
+            Sender as BroadcastSender,
+        },
+        watch,
+        watch::{Receiver as WatchReceiver, Sender as WatchSender},
+    },
+};
 
 use zebra::database::{Collection, CollectionStatus, CollectionTransaction, Family, Question};
 

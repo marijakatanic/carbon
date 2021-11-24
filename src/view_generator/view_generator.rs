@@ -12,21 +12,28 @@ use crate::{
     },
 };
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::future;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    future,
+    sync::{Arc, Mutex},
+};
 
-use talk::broadcast::BestEffort;
-use talk::crypto::primitives::hash::Hash;
-use talk::crypto::primitives::multi::Signature as MultiSignature;
-use talk::crypto::KeyChain;
-use talk::link::context::{ConnectDispatcher, ListenDispatcher};
-use talk::net::{Connector, Listener};
-use talk::sync::fuse::Fuse;
-use talk::unicast::{Acknowledgement, PushSettings, Receiver, Sender};
+use talk::{
+    broadcast::BestEffort,
+    crypto::{
+        primitives::{hash::Hash, multi::Signature as MultiSignature},
+        KeyChain,
+    },
+    link::context::{ConnectDispatcher, ListenDispatcher},
+    net::{Connector, Listener},
+    sync::fuse::Fuse,
+    unicast::{Acknowledgement, PushSettings, Receiver, Sender},
+};
 
-use tokio::sync::oneshot;
-use tokio::sync::oneshot::{Receiver as OneshotReceiver, Sender as OneshotSender};
+use tokio::sync::{
+    oneshot,
+    oneshot::{Receiver as OneshotReceiver, Sender as OneshotSender},
+};
 
 type ProposalInlet = OneshotSender<ViewLatticeElement>;
 type ProposalOutlet = OneshotReceiver<ViewLatticeElement>;

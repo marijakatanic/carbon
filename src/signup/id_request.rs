@@ -7,9 +7,10 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use serde::{Deserialize, Serialize};
 
-use talk::crypto::primitives::hash::Hash;
-use talk::crypto::primitives::work::Work;
-use talk::crypto::{Identity, KeyCard, KeyChain, Statement};
+use talk::crypto::{
+    primitives::{hash::Hash, work::Work},
+    Identity, KeyCard, KeyChain, Statement,
+};
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct IdRequest {

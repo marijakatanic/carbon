@@ -5,8 +5,7 @@ mod store;
 mod transition;
 mod view;
 
-use store::FAMILY;
-use store::VIEWS;
+use store::{FAMILY, VIEWS};
 
 #[cfg(test)]
 pub(crate) mod test;

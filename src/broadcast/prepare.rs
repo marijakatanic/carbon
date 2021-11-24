@@ -2,8 +2,7 @@ use crate::crypto::Header;
 
 use serde::{Deserialize, Serialize};
 
-use talk::crypto::primitives::hash::Hash;
-use talk::crypto::Statement;
+use talk::crypto::{primitives::hash::Hash, Statement};
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Prepare {

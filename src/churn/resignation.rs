@@ -7,9 +7,10 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use serde::{Deserialize, Serialize};
 
-use talk::crypto::primitives::hash::Hash;
-use talk::crypto::primitives::sign::Signature;
-use talk::crypto::{KeyCard, KeyChain, Statement as CryptoStatement};
+use talk::crypto::{
+    primitives::{hash::Hash, sign::Signature},
+    KeyCard, KeyChain, Statement as CryptoStatement,
+};
 
 #[derive(Clone, Serialize)]
 #[serde(into = "ResignationClaim")]

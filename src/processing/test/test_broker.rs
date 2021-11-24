@@ -5,10 +5,11 @@ use crate::{
     view::View,
 };
 
-use talk::crypto::KeyChain;
-use talk::link::context::ConnectDispatcher;
-use talk::net::test::TestConnector;
-use talk::net::Connector;
+use talk::{
+    crypto::KeyChain,
+    link::context::ConnectDispatcher,
+    net::{test::TestConnector, Connector},
+};
 
 pub(crate) struct TestBroker {
     keychain: KeyChain,

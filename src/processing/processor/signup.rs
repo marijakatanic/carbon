@@ -1,23 +1,21 @@
 use crate::{
     database::Database,
-    processing::Processor,
-    processing::{SignupRequest, SignupResponse},
+    processing::{Processor, SignupRequest, SignupResponse},
     signup::{IdAllocation, IdRequest},
     view::View,
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use rand;
-use rand::seq::IteratorRandom;
+use rand::{self, seq::IteratorRandom};
 
-use std::iter;
-use std::sync::Arc;
+use std::{iter, sync::Arc};
 
-use talk::crypto::{Identity, KeyChain};
-use talk::net::{Listener, SecureConnection};
-use talk::sync::fuse::Fuse;
-use talk::sync::voidable::Voidable;
+use talk::{
+    crypto::{Identity, KeyChain},
+    net::{Listener, SecureConnection},
+    sync::{fuse::Fuse, voidable::Voidable},
+};
 
 #[derive(Doom)]
 enum ServeSignupError {

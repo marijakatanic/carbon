@@ -9,13 +9,17 @@ use doomstack::{Doom, Top};
 
 use std::sync::Arc;
 
-use talk::crypto::KeyChain;
-use talk::net::{Connector, Listener};
-use talk::sync::fuse::Fuse;
-use talk::unicast::{Receiver, Sender};
+use talk::{
+    crypto::KeyChain,
+    net::{Connector, Listener},
+    sync::fuse::Fuse,
+    unicast::{Receiver, Sender},
+};
 
-use tokio::sync::oneshot;
-use tokio::sync::oneshot::{Receiver as OneshotReceiver, Sender as OneshotSender};
+use tokio::sync::{
+    oneshot,
+    oneshot::{Receiver as OneshotReceiver, Sender as OneshotSender},
+};
 
 type ProposalInlet<Element> = OneshotSender<(Element, ResultInlet)>;
 type ProposalOutlet<Element> = OneshotReceiver<(Element, ResultInlet)>;

@@ -4,9 +4,10 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use serde::{Deserialize, Serialize};
 
-use talk::crypto::primitives::multi::Signature as MultiSignature;
-use talk::crypto::primitives::sign::Signature;
-use talk::crypto::{KeyCard, KeyChain, Statement};
+use talk::crypto::{
+    primitives::{multi::Signature as MultiSignature, sign::Signature},
+    KeyCard, KeyChain, Statement,
+};
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Rogue {

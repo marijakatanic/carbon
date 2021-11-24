@@ -5,12 +5,15 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use serde::de;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-use talk::crypto::primitives::hash::Hash;
-use talk::crypto::primitives::multi::{MultiError, Signature as MultiSignature};
-use talk::crypto::{KeyCard, KeyChain, Statement as CryptoStatement};
+use talk::crypto::{
+    primitives::{
+        hash::Hash,
+        multi::{MultiError, Signature as MultiSignature},
+    },
+    KeyCard, KeyChain, Statement as CryptoStatement,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(remote = "Self")]

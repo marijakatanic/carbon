@@ -4,8 +4,7 @@ use crate::{
     view::{test::InstallGenerator, View},
 };
 
-use talk::crypto::KeyChain;
-use talk::net::test::System as NetSystem;
+use talk::{crypto::KeyChain, net::test::System as NetSystem};
 
 pub(crate) struct System {
     pub view: View,

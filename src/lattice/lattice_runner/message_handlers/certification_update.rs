@@ -7,8 +7,7 @@ use doomstack::{Doom, Top};
 
 use std::collections::BTreeSet;
 
-use talk::crypto::KeyCard;
-use talk::unicast::Acknowledger;
+use talk::{crypto::KeyCard, unicast::Acknowledger};
 
 impl<Instance, Element> LatticeRunner<Instance, Element>
 where

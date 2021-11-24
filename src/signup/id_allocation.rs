@@ -8,9 +8,10 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use serde::{Deserialize, Serialize};
 
-use talk::crypto::primitives::hash::Hash;
-use talk::crypto::primitives::sign::Signature;
-use talk::crypto::{Identity, KeyChain, Statement};
+use talk::crypto::{
+    primitives::{hash::Hash, sign::Signature},
+    Identity, KeyChain, Statement,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct IdAllocation {

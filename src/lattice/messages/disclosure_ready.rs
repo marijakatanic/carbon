@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use talk::crypto::primitives::hash::Hash;
-use talk::crypto::Identity;
+use talk::crypto::{primitives::hash::Hash, Identity};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(in crate::lattice) enum DisclosureReady<Element> {

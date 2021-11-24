@@ -5,9 +5,7 @@ use crate::lattice::{
 
 use doomstack::{here, ResultExt, Top};
 
-use talk::broadcast::BestEffort;
-use talk::crypto::KeyCard;
-use talk::unicast::Acknowledger;
+use talk::{broadcast::BestEffort, crypto::KeyCard, unicast::Acknowledger};
 
 impl<Instance, Element> LatticeRunner<Instance, Element>
 where

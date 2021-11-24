@@ -6,10 +6,7 @@ use crate::{
     view_generator::ViewGenerator,
 };
 
-use std::iter::Iterator;
-use std::net::Ipv4Addr;
-use std::sync::Arc;
-use std::{collections::BTreeSet, iter};
+use std::{collections::BTreeSet, iter, iter::Iterator, net::Ipv4Addr, sync::Arc};
 
 use talk::net::test::System;
 

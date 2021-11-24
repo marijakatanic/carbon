@@ -2,8 +2,7 @@ use crate::view::{Change, View};
 
 use lazy_static::lazy_static;
 
-use std::collections::HashMap;
-use std::sync::Mutex;
+use std::{collections::HashMap, sync::Mutex};
 
 use talk::crypto::primitives::hash::Hash;
 

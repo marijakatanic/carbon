@@ -3,9 +3,7 @@ use crate::{
     view::test::InstallGenerator,
 };
 
-use std::iter;
-use std::iter::Iterator;
-use std::net::Ipv4Addr;
+use std::{iter, iter::Iterator, net::Ipv4Addr};
 
 use talk::net::test::TcpProxy;
 

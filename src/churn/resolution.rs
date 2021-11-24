@@ -8,8 +8,7 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use serde::{Deserialize, Serialize};
 
-use talk::crypto::primitives::hash::Hash;
-use talk::crypto::Statement as CryptoStatement;
+use talk::crypto::{primitives::hash::Hash, Statement as CryptoStatement};
 
 #[derive(Clone, Serialize)]
 #[serde(into = "ResolutionClaim")]

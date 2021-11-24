@@ -6,8 +6,7 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use serde::{Deserialize, Serialize};
 
-use talk::crypto::primitives::multi::Signature as MultiSignature;
-use talk::crypto::{Identity, Statement};
+use talk::crypto::{primitives::multi::Signature as MultiSignature, Identity, Statement};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Certificate {

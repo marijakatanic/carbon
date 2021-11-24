@@ -9,13 +9,17 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use std::collections::{BTreeSet, HashMap, HashSet};
-use std::sync::Arc;
+use std::{
+    collections::{BTreeSet, HashMap, HashSet},
+    sync::Arc,
+};
 
-use talk::crypto::{Identity, KeyCard, KeyChain};
-use talk::sync::fuse::Fuse;
-use talk::unicast::{Acknowledgement, Acknowledger, PushSettings, Receiver, Sender};
-use talk::{broadcast::BestEffortSettings, crypto::primitives::hash::Hash};
+use talk::{
+    broadcast::BestEffortSettings,
+    crypto::{primitives::hash::Hash, Identity, KeyCard, KeyChain},
+    sync::fuse::Fuse,
+    unicast::{Acknowledgement, Acknowledger, PushSettings, Receiver, Sender},
+};
 
 use tokio::sync::oneshot::{Receiver as OneshotReceiver, Sender as OneshotSender};
 

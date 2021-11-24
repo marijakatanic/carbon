@@ -5,13 +5,12 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use std::collections::hash_map::Entry;
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{
+    collections::{hash_map::Entry, BTreeMap},
+    sync::Arc,
+};
 
-use talk::crypto::primitives::hash::Hash;
-use talk::crypto::Identity;
-use talk::crypto::KeyCard;
+use talk::crypto::{primitives::hash::Hash, Identity, KeyCard};
 
 use zebra::database::{Collection, CollectionTransaction};
 

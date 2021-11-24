@@ -7,8 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use std::collections::BTreeSet;
 
-use talk::crypto::primitives::hash::Hash;
-use talk::crypto::Statement;
+use talk::crypto::{primitives::hash::Hash, Statement};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct Decision<Instance> {

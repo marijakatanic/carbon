@@ -8,8 +8,7 @@ mod message;
 mod messages;
 
 use lattice_runner::LatticeRunner;
-use message::Message;
-use message::MessageError;
+use message::{Message, MessageError};
 
 #[allow(unused_imports)]
 pub(crate) use decision::Decision;

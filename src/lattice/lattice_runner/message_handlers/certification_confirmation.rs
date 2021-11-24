@@ -5,8 +5,7 @@ use crate::lattice::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use talk::crypto::KeyCard;
-use talk::unicast::Acknowledger;
+use talk::{crypto::KeyCard, unicast::Acknowledger};
 
 impl<Instance, Element> LatticeRunner<Instance, Element>
 where

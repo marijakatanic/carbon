@@ -9,9 +9,7 @@ use crate::{
 
 use std::collections::BTreeSet;
 
-use talk::broadcast::BestEffort;
-use talk::crypto::primitives::hash::Hash;
-use talk::sync::fuse::Fuse;
+use talk::{broadcast::BestEffort, crypto::primitives::hash::Hash, sync::fuse::Fuse};
 
 impl<Instance, Element> LatticeRunner<Instance, Element>
 where

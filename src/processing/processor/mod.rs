@@ -2,11 +2,12 @@ use crate::{crypto::Identify, database::Database, view::View};
 
 use std::sync::Arc;
 
-use talk::crypto::KeyChain;
-use talk::link::context::{ConnectDispatcher, ListenDispatcher};
-use talk::net::{Connector, Listener};
-use talk::sync::fuse::Fuse;
-use talk::sync::voidable::Voidable;
+use talk::{
+    crypto::KeyChain,
+    link::context::{ConnectDispatcher, ListenDispatcher},
+    net::{Connector, Listener},
+    sync::{fuse::Fuse, voidable::Voidable},
+};
 
 pub(crate) struct Processor {
     database: Arc<Voidable<Database>>,

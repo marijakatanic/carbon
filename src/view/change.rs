@@ -4,9 +4,10 @@ use serde::{Deserialize, Serialize};
 
 use std::hash::Hash as StdHash;
 
-use talk::crypto::primitives::hash;
-use talk::crypto::primitives::hash::Hash;
-use talk::crypto::KeyCard;
+use talk::crypto::{
+    primitives::{hash, hash::Hash},
+    KeyCard,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, StdHash, Serialize, Deserialize)]
 pub(crate) enum Change {
