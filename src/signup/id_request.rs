@@ -62,15 +62,15 @@ impl IdRequest {
     pub fn view(&self) -> Hash {
         self.request.view
     }
-    
+
     pub fn allocator(&self) -> Identity {
         self.request.allocator
     }
 
-    pub fn client(&self) -> Identity {
-        self.request.client.identity()
+    pub fn client(&self) -> KeyCard {
+        self.request.client.clone()
     }
-    
+
     pub fn validate(&self) -> Result<(), Top<RequestIdError>> {
         let view = View::get(self.request.view)
             .ok_or(RequestIdError::UnknownView.into_top())

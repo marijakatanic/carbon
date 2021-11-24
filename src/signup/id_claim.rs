@@ -7,7 +7,7 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use serde::{Deserialize, Serialize};
 
-use talk::crypto::{primitives::hash::Hash, Identity};
+use talk::crypto::{primitives::hash::Hash, KeyCard};
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct IdClaim {
@@ -39,7 +39,7 @@ impl IdClaim {
         self.allocation.id()
     }
 
-    pub fn client(&self) -> Identity {
+    pub fn client(&self) -> KeyCard {
         self.request.client()
     }
 

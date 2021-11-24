@@ -33,9 +33,9 @@ pub(crate) enum IdAllocationError {
 impl IdAllocation {
     pub fn new(keychain: &KeyChain, request: &IdRequest, id: Id) -> Self {
         let view = request.view();
-        let identity = request.client();
+        let client = request.client().identity();
 
-        let allocation = Allocation { view, id, client: identity };
+        let allocation = Allocation { view, id, client };
         let signature = keychain.sign(&allocation).unwrap();
 
         IdAllocation { id, signature }
@@ -53,14 +53,17 @@ impl IdAllocation {
         let allocation = Allocation {
             view: request.view(),
             id: self.id,
-            client: request.client(),
+            client: request.client().identity(),
         };
 
         self.signature
             .verify(&keycard, &allocation)
             .pot(IdAllocationError::InvalidSignature, here!())?;
 
-        if !view.allocation_range(request.allocator()).contains(&self.id) {
+        if !view
+            .allocation_range(request.allocator())
+            .contains(&self.id)
+        {
             return IdAllocationError::IdOutOfRange.fail().spot(here!());
         }
 

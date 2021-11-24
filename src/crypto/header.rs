@@ -14,6 +14,7 @@ pub(crate) enum Header {
 
     IdRequest = 5,
     IdAllocation = 6,
+    IdAssignment = 7,
 
-    Prepare = 7,
+    Prepare = 8,
 }
