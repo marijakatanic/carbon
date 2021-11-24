@@ -1,8 +1,4 @@
-use crate::{
-    account::Id,
-    crypto::{Header, Identify},
-    view::View,
-};
+use crate::{account::Id, crypto::Header, signup::IdRequest, view::View};
 
 use doomstack::{here, Doom, ResultExt, Top};
 
@@ -15,8 +11,7 @@ use talk::crypto::{
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct IdAllocation {
-    assigner: Identity,
-    allocation: Allocation,
+    id: Id,
     signature: Signature,
 }
 
@@ -29,10 +24,6 @@ struct Allocation {
 
 #[derive(Doom)]
 pub(crate) enum IdAllocationError {
-    #[doom(description("Foreign view"))]
-    ForeignView,
-    #[doom(description("Foreign assigner"))]
-    ForeignAssigner,
     #[doom(description("Invalid signature"))]
     InvalidSignature,
     #[doom(description("Assigned `Id` is out of the assigner's allocation range"))]
@@ -40,56 +31,36 @@ pub(crate) enum IdAllocationError {
 }
 
 impl IdAllocation {
-    pub fn new(keychain: &KeyChain, view: &View, id: Id, identity: Identity) -> Self {
-        let assigner = keychain.keycard().identity();
+    pub fn new(keychain: &KeyChain, request: &IdRequest, id: Id) -> Self {
+        let view = request.view();
+        let identity = request.identity();
 
-        let view = view.identifier();
         let allocation = Allocation { view, id, identity };
-
         let signature = keychain.sign(&allocation).unwrap();
 
-        IdAllocation {
-            assigner,
-            allocation,
-            signature,
-        }
-    }
-
-    pub fn assigner(&self) -> Identity {
-        self.assigner
-    }
-
-    pub fn view(&self) -> Hash {
-        self.allocation.view
+        IdAllocation { id, signature }
     }
 
     pub fn id(&self) -> Id {
-        self.allocation.id
+        self.id
     }
 
-    pub fn identity(&self) -> Identity {
-        self.allocation.identity
-    }
+    // In order to avoid panics, `request` must have been validated beforehand
+    pub fn validate(&self, request: &IdRequest) -> Result<(), Top<IdAllocationError>> {
+        let view = View::get(request.view()).unwrap();
+        let keycard = view.members().get(&request.assigner()).unwrap();
 
-    pub fn validate(&self, view: &View) -> Result<(), Top<IdAllocationError>> {
-        if self.allocation.view != view.identifier() {
-            return IdAllocationError::ForeignView.fail().spot(here!());
-        }
-
-        let keycard = view
-            .members()
-            .get(&self.assigner)
-            .ok_or(IdAllocationError::ForeignAssigner.into_top())
-            .spot(here!())?;
+        let allocation = Allocation {
+            view: request.view(),
+            id: self.id,
+            identity: request.identity(),
+        };
 
         self.signature
-            .verify(&keycard, &self.allocation)
+            .verify(&keycard, &allocation)
             .pot(IdAllocationError::InvalidSignature, here!())?;
 
-        if !view
-            .allocation_range(self.assigner)
-            .contains(&self.allocation.id)
-        {
+        if !view.allocation_range(request.assigner()).contains(&self.id) {
             return IdAllocationError::IdOutOfRange.fail().spot(here!());
         }
 
@@ -123,10 +94,11 @@ mod tests {
             .cloned()
             .unwrap();
 
-        let user = KeyChain::random().keycard().identity();
+        let user = KeyChain::random();
+        let id_request = IdRequest::new(&user, &view, assigner.keycard().identity());
 
-        let id_allocation = IdAllocation::new(&assigner, &view, 0, user);
-        id_allocation.validate(&view).unwrap();
+        let id_allocation = IdAllocation::new(&assigner, &id_request, 0);
+        id_allocation.validate(&id_request).unwrap();
     }
 
     #[test]
@@ -144,9 +116,10 @@ mod tests {
             .cloned()
             .unwrap();
 
-        let user = KeyChain::random().keycard().identity();
+        let user = KeyChain::random();
+        let id_request = IdRequest::new(&user, &view, assigner.keycard().identity());
 
-        let id_allocation = IdAllocation::new(&assigner, &view, 0, user);
-        assert!(id_allocation.validate(&view).is_err());
+        let id_allocation = IdAllocation::new(&assigner, &id_request, 0);
+        assert!(id_allocation.validate(&id_request).is_err());
     }
 }

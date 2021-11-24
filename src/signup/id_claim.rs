@@ -1,35 +1,38 @@
-use crate::{account::Id, crypto::Rogue, signup::IdAllocation, view::View};
+use crate::{
+    account::Id,
+    signup::{IdAllocation, IdRequest},
+};
 
 use doomstack::{here, Doom, ResultExt, Top};
 
 use serde::{Deserialize, Serialize};
 
-use talk::crypto::{Identity, KeyCard};
+use talk::crypto::{primitives::hash::Hash, Identity};
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct IdClaim {
-    keycard: KeyCard,
+    request: IdRequest,
     allocation: IdAllocation,
-    rogue: Rogue,
 }
 
 #[derive(Doom)]
 pub(crate) enum IdClaimError {
-    #[doom(description("`KeyCard` mismatch"))]
-    KeyCardMismatch,
-    #[doom(description("Invalid `IdAllocation`"))]
-    InvalidIdAllocation,
-    #[doom(description("Rogue-safety proof invalid"))]
-    RogueInvalid,
+    #[doom(description("`IdRequest` invalid"))]
+    IdRequestInvalid,
+    #[doom(description("`IdAllocation` invalid"))]
+    IdAllocationInvalid,
 }
 
 impl IdClaim {
-    pub fn new(keycard: KeyCard, allocation: IdAllocation, rogue: Rogue) -> Self {
+    pub fn new(request: IdRequest, allocation: IdAllocation) -> Self {
         IdClaim {
-            keycard,
+            request,
             allocation,
-            rogue,
         }
+    }
+
+    pub fn view(&self) -> Hash {
+        self.request.view()
     }
 
     pub fn id(&self) -> Id {
@@ -37,21 +40,17 @@ impl IdClaim {
     }
 
     pub fn identity(&self) -> Identity {
-        self.allocation.identity()
+        self.request.identity()
     }
 
-    pub fn validate(&self, view: &View) -> Result<(), Top<IdClaimError>> {
-        if self.keycard.identity() != self.allocation.identity() {
-            return IdClaimError::KeyCardMismatch.fail().spot(here!());
-        }
+    pub fn validate(&self) -> Result<(), Top<IdClaimError>> {
+        self.request
+            .validate()
+            .pot(IdClaimError::IdRequestInvalid, here!())?;
 
         self.allocation
-            .validate(view)
-            .pot(IdClaimError::InvalidIdAllocation, here!())?;
-
-        self.rogue
-            .validate(&self.keycard)
-            .pot(IdClaimError::RogueInvalid, here!())?;
+            .validate(&self.request)
+            .pot(IdClaimError::IdAllocationInvalid, here!())?;
 
         Ok(())
     }

@@ -63,7 +63,7 @@ impl Processor {
         mut connection: SecureConnection,
     ) -> Result<(), Top<ServeSignupError>> {
         let identity = keychain.keycard().identity();
-        
+
         loop {
             let request = connection
                 .receive::<SignupRequest>()
@@ -146,7 +146,7 @@ impl Processor {
             }
         };
 
-        let allocation = IdAllocation::new(&keychain, &view, id, request.identity());
+        let allocation = IdAllocation::new(&keychain, &request, id);
 
         database
             .signup
@@ -163,7 +163,7 @@ impl Processor {
 mod tests {
     use super::*;
 
-    use crate::{crypto::Identify, processing::test::System};
+    use crate::processing::test::System;
 
     #[tokio::test]
     async fn priority() {
@@ -178,7 +178,7 @@ mod tests {
         let client_keychain = KeyChain::random();
         let id_request = IdRequest::new(&client_keychain, &view, assigner_identity);
 
-        let response = brokers[0].id_requests(vec![id_request]).await;
+        let response = brokers[0].id_requests(vec![id_request.clone()]).await;
 
         let id_allocation = match response {
             SignupResponse::IdAllocations(mut allocations) => {
@@ -187,16 +187,7 @@ mod tests {
             } // _ => panic!("unexpected response"),
         };
 
-        assert_eq!(id_allocation.assigner(), assigner_identity);
-
-        assert_eq!(id_allocation.view().identifier(), view.identifier());
+        id_allocation.validate(&id_request).unwrap();
         assert!(id_allocation.id() <= u32::MAX as u64);
-
-        assert_eq!(
-            id_allocation.identity(),
-            client_keychain.keycard().identity()
-        );
-
-        id_allocation.validate(&view).unwrap();
     }
 }

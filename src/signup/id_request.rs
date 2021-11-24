@@ -12,14 +12,14 @@ use talk::crypto::{
     Identity, KeyCard, KeyChain, Statement,
 };
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct IdRequest {
     request: Request,
     work: Work,
     rogue: Rogue,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 struct Request {
     keycard: KeyCard,
     view: Hash,
@@ -28,6 +28,10 @@ struct Request {
 
 #[derive(Doom)]
 pub(crate) enum RequestIdError {
+    #[doom(description("View is unknown"))]
+    UnknownView,
+    #[doom(description("Assigner is not a member of view"))]
+    ForeignAssigner,
     #[doom(description("Work invalid"))]
     WorkInvalid,
     #[doom(description("Rogue-safety proof invalid"))]
@@ -68,6 +72,14 @@ impl IdRequest {
     }
 
     pub fn validate(&self) -> Result<(), Top<RequestIdError>> {
+        let view = View::get(self.request.view)
+            .ok_or(RequestIdError::UnknownView.into_top())
+            .spot(here!())?;
+
+        if !view.members().contains_key(&self.request.assigner) {
+            return RequestIdError::ForeignAssigner.fail().spot(here!());
+        }
+
         self.work
             .verify(10, &self.request)
             .pot(RequestIdError::WorkInvalid, here!())?;
