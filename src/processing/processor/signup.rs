@@ -31,7 +31,7 @@ enum ServeSignupError {
 
 impl Processor {
     pub(in crate::processing) async fn signup<L>(
-        keychain: Arc<KeyChain>,
+        keychain: KeyChain,
         view: View,
         database: Arc<Voidable<Database>>,
         mut listener: L,
@@ -54,7 +54,7 @@ impl Processor {
     }
 
     async fn serve_signup(
-        keychain: Arc<KeyChain>,
+        keychain: KeyChain,
         view: View,
         database: Arc<Voidable<Database>>,
         mut connection: SecureConnection,

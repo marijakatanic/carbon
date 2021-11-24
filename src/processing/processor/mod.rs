@@ -15,7 +15,7 @@ pub(crate) struct Processor {
 
 impl Processor {
     pub fn new<C, L>(
-        keychain: Arc<KeyChain>,
+        keychain: KeyChain,
         view: View,
         database: Database,
         connector: C,
