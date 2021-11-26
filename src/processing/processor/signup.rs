@@ -2,7 +2,7 @@ use crate::{
     crypto::Identify,
     database::Database,
     processing::{Processor, SignupRequest, SignupResponse},
-    signup::{IdAllocation, IdAssignment, IdRequest},
+    signup::{IdAllocation, IdAssignment, IdClaim, IdRequest},
     view::View,
 };
 
@@ -130,12 +130,12 @@ impl Processor {
                                 if stored.client() == claim.client() {
                                     // Double-inserts are harmless
                                     let _ = transaction.insert(claim.id());
-                                    Ok(Some(IdAssignment::certify(&keychain, &claim)))
+                                    Ok(Ok(IdAssignment::certify(&keychain, &claim)))
                                 } else {
-                                    Ok(None) // Already claimed by another identity
+                                    Ok(Err(stored.clone())) // Already claimed by another identity
                                 }
                             })
-                            .collect::<Result<Vec<Option<MultiSignature>>, Top<ServeSignupError>>>(
+                            .collect::<Result<Vec<Result<MultiSignature, IdClaim>>, Top<ServeSignupError>>>(
                             );
 
                         // In order to keep `claims` in sync with `claimed`, `transaction` is
@@ -211,9 +211,11 @@ impl Processor {
 
 #[cfg(test)]
 mod tests {
+    use std::net::Ipv4Addr;
+
     use super::*;
 
-    use crate::processing::test::System;
+    use crate::{discovery::Client, processing::test::System};
 
     #[tokio::test]
     async fn priority() {
@@ -226,11 +228,11 @@ mod tests {
         let allocator_identity = processors[0].0.keycard().identity();
 
         let client_keychain = KeyChain::random();
-        let id_request = IdRequest::new(&client_keychain, &view, allocator_identity);
+        let request = IdRequest::new(&client_keychain, &view, allocator_identity);
 
-        let response = brokers[0].id_requests(vec![id_request.clone()]).await;
+        let response = brokers[0].id_requests(vec![request.clone()]).await;
 
-        let id_allocation = match response {
+        let allocation = match response {
             SignupResponse::IdAllocations(mut allocations) => {
                 assert_eq!(allocations.len(), 1);
                 allocations.remove(0)
@@ -238,8 +240,8 @@ mod tests {
             _ => panic!("unexpected response"),
         };
 
-        id_allocation.validate(&id_request).unwrap();
-        assert!(id_allocation.id() <= u32::MAX as u64);
+        allocation.validate(&request).unwrap();
+        assert!(allocation.id() <= u32::MAX as u64);
     }
 
     #[tokio::test]
@@ -253,10 +255,14 @@ mod tests {
         let allocator_identity = processors[0].0.keycard().identity();
 
         let client_keychain = KeyChain::random();
-        let id_request = IdRequest::new(&client_keychain, &view, allocator_identity);
+        let request = IdRequest::new(&client_keychain, &view, allocator_identity);
 
-        let multi_sigs = brokers[0].signup(vec![id_request.clone()]).await;
+        let assignments = brokers[0].signup(vec![request.clone()]).await.unwrap();
 
-        println!("Sigs: {:?}", multi_sigs);
+        let client = Client::new(view, (Ipv4Addr::LOCALHOST, 0), Default::default());
+
+        for assignment in assignments {
+            assignment.unwrap().validate(&client).unwrap()
+        }
     }
 }

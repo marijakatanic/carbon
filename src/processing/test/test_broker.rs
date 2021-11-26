@@ -120,7 +120,7 @@ impl TestBroker {
                 let (keycard, signatures) = result?;
 
                 if signatures.len() != id_claims.len() {
-                    continue;
+                    continue; // Bad replica
                 }
 
                 if aggregators
@@ -128,11 +128,21 @@ impl TestBroker {
                     .zip(signatures)
                     .filter(|(aggregator, _)| aggregator.is_some())
                     .all(|(aggregator, signature)| match signature {
-                        None => {
-                            aggregator.take();
-                            true
+                        Err(existing_claim) => {
+                            let id = aggregator.as_ref().unwrap().id();
+                            let client = aggregator.as_ref().unwrap().keycard();
+
+                            if existing_claim.validate().is_ok()
+                                && existing_claim.id() == id
+                                && existing_claim.client() != client
+                            {
+                                aggregator.take();
+                                true
+                            } else {
+                                false // Bad replica
+                            }
                         }
-                        Some(signature) => aggregator
+                        Ok(signature) => aggregator
                             .as_mut()
                             .unwrap()
                             .add(&keycard, signature)
@@ -154,7 +164,7 @@ impl TestBroker {
         claims: Vec<IdClaim>,
         replica: KeyCard,
         connector: Arc<ContextConnector>,
-    ) -> Result<(KeyCard, Vec<Option<MultiSignature>>), Top<TestBrokerError>> {
+    ) -> Result<(KeyCard, Vec<Result<MultiSignature, IdClaim>>), Top<TestBrokerError>> {
         let mut connection = connector
             .connect(replica.identity())
             .await
