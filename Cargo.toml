@@ -16,6 +16,6 @@ rand = { version = "0.8" }
 bit-vec = { version = "0.6", features = ["serde"] }
 lazy_static = { version = "1.4.0" }
 
-talk = { git = "https://github.com/Distributed-EPFL/talk", features=[ "test_utilities" ] }
-zebra = { git = "https://github.com/Distributed-EPFL/zebra" }
+talk = { git = "https://github.com/Distributed-EPFL/talk", features=[ "test_utilities" ], rev = "484814f7" }
+zebra = { git = "https://github.com/Distributed-EPFL/zebra", branch = "dev-std-mutex" }
 doomstack = { git = "https://github.com/Distributed-EPFL/doomstack" }
