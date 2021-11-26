@@ -27,6 +27,10 @@ where
         }
     }
 
+    pub fn view(&self) -> &View {
+        &self.view
+    }
+
     pub fn statement(&self) -> &S {
         &self.statement
     }

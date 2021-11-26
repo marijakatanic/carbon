@@ -21,20 +21,17 @@ use talk::crypto::{
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct IdAssignment {
     view: Hash,
-    statement: Statement,
+    assignment: Assignment,
     certificate: Certificate,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Statement {
+struct Assignment {
     id: Id,
     keycard: KeyCard,
 }
 
-pub(crate) struct IdAssignmentAggregator {
-    view: Hash,
-    aggregator: Aggregator<Statement>,
-}
+pub(crate) struct IdAssignmentAggregator(Aggregator<Assignment>);
 
 #[derive(Doom)]
 pub(crate) enum IdAssignmentError {
@@ -47,21 +44,21 @@ pub(crate) enum IdAssignmentError {
 impl IdAssignment {
     pub fn certify(keychain: &KeyChain, claim: &IdClaim) -> MultiSignature {
         keychain
-            .multisign(&Statement {
+            .multisign(&Assignment {
                 id: claim.id(),
                 keycard: claim.client(),
             })
             .unwrap()
     }
 
-    pub fn validate(&self, client: &Client) -> Result<(), Top<IdAssignmentError>> {
-        let view = client
+    pub fn validate(&self, discovery: &Client) -> Result<(), Top<IdAssignmentError>> {
+        let view = discovery
             .view(&self.view)
             .ok_or(IdAssignmentError::ViewUnknown.into_top())
             .spot(here!())?;
 
         self.certificate
-            .verify_quorum(&view, &self.statement)
+            .verify_quorum(&view, &self.assignment)
             .pot(IdAssignmentError::CertificateInvalid, here!())?;
 
         Ok(())
@@ -70,14 +67,10 @@ impl IdAssignment {
 
 impl IdAssignmentAggregator {
     pub fn new(view: View, id: Id, keycard: KeyCard) -> Self {
-        let view_identifier = view.identifier();
-        let statement = Statement { id, keycard };
+        let statement = Assignment { id, keycard };
         let aggregator = Aggregator::new(view, statement);
 
-        IdAssignmentAggregator {
-            view: view_identifier,
-            aggregator,
-        }
+        IdAssignmentAggregator(aggregator)
     }
 
     pub fn add(
@@ -85,34 +78,34 @@ impl IdAssignmentAggregator {
         keycard: &KeyCard,
         signature: MultiSignature,
     ) -> Result<(), Top<MultiError>> {
-        self.aggregator.add(keycard, signature)
+        self.0.add(keycard, signature)
     }
 
     pub fn id(&self) -> Id {
-        self.aggregator.statement().id
+        self.0.statement().id
     }
 
     pub fn keycard(&self) -> KeyCard {
-        self.aggregator.statement().keycard.clone()
+        self.0.statement().keycard.clone()
     }
 
     pub fn multiplicity(&self) -> usize {
-        self.aggregator.multiplicity()
+        self.0.multiplicity()
     }
 
     pub fn finalize(self) -> IdAssignment {
-        let view = self.view;
-        let (statement, certificate) = self.aggregator.finalize_quorum();
+        let view = self.0.view().identifier();
+        let (assignment, certificate) = self.0.finalize_quorum();
 
         IdAssignment {
             view,
-            statement,
+            assignment,
             certificate,
         }
     }
 }
 
-impl CryptoStatement for Statement {
+impl CryptoStatement for Assignment {
     type Header = Header;
     const HEADER: Header = Header::IdAssignment;
 }
