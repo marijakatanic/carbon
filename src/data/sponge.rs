@@ -68,6 +68,11 @@ impl<Item> Sponge<Item> {
             self.notify.notified().await;
 
             let mut database = self.database.lock().unwrap();
+
+            if database.items.is_empty() {
+                continue;
+            }
+
             if database.items.len() >= self.settings.capacity
                 || database.start.elapsed() > self.settings.timeout
             {
