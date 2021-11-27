@@ -1,7 +1,7 @@
 use crate::{
     database::Database,
     processing::{
-        messages::SignupRequest,
+        messages::SignupRequest,processor_settings::SignupSettings,
         processor::signup::{errors::ServeSignupError, message_handlers},
         Processor,
     },
@@ -24,6 +24,7 @@ impl Processor {
         view: View,
         database: Arc<Voidable<Database>>,
         listener: L,
+        settings: SignupSettings
     ) where
         L: Listener,
     {
@@ -36,9 +37,10 @@ impl Processor {
             let keychain = keychain.clone();
             let view = view.clone();
             let database = database.clone();
+            let settings = settings.clone();
 
             fuse.spawn(async move {
-                let _ = Processor::serve_signup(keychain, view, database, session).await;
+                let _ = Processor::serve_signup(keychain, view, database, session, settings).await;
             });
         }
     }
@@ -48,6 +50,7 @@ impl Processor {
         view: View,
         database: Arc<Voidable<Database>>,
         mut session: Session,
+        settings: SignupSettings
     ) -> Result<(), Top<ServeSignupError>> {
         let request = session
             .receive::<SignupRequest>()
@@ -61,7 +64,7 @@ impl Processor {
 
             match request {
                 SignupRequest::IdRequests(requests) => {
-                    message_handlers::id_requests(&keychain, &view, &mut database, requests)?
+                    message_handlers::id_requests(&keychain, &view, &mut database, requests, &settings)?
                 }
 
                 SignupRequest::IdClaims(claims) => {

@@ -1,10 +1,4 @@
-use crate::{
-    crypto::Identify,
-    database::Database,
-    processing::{messages::SignupResponse, processor::signup::errors::ServeSignupError},
-    signup::{IdAllocation, IdRequest},
-    view::View,
-};
+use crate::{crypto::Identify, database::Database, processing::{messages::SignupResponse, processor::signup::errors::ServeSignupError, processor_settings::SignupSettings}, signup::{IdAllocation, IdRequest}, view::View};
 
 use doomstack::{here, Doom, ResultExt, Top};
 
@@ -19,6 +13,7 @@ pub(in crate::processing::processor::signup) fn id_requests(
     view: &View,
     database: &mut Database,
     requests: Vec<IdRequest>,
+    settings: &SignupSettings
 ) -> Result<SignupResponse, Top<ServeSignupError>> {
     let identity = keychain.keycard().identity();
 
@@ -37,7 +32,7 @@ pub(in crate::processing::processor::signup) fn id_requests(
                 .validate()
                 .pot(ServeSignupError::InvalidRequest, here!())?;
 
-            Ok(allocate_id(&keychain, identity, &view, database, request))
+            Ok(allocate_id(&keychain, identity, &view, database, request, settings))
         })
         .collect::<Result<Vec<_>, Top<ServeSignupError>>>()?;
 
@@ -50,6 +45,7 @@ fn allocate_id(
     view: &View,
     database: &mut Database,
     request: IdRequest,
+    settings: &SignupSettings
 ) -> IdAllocation {
     if let Some(id) = database
         .signup
@@ -69,7 +65,7 @@ fn allocate_id(
     // after a given number of attempts (this happens with higher probability as `priority_range`
     // progressively saturates)
     let mut ranges = iter::repeat(priority_range)
-        .take(if priority_available { 30 } else { 0 }) // TODO: Add settings
+        .take(if priority_available { settings.priority_attempts } else { 0 }) 
         .chain(iter::repeat(full_range));
 
     let id = loop {

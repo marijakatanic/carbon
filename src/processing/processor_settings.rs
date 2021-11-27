@@ -2,14 +2,14 @@ use talk::link::context::ListenDispatcherSettings;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ProcessorSettings {
-    listen_dispatcher_settings: ListenDispatcherSettings,
-    signup: SignupSettings,
+    pub listen_dispatcher_settings: ListenDispatcherSettings,
+    pub signup_settings: SignupSettings,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct SignupSettings {
-    work_difficulty: u64,
-    priority_attempts: usize,
+    pub work_difficulty: u64,
+    pub priority_attempts: usize,
 }
 
 impl Default for SignupSettings {

@@ -1,4 +1,4 @@
-use crate::{crypto::Identify, database::Database, view::View};
+use crate::{crypto::Identify, database::Database, processing::ProcessorSettings, view::View};
 
 use std::sync::Arc;
 
@@ -21,6 +21,7 @@ impl Processor {
         database: Database,
         connector: C,
         listener: L,
+        settings: ProcessorSettings,
     ) -> Self
     where
         C: Connector,
@@ -29,7 +30,8 @@ impl Processor {
         let database = Arc::new(Voidable::new(database));
 
         let _connect_dispatcher = ConnectDispatcher::new(connector);
-        let listen_dispatcher = ListenDispatcher::new(listener, Default::default()); // TODO: Forward settings
+        let listen_dispatcher =
+            ListenDispatcher::new(listener, settings.listen_dispatcher_settings); // TODO: Forward settings
 
         let fuse = Fuse::new();
 
@@ -40,9 +42,17 @@ impl Processor {
 
             let signup_context = format!("{:?}::processor::signup", view.identifier());
             let signup_listener = listen_dispatcher.register(signup_context);
+            let signup_settings = settings.signup_settings;
 
             fuse.spawn(async move {
-                Processor::run_signup(keychain, view, database, signup_listener).await;
+                Processor::run_signup(
+                    keychain,
+                    view,
+                    database,
+                    signup_listener,
+                    signup_settings
+                )
+                .await;
             });
         }
 
