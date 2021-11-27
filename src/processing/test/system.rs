@@ -1,20 +1,26 @@
 use crate::{
     database::Database,
+    discovery::{self, Client, Mode, Server},
     processing::{test::TestBroker, Processor},
-    view::{test::InstallGenerator, View},
+    view::View,
 };
 
 use talk::{crypto::KeyChain, net::test::System as NetSystem};
 
 pub(crate) struct System {
     pub view: View,
+    pub discovery_server: Server,
+    pub discovery_client: Client,
     pub processors: Vec<(KeyChain, Processor)>,
     pub brokers: Vec<TestBroker>,
 }
 
 impl System {
     pub async fn setup(processors: usize, brokers: usize) -> Self {
-        let install_generator = InstallGenerator::new(processors);
+        let (install_generator, discovery_server, _, mut discovery_clients, _) =
+            discovery::test::setup(processors, processors, Mode::Full).await;
+        let discovery_client = discovery_clients.next().unwrap();
+
         let view = install_generator.view(processors);
 
         let mut processor_keychains = install_generator.keychains.clone();
@@ -58,6 +64,8 @@ impl System {
 
         System {
             view,
+            discovery_server,
+            discovery_client,
             brokers,
             processors,
         }

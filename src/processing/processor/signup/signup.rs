@@ -93,6 +93,7 @@ mod tests {
             view,
             brokers,
             processors,
+            ..
         } = System::setup(4, 1).await;
 
         let allocator = processors[0].0.keycard().identity();
@@ -112,6 +113,8 @@ mod tests {
     async fn signup() {
         let System {
             view,
+            discovery_server: _discovery_server,
+            discovery_client,
             brokers,
             processors,
         } = System::setup(4, 1).await;
@@ -124,7 +127,7 @@ mod tests {
         let mut assignments = brokers[0].signup(vec![request.clone()]).await;
         assert_eq!(assignments.len(), 1);
 
-        let _assignment = assignments.remove(0).unwrap();
-        // TODO: Validate `_assignment`
+        let assignment = assignments.remove(0).unwrap();
+        assignment.validate(&discovery_client).unwrap();
     }
 }
