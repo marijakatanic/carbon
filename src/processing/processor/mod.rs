@@ -42,7 +42,7 @@ impl Processor {
             let database = database.clone();
 
             fuse.spawn(async move {
-                Processor::signup(keychain, view, database, signup_listener).await;
+                Processor::run_signup(keychain, view, database, signup_listener).await;
             });
         }
 
