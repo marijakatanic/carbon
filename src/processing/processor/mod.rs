@@ -33,13 +33,13 @@ impl Processor {
 
         let fuse = Fuse::new();
 
-        let signup_context = format!("{:?}::processor::signup", view.identifier());
-        let signup_listener = listen_dispatcher.register(signup_context);
-
         {
             let keychain = keychain.clone();
             let view = view.clone();
             let database = database.clone();
+
+            let signup_context = format!("{:?}::processor::signup", view.identifier());
+            let signup_listener = listen_dispatcher.register(signup_context);
 
             fuse.spawn(async move {
                 Processor::run_signup(keychain, view, database, signup_listener).await;

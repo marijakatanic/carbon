@@ -49,8 +49,6 @@ impl Processor {
         database: Arc<Voidable<Database>>,
         mut session: Session,
     ) -> Result<(), Top<ServeSignupError>> {
-        let identity = keychain.keycard().identity();
-
         let request = session
             .receive::<SignupRequest>()
             .await
@@ -62,13 +60,9 @@ impl Processor {
                 .pot(ServeSignupError::DatabaseVoid, here!())?;
 
             match request {
-                SignupRequest::IdRequests(requests) => message_handlers::id_requests(
-                    &keychain,
-                    identity,
-                    &view,
-                    &mut database,
-                    requests,
-                )?,
+                SignupRequest::IdRequests(requests) => {
+                    message_handlers::id_requests(&keychain, &view, &mut database, requests)?
+                }
 
                 SignupRequest::IdClaims(claims) => {
                     message_handlers::id_claims(&keychain, &view, &mut database, claims)?

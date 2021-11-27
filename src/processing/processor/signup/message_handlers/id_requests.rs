@@ -16,11 +16,12 @@ use talk::crypto::{Identity, KeyChain};
 
 pub(in crate::processing::processor::signup) fn id_requests(
     keychain: &KeyChain,
-    identity: Identity,
     view: &View,
     database: &mut Database,
     requests: Vec<IdRequest>,
 ) -> Result<SignupResponse, Top<ServeSignupError>> {
+    let identity = keychain.keycard().identity();
+
     let allocations = requests
         .into_iter()
         .map(|request| {
@@ -36,7 +37,7 @@ pub(in crate::processing::processor::signup) fn id_requests(
                 .validate()
                 .pot(ServeSignupError::InvalidRequest, here!())?;
 
-            Ok(allocate_id(identity, &keychain, &view, database, request))
+            Ok(allocate_id(&keychain, identity, &view, database, request))
         })
         .collect::<Result<Vec<_>, Top<ServeSignupError>>>()?;
 
@@ -44,8 +45,8 @@ pub(in crate::processing::processor::signup) fn id_requests(
 }
 
 fn allocate_id(
-    identity: Identity,
     keychain: &KeyChain,
+    identity: Identity,
     view: &View,
     database: &mut Database,
     request: IdRequest,
@@ -55,6 +56,7 @@ fn allocate_id(
         .allocations
         .get(&request.client().identity())
     {
+        // `request` was previously served, repeat previous `IdAllocation`
         return IdAllocation::new(&keychain, &request, *id);
     }
 
@@ -63,6 +65,9 @@ fn allocate_id(
     let priority_available = full_range.start == 0;
     let priority_range = 0..(u32::MAX as u64);
 
+    // If `priority_available`, try picking from `priority_range` first, then expand to `full_range`
+    // after a given number of attempts (this happens with higher probability as `priority_range`
+    // progressively saturates)
     let mut ranges = iter::repeat(priority_range)
         .take(if priority_available { 30 } else { 0 }) // TODO: Add settings
         .chain(iter::repeat(full_range));
@@ -74,14 +79,24 @@ fn allocate_id(
             .choose(&mut rand::thread_rng())
             .unwrap();
 
-        // `database.signup.allocated` contains all `Id`s the local replica has assigned in
-        // the current view; because it is state-transferred, `database.signup.claims` contains
-        // all `Id`s for which an `IdAssignment` has been generated in a past view. As a result,
-        // every `Id` in `database.assignments` is necessarily in either `allocated` or `claims`:
-        // if the `IdAssignment` was collected in this view, then necessarily its `Id` is in
-        // `allocated` (as the local replica was the one that allocated the `Id`); if the
-        // `IdAssignment` was collected in a previous view, then necessarily its `Id` is in
-        // `claims` (due to the properties of state-transfer with a quorum of past members).
+        // The following hold true:
+        //  - `database.signup.claims` contains all `Id`s for which an `IdAssignment` has been
+        //    generated in a past view. This is because `claims` are state-transferred.
+        //  - `database.signup.allocated` contains all `Id`s the local replica has assigned in `view`
+        //
+        // As a result, every `Id` for which an `IdAssignment` has been generated is necessarily
+        // in `allocated` union `claims`:
+        //  - If the `IdAssignment` was collected in a previous view, then necessarily its `Id` is in
+        // `claims` (due to the properties of state-transfer with a quorum of past members, see above).
+        //  - If the `IdAssignment` was collected in `view`, then necessarily its `Id` is in
+        //    `allocated` (as the local replica was the one that allocated the `Id`)
+        //
+        // Remark: the above does not guarantee that `id` will be successfully claimed by `client`
+        // (if that was the case, consensus would be solved deterministically and asynchronously).
+        // Indeed, `id` might have been allocated in a previous view then only partially claimed.
+        // The local replica might be, e.g., the only one not to have gathered `id` in `claimed`
+        // upon state transfer. Upon seeing conflicting claims, all other replicas would then
+        // reject `client`'s claim of `id`.
         if !database.signup.claims.contains_key(&id) && !database.signup.allocated.contains(&id) {
             break id;
         }

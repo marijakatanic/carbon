@@ -38,17 +38,22 @@ pub(in crate::processing::processor::signup) fn id_claims(
                 .or_insert(claim.clone());
 
             if stored.client() == claim.client() {
-                // Double-inserts are harmless
+                // If `claim.id()` was already claimed by `claim.client()`, then
+                // `claim.id()` will be inserted twice in `database.signup.claimed`
+                // (which is harmless) and the `IdAssignment` will be repeated
                 let _ = transaction.insert(claim.id());
                 Ok(Ok(IdAssignment::certify(&keychain, &claim)))
             } else {
-                Ok(Err(stored.clone())) // Already claimed by another identity
+                // `claim.id()` was previously claimed by another client: return
+                // the relevant `IdClaim` as proof of conflict
+                Ok(Err(stored.clone()))
             }
         })
         .collect::<Result<Vec<Result<MultiSignature, IdClaim>>, Top<ServeSignupError>>>();
 
-    // In order to keep `claims` in sync with `claimed`, `transaction` is
-    // executed before bailing (if `signatures` is `Err`)
+    // In order to keep `claims` in sync with `claimed`, `transaction`
+    // must be executed before bailing (if `signatures` is `Err`)
     database.signup.claimed.execute(transaction);
+
     Ok(SignupResponse::IdAssignments(signatures?))
 }
