@@ -81,14 +81,28 @@ impl Broker {
             view.members()
                 .keys()
                 .map(|member| (*member, Sponge::new(Default::default()))) // TODO: Add settings
-                .collect(),
-        ); 
+                .collect::<HashMap<_, _>>(),
+        );
 
         let fuse = Fuse::new();
 
-        fuse.spawn(async move {
-            Broker::listen(listener, view, sponges).await;
-        });
+        {
+            let view = view.clone();
+            let sponges = sponges.clone();
+
+            fuse.spawn(async move {
+                Broker::listen(listener, view, sponges).await;
+            });
+        }
+
+        for allocator in view.members().keys().cloned() {
+            let view = view.clone();
+            let sponges = sponges.clone();
+
+            fuse.spawn(async move {
+                Broker::flush(view, sponges, allocator).await;
+            });
+        }
 
         Ok(Broker {
             address,
@@ -129,7 +143,7 @@ impl Broker {
 
         request
             .validate(SignupSettings::default().work_difficulty) // TODO: Add settings
-            .pot(ServeError::RequestInvalid, here!())?; 
+            .pot(ServeError::RequestInvalid, here!())?;
 
         if request.view() != view.identifier() {
             return ServeError::ForeignView.fail().spot(here!());
@@ -161,4 +175,23 @@ impl Broker {
 
         Ok(())
     }
+
+    async fn flush(
+        view: View,
+        sponges: Arc<HashMap<Identity, Sponge<Request>>>,
+        allocator: Identity,
+    ) {
+        let fuse = Fuse::new();
+
+        loop {
+            let requests = sponges[&allocator].flush().await;
+            let view = view.clone();
+
+            fuse.spawn(async move {
+                Broker::broker(view, allocator, requests).await;
+            });
+        }
+    }
+
+    async fn broker(view: View, allocator: Identity, requests: Vec<Request>) {}
 }
