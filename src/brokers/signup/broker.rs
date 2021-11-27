@@ -181,10 +181,11 @@ impl Broker {
         sponges: Arc<HashMap<Identity, Sponge<Request>>>,
         allocator: Identity,
     ) {
+        let sponge = sponges.get(&allocator).unwrap();
         let fuse = Fuse::new();
 
         loop {
-            let requests = sponges[&allocator].flush().await;
+            let requests = sponge.flush().await;
             let view = view.clone();
 
             fuse.spawn(async move {
