@@ -1,7 +1,10 @@
 use crate::{
     crypto::Identify,
     database::Database,
-    processing::{Processor, SignupRequest, SignupResponse},
+    processing::{
+        messages::{SignupRequest, SignupResponse},
+        Processor,
+    },
     signup::{IdAllocation, IdAssignment, IdClaim, IdRequest},
     view::View,
 };

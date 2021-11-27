@@ -1,6 +1,6 @@
 use crate::{
     crypto::Identify,
-    processing::{SignupRequest, SignupResponse},
+    processing::messages::{SignupRequest, SignupResponse},
     signup::{IdAssignment, IdAssignmentAggregator, IdClaim, IdRequest},
     view::View,
 };
