@@ -1,32 +1,22 @@
 use crate::{
     crypto::Identify,
     processing::messages::{SignupRequest, SignupResponse},
-    signup::{IdAssignment, IdAssignmentAggregator, IdClaim, IdRequest},
+    signup::{IdAllocation, IdAssignment, IdAssignmentAggregator, IdClaim, IdRequest},
     view::View,
 };
 
-use doomstack::{here, Doom, ResultExt, Top};
-
 use futures::stream::{FuturesUnordered, StreamExt};
 
-use std::sync::Arc;
-
 use talk::{
-    crypto::{primitives::multi::Signature as MultiSignature, KeyCard, KeyChain},
-    link::context::{ConnectDispatcher, Connector as ContextConnector},
-    net::{test::TestConnector, Connector},
+    crypto::{primitives::multi::Signature as MultiSignature, Identity, KeyChain},
+    link::context::ConnectDispatcher,
+    net::{test::TestConnector, SessionConnector},
 };
 
 pub(crate) struct TestBroker {
     keychain: KeyChain,
     view: View,
-    signup_connector: Arc<ContextConnector>,
-}
-
-#[derive(Doom)]
-pub(crate) enum TestBrokerError {
-    #[doom(description("Signup error"))]
-    SignupError,
+    signup_connector: SessionConnector,
 }
 
 impl TestBroker {
@@ -34,7 +24,7 @@ impl TestBroker {
         let dispatcher = ConnectDispatcher::new(connector);
 
         let signup_context = format!("{:?}::processor::signup", view.identifier());
-        let signup_connector = Arc::new(dispatcher.register(signup_context));
+        let signup_connector = SessionConnector::new(dispatcher.register(signup_context));
 
         Self {
             keychain,
@@ -43,66 +33,108 @@ impl TestBroker {
         }
     }
 
-    pub async fn id_requests(&self, id_requests: Vec<IdRequest>) -> SignupResponse {
-        assert!(id_requests.len() > 0);
-        assert!(id_requests
-            .iter()
-            .all(|id_request| id_request.view() == self.view.identifier()));
+    pub async fn id_requests(&self, requests: Vec<IdRequest>) -> Vec<IdAllocation> {
+        assert!(requests.len() > 0);
 
-        let allocator = id_requests[0].allocator();
+        assert!(requests
+            .iter()
+            .all(|request| request.view() == self.view.identifier()));
+
+        let allocator = requests[0].allocator();
 
         assert!(self.view.members().contains_key(&allocator));
-        assert!(id_requests
+
+        assert!(requests
             .iter()
-            .all(|id_request| id_request.allocator() == allocator));
+            .all(|request| request.allocator() == allocator));
 
-        let mut connection = self.signup_connector.connect(allocator).await.unwrap();
+        for request in requests.iter() {
+            request.validate().unwrap();
+        }
 
-        connection
-            .send(&SignupRequest::IdRequests(id_requests))
+        let mut session = self.signup_connector.connect(allocator).await.unwrap();
+
+        session
+            .send(&SignupRequest::IdRequests(requests))
             .await
             .unwrap();
 
-        connection.receive::<SignupResponse>().await.unwrap()
-    }
+        let response = session.receive().await.unwrap();
+        session.end();
 
-    pub async fn signup(
-        &self,
-        id_requests: Vec<IdRequest>,
-    ) -> Result<Vec<Option<IdAssignment>>, Top<TestBrokerError>> {
-        let response = self.id_requests(id_requests.clone()).await;
-
-        let allocations = match response {
+        match response {
             SignupResponse::IdAllocations(allocations) => allocations,
             _ => panic!("unexpected response"),
-        };
+        }
+    }
 
-        let id_claims = id_requests
+    pub async fn id_claims(
+        &self,
+        assigner: Identity,
+        claims: Vec<IdClaim>,
+    ) -> Vec<Result<MultiSignature, IdClaim>> {
+        assert!(claims.len() > 0);
+
+        assert!(claims
+            .iter()
+            .all(|claim| claim.view() == self.view.identifier()));
+
+        let allocator = claims[0].allocator();
+
+        assert!(self.view.members().contains_key(&allocator));
+
+        assert!(claims.iter().all(|claim| claim.allocator() == allocator));
+
+        for claim in claims.iter() {
+            claim.validate().unwrap();
+        }
+
+        let mut session = self.signup_connector.connect(assigner).await.unwrap();
+
+        session
+            .send(&SignupRequest::IdClaims(claims.clone()))
+            .await
+            .unwrap();
+
+        let response = session.receive().await.unwrap();
+        session.end();
+
+        match response {
+            SignupResponse::IdAssignments(assignments) => assignments,
+            _ => panic!("unexpected response"),
+        }
+    }
+
+    pub async fn signup(&self, requests: Vec<IdRequest>) -> Vec<Option<IdAssignment>> {
+        let allocations = self.id_requests(requests.clone()).await;
+
+        let claims = requests
             .into_iter()
-            .zip(allocations.into_iter())
+            .zip(allocations)
             .map(|(request, allocation)| {
-                allocation
-                    .validate(&request)
-                    .pot(TestBrokerError::SignupError, here!())?;
-
-                Ok(IdClaim::new(request, allocation))
+                allocation.validate(&request).unwrap();
+                IdClaim::new(request, allocation)
             })
-            .collect::<Result<Vec<IdClaim>, Top<TestBrokerError>>>()?;
+            .collect::<Vec<_>>();
 
         let mut unordered = self
             .view
             .members()
-            .values()
-            .cloned()
-            .map(|replica| {
-                let connector = self.signup_connector.clone();
-                let claims = id_claims.clone();
+            .keys()
+            .map(|assigner_identity| {
+                let assigner_keycard = self.view.members().get(assigner_identity).cloned().unwrap();
+                let claims = claims.clone();
 
-                TestBroker::process_claim(claims, replica, connector)
+                async move {
+                    (
+                        assigner_keycard,
+                        self.id_claims(*assigner_identity, claims).await,
+                    )
+                }
             })
             .collect::<FuturesUnordered<_>>();
 
-        let mut aggregators = id_claims
+        let mut aggregators = claims
             .iter()
             .map(|claim| {
                 Some(IdAssignmentAggregator::new(
@@ -113,76 +145,44 @@ impl TestBroker {
             })
             .collect::<Vec<_>>();
 
-        let mut count = 0;
+        for _ in 0..self.view.quorum() {
+            let (assigner, assignments) = unordered.next().await.unwrap();
 
-        while count < self.view.quorum() {
-            if let Some(result) = unordered.next().await {
-                let (keycard, signatures) = result?;
+            if assignments.len() != claims.len() {
+                panic!("unexpected number of assignments")
+            }
 
-                if signatures.len() != id_claims.len() {
-                    continue; // Bad replica
-                }
+            let progress = aggregators
+                .iter_mut()
+                .zip(assignments)
+                .filter(|(aggregator, _)| aggregator.is_some());
 
-                if aggregators
-                    .iter_mut()
-                    .zip(signatures)
-                    .filter(|(aggregator, _)| aggregator.is_some())
-                    .all(|(aggregator, signature)| match signature {
-                        Err(existing_claim) => {
-                            let id = aggregator.as_ref().unwrap().id();
-                            let client = aggregator.as_ref().unwrap().keycard();
-
-                            if existing_claim.validate().is_ok()
-                                && existing_claim.id() == id
-                                && existing_claim.client() != client
-                            {
-                                aggregator.take();
-                                true
-                            } else {
-                                false // Bad replica
-                            }
-                        }
-                        Ok(signature) => aggregator
+            for (aggregator, assignment) in progress {
+                match assignment {
+                    Ok(signature) => {
+                        aggregator
                             .as_mut()
                             .unwrap()
-                            .add(&keycard, signature)
-                            .is_ok(),
-                    })
-                {
-                    count += 1;
+                            .add(&assigner, signature)
+                            .unwrap();
+                    }
+                    Err(collision) => {
+                        let id = aggregator.as_ref().unwrap().id();
+                        let client = aggregator.as_ref().unwrap().keycard();
+
+                        collision.validate().unwrap();
+                        assert_eq!(collision.id(), id);
+                        assert_eq!(collision.client(), client);
+
+                        aggregator.take();
+                    }
                 }
             }
         }
 
-        Ok(aggregators
+        aggregators
             .into_iter()
             .map(|aggregator| aggregator.map(|aggregator| aggregator.finalize()))
-            .collect::<Vec<_>>())
-    }
-
-    async fn process_claim(
-        claims: Vec<IdClaim>,
-        replica: KeyCard,
-        connector: Arc<ContextConnector>,
-    ) -> Result<(KeyCard, Vec<Result<MultiSignature, IdClaim>>), Top<TestBrokerError>> {
-        let mut connection = connector
-            .connect(replica.identity())
-            .await
-            .pot(TestBrokerError::SignupError, here!())?;
-
-        connection
-            .send(&SignupRequest::IdClaims(claims.clone()))
-            .await
-            .pot(TestBrokerError::SignupError, here!())?;
-
-        let response: SignupResponse = connection
-            .receive()
-            .await
-            .pot(TestBrokerError::SignupError, here!())?;
-
-        match response {
-            SignupResponse::IdAssignments(assignments) => Ok((replica, assignments)),
-            _ => TestBrokerError::SignupError.fail().spot(here!()),
-        }
+            .collect::<Vec<_>>()
     }
 }
