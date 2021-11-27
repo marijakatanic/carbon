@@ -93,7 +93,10 @@ impl Processor {
 mod tests {
     use super::*;
 
-    use crate::{processing::test::System, signup::{IdRequest, SignupSettings}};
+    use crate::{
+        processing::test::System,
+        signup::{IdRequest, SignupSettings},
+    };
 
     #[tokio::test]
     async fn allocation_priority() {
@@ -107,7 +110,12 @@ mod tests {
         let allocator = processors[0].0.keycard().identity();
 
         let client = KeyChain::random();
-        let request = IdRequest::new(&client, &view, allocator, SignupSettings::default().work_difficulty);
+        let request = IdRequest::new(
+            &client,
+            &view,
+            allocator,
+            SignupSettings::default().work_difficulty,
+        );
 
         let mut allocations = brokers[0].id_requests(vec![request.clone()]).await;
         assert_eq!(allocations.len(), 1);
@@ -130,7 +138,12 @@ mod tests {
         let allocator = processors[0].0.keycard().identity();
 
         let client = KeyChain::random();
-        let request = IdRequest::new(&client, &view, allocator, SignupSettings::default().work_difficulty);
+        let request = IdRequest::new(
+            &client,
+            &view,
+            allocator,
+            SignupSettings::default().work_difficulty,
+        );
 
         let mut assignments = brokers[0].signup(vec![request.clone()]).await;
         assert_eq!(assignments.len(), 1);

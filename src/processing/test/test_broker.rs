@@ -90,7 +90,9 @@ impl TestBroker {
         assert!(claims.iter().all(|claim| claim.allocator() == allocator));
 
         for claim in claims.iter() {
-            claim.validate(SignupSettings::default().work_difficulty).unwrap();
+            claim
+                .validate(SignupSettings::default().work_difficulty)
+                .unwrap();
         }
 
         let mut session = self.signup_connector.connect(assigner).await.unwrap();
