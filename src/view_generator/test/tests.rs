@@ -84,6 +84,7 @@ async fn stress_simple() {
                     clients[j].clone(),
                     connectors.remove(0),
                     listeners.remove(0),
+                    Default::default(),
                 )
             })
             .collect::<Vec<_>>();

@@ -8,7 +8,7 @@ use crate::{
         messages::{SummarizationRequest, SummarizationResponse},
         view_lattice_brief::ViewLatticeBrief,
         InstallPrecursor, LatticeInstance, Message, SequenceLatticeBrief, SequenceLatticeElement,
-        ViewLatticeElement,
+        ViewGeneratorSettings, ViewLatticeElement,
     },
 };
 
@@ -54,13 +54,15 @@ impl ViewGenerator {
         discovery: Arc<DiscoveryClient>,
         connector: C,
         listener: L,
+        settings: ViewGeneratorSettings,
     ) -> Self
     where
         C: Connector,
         L: Listener,
     {
         let connect_dispatcher = ConnectDispatcher::new(connector);
-        let listen_dispatcher = ListenDispatcher::new(listener, Default::default()); // TODO: Add settings
+        let listen_dispatcher =
+            ListenDispatcher::new(listener, settings.listen_dispatcher_settings);
 
         // Setup view lattice
 
@@ -77,8 +79,8 @@ impl ViewGenerator {
             discovery.clone(),
             view_lattice_connector,
             view_lattice_listener,
-            Default::default(),
-        ); // TODO: Forward settings
+            settings.view_lattice_settings,
+        );
 
         // Setup sequence lattice
 
@@ -97,8 +99,8 @@ impl ViewGenerator {
             discovery.clone(),
             sequence_lattice_connector,
             sequence_lattice_listener,
-            Default::default(),
-        ); // TODO: Forward settings
+            settings.sequence_lattice_settings,
+        );
 
         // Setup channels and shared memory
 
@@ -107,7 +109,7 @@ impl ViewGenerator {
 
         let aggregator_slot = Arc::new(Mutex::new(None));
 
-        // Setup summarization
+        // Setup mmarization
 
         let summarization_context =
             format!("{:?}::view_generator::summarization", view.identifier(),);

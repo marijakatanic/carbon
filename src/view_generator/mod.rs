@@ -5,6 +5,7 @@ mod messages;
 mod sequence_lattice_brief;
 mod sequence_lattice_element;
 mod view_generator;
+mod view_generator_settings;
 mod view_lattice_brief;
 mod view_lattice_element;
 
@@ -21,3 +22,6 @@ use view_lattice_element::ViewLatticeElement;
 
 #[allow(unused_imports)]
 pub(crate) use view_generator::ViewGenerator;
+
+#[allow(unused_imports)]
+pub(crate) use view_generator_settings::ViewGeneratorSettings;
