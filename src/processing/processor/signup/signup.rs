@@ -3,7 +3,7 @@ use crate::{
     processing::{
         messages::SignupRequest,
         processor::signup::{errors::ServeSignupError, message_handlers},
-        processor_settings::SignupSettings,
+        processor_settings::Signup,
         Processor,
     },
     view::View,
@@ -25,7 +25,7 @@ impl Processor {
         view: View,
         database: Arc<Voidable<Database>>,
         listener: L,
-        settings: SignupSettings,
+        settings: Signup,
     ) where
         L: Listener,
     {
@@ -51,7 +51,7 @@ impl Processor {
         view: View,
         database: Arc<Voidable<Database>>,
         mut session: Session,
-        settings: SignupSettings,
+        settings: Signup,
     ) -> Result<(), Top<ServeSignupError>> {
         let request = session
             .receive::<SignupRequest>()
@@ -93,7 +93,7 @@ impl Processor {
 mod tests {
     use super::*;
 
-    use crate::{processing::test::System, signup::IdRequest};
+    use crate::{processing::test::System, signup::{IdRequest, SignupSettings}};
 
     #[tokio::test]
     async fn allocation_priority() {

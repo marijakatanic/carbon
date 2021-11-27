@@ -80,7 +80,7 @@ impl Statement for Allocation {
 mod tests {
     use super::*;
 
-    use crate::{processing::processor_settings::SignupSettings, view::test::InstallGenerator};
+    use crate::{signup::SignupSettings, view::test::InstallGenerator};
 
     #[test]
     fn correct() {
@@ -98,7 +98,12 @@ mod tests {
             .unwrap();
 
         let client = KeyChain::random();
-        let request = IdRequest::new(&client, &view, allocator.keycard().identity(), SignupSettings::default().work_difficulty);
+        let request = IdRequest::new(
+            &client,
+            &view,
+            allocator.keycard().identity(),
+            SignupSettings::default().work_difficulty,
+        );
 
         let allocation = IdAllocation::new(&allocator, &request, 0);
         allocation.validate(&request).unwrap();
@@ -120,7 +125,12 @@ mod tests {
             .unwrap();
 
         let client = KeyChain::random();
-        let request = IdRequest::new(&client, &view, allocator.keycard().identity(), SignupSettings::default().work_difficulty);
+        let request = IdRequest::new(
+            &client,
+            &view,
+            allocator.keycard().identity(),
+            SignupSettings::default().work_difficulty,
+        );
 
         let allocation = IdAllocation::new(&allocator, &request, 0);
         assert!(allocation.validate(&request).is_err());

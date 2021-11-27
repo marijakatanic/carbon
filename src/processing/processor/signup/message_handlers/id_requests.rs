@@ -3,7 +3,7 @@ use crate::{
     database::Database,
     processing::{
         messages::SignupResponse, processor::signup::errors::ServeSignupError,
-        processor_settings::SignupSettings,
+        processor_settings::Signup,
     },
     signup::{IdAllocation, IdRequest},
     view::View,
@@ -22,7 +22,7 @@ pub(in crate::processing::processor::signup) fn id_requests(
     view: &View,
     database: &mut Database,
     requests: Vec<IdRequest>,
-    settings: &SignupSettings,
+    settings: &Signup,
 ) -> Result<SignupResponse, Top<ServeSignupError>> {
     let identity = keychain.keycard().identity();
 
@@ -38,7 +38,7 @@ pub(in crate::processing::processor::signup) fn id_requests(
             }
 
             request
-                .validate(settings.work_difficulty)
+                .validate(settings.signup_settings.work_difficulty)
                 .pot(ServeSignupError::InvalidRequest, here!())?;
 
             Ok(allocate_id(
@@ -56,7 +56,7 @@ fn allocate_id(
     view: &View,
     database: &mut Database,
     request: IdRequest,
-    settings: &SignupSettings,
+    settings: &Signup,
 ) -> IdAllocation {
     if let Some(id) = database
         .signup

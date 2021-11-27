@@ -106,7 +106,7 @@ impl Statement for Request {
 mod tests {
     use super::*;
 
-    use crate::{processing::processor_settings::SignupSettings, view::test::InstallGenerator};
+    use crate::{signup::SignupSettings, view::test::InstallGenerator};
 
     #[test]
     fn correct() {
@@ -117,7 +117,14 @@ mod tests {
 
         let client = KeyChain::random();
 
-        let request = IdRequest::new(&client, &view, allocator, SignupSettings::default().work_difficulty);
-        request.validate(SignupSettings::default().work_difficulty).unwrap();
+        let request = IdRequest::new(
+            &client,
+            &view,
+            allocator,
+            SignupSettings::default().work_difficulty,
+        );
+        request
+            .validate(SignupSettings::default().work_difficulty)
+            .unwrap();
     }
 }

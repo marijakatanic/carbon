@@ -42,7 +42,7 @@ impl Processor {
 
             let signup_context = format!("{:?}::processor::signup", view.identifier());
             let signup_listener = listen_dispatcher.register(signup_context);
-            let signup_settings = settings.signup_settings;
+            let signup_settings = settings.signup;
 
             fuse.spawn(async move {
                 Processor::run_signup(keychain, view, database, signup_listener, signup_settings)

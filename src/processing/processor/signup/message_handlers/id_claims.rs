@@ -3,7 +3,7 @@ use crate::{
     database::Database,
     processing::{
         messages::SignupResponse, processor::signup::errors::ServeSignupError,
-        processor_settings::SignupSettings,
+        processor_settings::Signup,
     },
     signup::{IdAssignment, IdClaim},
     view::View,
@@ -20,7 +20,7 @@ pub(in crate::processing::processor::signup) fn id_claims(
     view: &View,
     database: &mut Database,
     claims: Vec<IdClaim>,
-    settings: &SignupSettings,
+    settings: &Signup,
 ) -> Result<SignupResponse, Top<ServeSignupError>> {
     let mut transaction = CollectionTransaction::new();
 
@@ -32,7 +32,7 @@ pub(in crate::processing::processor::signup) fn id_claims(
             }
 
             claim
-                .validate(settings.work_difficulty)
+                .validate(settings.signup_settings.work_difficulty)
                 .pot(ServeSignupError::InvalidRequest, here!())?;
 
             let stored = database
