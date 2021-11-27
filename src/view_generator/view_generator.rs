@@ -77,7 +77,8 @@ impl ViewGenerator {
             discovery.clone(),
             view_lattice_connector,
             view_lattice_listener,
-        );
+            Default::default(),
+        ); // TODO: Forward settings
 
         // Setup sequence lattice
 
@@ -96,7 +97,8 @@ impl ViewGenerator {
             discovery.clone(),
             sequence_lattice_connector,
             sequence_lattice_listener,
-        );
+            Default::default(),
+        ); // TODO: Forward settings
 
         // Setup channels and shared memory
 

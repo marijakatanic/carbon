@@ -1,7 +1,10 @@
 use crate::{
     crypto::Certificate,
     discovery::Client,
-    lattice::{Element as LatticeElement, Instance as LatticeInstance, LatticeRunner, Message},
+    lattice::{
+        Element as LatticeElement, Instance as LatticeInstance, LatticeAgreementSettings,
+        LatticeRunner, Message,
+    },
     view::View,
 };
 
@@ -55,13 +58,16 @@ where
         discovery: Arc<Client>,
         connector: C,
         listener: L,
+        settings: LatticeAgreementSettings,
     ) -> Self
     where
         C: Connector,
         L: Listener,
     {
-        let sender: Sender<Message<Element>> = Sender::new(connector, Default::default()); // TODO: Forward settings
-        let receiver: Receiver<Message<Element>> = Receiver::new(listener, Default::default()); // TODO: Forward settings
+        let sender: Sender<Message<Element>> = Sender::new(connector, settings.sender_settings);
+
+        let receiver: Receiver<Message<Element>> =
+            Receiver::new(listener, settings.receiver_settings);
 
         let (proposal_inlet, proposal_outlet) = oneshot::channel();
         let (decision_inlet, decision_outlet) = oneshot::channel();
@@ -79,6 +85,7 @@ where
                 receiver,
                 proposal_outlet,
                 decision_inlet,
+                settings.push_settings,
             );
 
             fuse.spawn(async move {

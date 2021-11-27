@@ -93,7 +93,7 @@ where
                     self.view.members().keys().cloned(),
                     Message::DisclosureReady(brief),
                     Message::DisclosureReady(expanded),
-                    self.settings.broadcast.clone(),
+                    self.configuration.broadcast.clone(),
                 );
 
                 broadcast.spawn(&self.fuse);

@@ -74,7 +74,7 @@ where
                 self.view.members().keys().cloned(),
                 Message::DisclosureEcho(brief),
                 Message::DisclosureEcho(expanded),
-                self.settings.broadcast.clone(),
+                self.configuration.broadcast.clone(),
             );
 
             broadcast.spawn(&self.fuse);

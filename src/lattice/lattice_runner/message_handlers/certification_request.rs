@@ -12,10 +12,7 @@ use doomstack::{Doom, Top};
 
 use std::collections::BTreeSet;
 
-use talk::{
-    crypto::KeyCard,
-    unicast::{Acknowledgement, Acknowledger, PushSettings},
-};
+use talk::{crypto::KeyCard, unicast::Acknowledger};
 
 impl<Instance, Element> LatticeRunner<Instance, Element>
 where
@@ -65,10 +62,7 @@ where
             self.sender.spawn_push(
                 source.identity(),
                 Message::CertificationConfirmation(message),
-                PushSettings {
-                    stop_condition: Acknowledgement::Weak,
-                    ..Default::default()
-                }, // TODO: Add settings
+                self.configuration.response.clone(),
                 &self.fuse,
             );
         } else {
@@ -89,10 +83,7 @@ where
             self.sender.spawn_push(
                 source.identity(),
                 Message::CertificationUpdate(message),
-                PushSettings {
-                    stop_condition: Acknowledgement::Weak,
-                    ..Default::default()
-                }, // TODO: Add settings
+                self.configuration.response.clone(),
                 &self.fuse,
             );
         }

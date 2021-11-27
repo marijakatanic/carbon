@@ -7,6 +7,8 @@ mod message;
 
 mod messages;
 
+pub(crate) mod lattice_agreement_settings;
+
 use lattice_runner::LatticeRunner;
 use message::{Message, MessageError};
 
@@ -24,6 +26,9 @@ pub(crate) use instance::Instance;
 
 #[allow(unused_imports)]
 pub(crate) use lattice_agreement::LatticeAgreement;
+
+#[allow(unused_imports)]
+pub(crate) use lattice_agreement_settings::LatticeAgreementSettings;
 
 #[cfg(test)]
 mod test;

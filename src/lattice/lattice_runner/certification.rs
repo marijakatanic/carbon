@@ -33,7 +33,7 @@ where
             self.sender.clone(),
             self.view.members().keys().cloned(),
             Message::CertificationRequest(message),
-            self.settings.broadcast.clone(),
+            self.configuration.broadcast.clone(),
         );
 
         let fuse = Fuse::new();

@@ -97,6 +97,7 @@ async fn lattice_run() {
                 Arc::new(client),
                 connector,
                 listener,
+                Default::default(),
             )
         })
         .collect::<Vec<_>>();

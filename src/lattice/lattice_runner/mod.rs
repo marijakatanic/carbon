@@ -2,7 +2,8 @@ use crate::{
     crypto::{Aggregator, Certificate},
     discovery::Client,
     lattice::{
-        Decision, Element as LatticeElement, Instance as LatticeInstance, Message, MessageError,
+        lattice_agreement_settings::PartialPushSettings, Decision, Element as LatticeElement,
+        Instance as LatticeInstance, Message, MessageError,
     },
     view::View,
 };
@@ -48,7 +49,7 @@ pub(in crate::lattice) struct LatticeRunner<Instance: LatticeInstance, Element: 
     proposal_outlet: ProposalOutlet<Element>,
     decision_inlet: Option<DecisionInlet<Element>>,
 
-    settings: Settings,
+    configuration: Configuration,
     fuse: Fuse,
 }
 
@@ -112,8 +113,9 @@ pub(in crate::lattice) struct CertificationDatabase<Instance: LatticeInstance> {
     fuse: Fuse,
 }
 
-struct Settings {
+struct Configuration {
     broadcast: BestEffortSettings,
+    response: PushSettings,
 }
 
 #[derive(Doom)]
@@ -138,6 +140,7 @@ where
         receiver: Receiver<Message<Element>>,
         proposal_outlet: ProposalOutlet<Element>,
         decision_inlet: DecisionInlet<Element>,
+        push_settings: PartialPushSettings,
     ) -> Self {
         let state = State::Disclosing;
 
@@ -164,13 +167,16 @@ where
             accepted_set: BTreeSet::new(),
         };
 
-        // TODO: Forward variable settings
-        let settings = Settings {
+        let configuration = Configuration {
             broadcast: BestEffortSettings {
                 push_settings: PushSettings {
                     stop_condition: Acknowledgement::Strong,
-                    ..Default::default()
+                    retry_schedule: push_settings.retry_schedule.clone(),
                 },
+            },
+            response: PushSettings {
+                stop_condition: Acknowledgement::Weak,
+                retry_schedule: push_settings.retry_schedule,
             },
         };
 
@@ -187,7 +193,7 @@ where
             receiver,
             proposal_outlet,
             decision_inlet: Some(decision_inlet),
-            settings,
+            configuration,
             fuse,
         }
     }

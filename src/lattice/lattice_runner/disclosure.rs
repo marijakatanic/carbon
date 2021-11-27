@@ -35,7 +35,7 @@ where
             self.view.members().keys().cloned(),
             Message::DisclosureSend(brief),
             Message::DisclosureSend(expanded),
-            self.settings.broadcast.clone(),
+            self.configuration.broadcast.clone(),
         );
 
         broadcast.spawn(&self.fuse);
