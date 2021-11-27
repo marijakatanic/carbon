@@ -19,7 +19,7 @@ use std::{
 };
 
 use talk::{
-    broadcast::BestEffort,
+    broadcast::{BestEffort, BestEffortSettings},
     crypto::{
         primitives::{hash::Hash, multi::Signature as MultiSignature},
         KeyChain,
@@ -27,7 +27,7 @@ use talk::{
     link::context::{ConnectDispatcher, ListenDispatcher},
     net::{Connector, Listener},
     sync::fuse::Fuse,
-    unicast::{Acknowledgement, PushSettings, Receiver, Sender},
+    unicast::{Acknowledgement, PartialPushSettings, PushSettings, Receiver, Sender},
 };
 
 use tokio::sync::{
@@ -117,11 +117,17 @@ impl ViewGenerator {
         let summarization_connector = connect_dispatcher.register(summarization_context.clone());
         let summarization_listener = listen_dispatcher.register(summarization_context);
 
-        let summarization_sender =
-            Sender::<Message>::new(summarization_connector, Default::default()); // TODO: Add settings
+        let summarization_sender = Sender::<Message>::new(
+            summarization_connector,
+            settings.summarization_sender_settings,
+        );
 
-        let summarization_receiver =
-            Receiver::<Message>::new(summarization_listener, Default::default()); // TODO: Add settings
+        let summarization_receiver = Receiver::<Message>::new(
+            summarization_listener,
+            settings.summarization_receiver_settings,
+        );
+
+        let push_settings = settings.push_settings;
 
         let fuse = Fuse::new();
 
@@ -132,6 +138,7 @@ impl ViewGenerator {
             let discovery = discovery.clone();
             let summarization_sender = summarization_sender.clone();
             let aggregator_slot = aggregator_slot.clone();
+            let push_settings = push_settings.clone();
 
             fuse.spawn(async move {
                 ViewGenerator::agree(
@@ -142,6 +149,7 @@ impl ViewGenerator {
                     proposal_outlet,
                     aggregator_slot,
                     summarization_sender,
+                    push_settings,
                 )
                 .await;
             });
@@ -158,6 +166,7 @@ impl ViewGenerator {
                 summarization_sender,
                 summarization_receiver,
                 decision_inlet,
+                push_settings,
             )
             .await;
         });
@@ -196,6 +205,7 @@ impl ViewGenerator {
         proposal_outlet: ProposalOutlet,
         aggregator_slot: Arc<Mutex<Option<InstallAggregator>>>,
         summarization_sender: Sender<Message>,
+        push_settings: PartialPushSettings,
     ) {
         // Obtain `view_lattice`'s decision
         let (view_lattice_decision, certificate) = tokio::select! {
@@ -258,7 +268,9 @@ impl ViewGenerator {
             view.members().keys().cloned(),
             brief,
             expanded,
-            Default::default(), // TODO: Add settings
+            BestEffortSettings {
+                push_settings: PushSettings::compose(Acknowledgement::Strong, push_settings),
+            },
         );
 
         let fuse = Fuse::new();
@@ -276,6 +288,7 @@ impl ViewGenerator {
         summarization_sender: Sender<Message>,
         mut summarization_receiver: Receiver<Message>,
         decision_inlet: DecisionInlet,
+        push_settings: PartialPushSettings,
     ) {
         let mut aggregator: Option<InstallAggregator> = None;
         let mut signature_cache: HashMap<Hash, MultiSignature> = HashMap::new();
@@ -305,10 +318,7 @@ impl ViewGenerator {
                         summarization_sender.spawn_push(
                             source,
                             message,
-                            PushSettings {
-                                stop_condition: Acknowledgement::Weak,
-                                ..Default::default() // TODO: Add settings
-                            },
+                            PushSettings::compose(Acknowledgement::Weak, push_settings.clone()),
                             &fuse,
                         );
                     } else {
@@ -352,10 +362,7 @@ impl ViewGenerator {
                     summarization_sender.spawn_push(
                         source,
                         message,
-                        PushSettings {
-                            stop_condition: Acknowledgement::Weak,
-                            ..Default::default() // TODO: Add settings
-                        },
+                        PushSettings::compose(Acknowledgement::Weak, push_settings.clone()),
                         &fuse,
                     );
                 }

@@ -2,8 +2,7 @@ use crate::{
     crypto::{Aggregator, Certificate},
     discovery::Client,
     lattice::{
-        lattice_agreement_settings::PartialPushSettings, Decision, Element as LatticeElement,
-        Instance as LatticeInstance, Message, MessageError,
+        Decision, Element as LatticeElement, Instance as LatticeInstance, Message, MessageError,
     },
     view::View,
 };
@@ -19,7 +18,7 @@ use talk::{
     broadcast::BestEffortSettings,
     crypto::{primitives::hash::Hash, Identity, KeyCard, KeyChain},
     sync::fuse::Fuse,
-    unicast::{Acknowledgement, Acknowledger, PushSettings, Receiver, Sender},
+    unicast::{Acknowledgement, Acknowledger, PartialPushSettings, PushSettings, Receiver, Sender},
 };
 
 use tokio::sync::oneshot::{Receiver as OneshotReceiver, Sender as OneshotSender};
@@ -169,15 +168,12 @@ where
 
         let configuration = Configuration {
             broadcast: BestEffortSettings {
-                push_settings: PushSettings {
-                    stop_condition: Acknowledgement::Strong,
-                    retry_schedule: push_settings.retry_schedule.clone(),
-                },
+                push_settings: PushSettings::compose(
+                    Acknowledgement::Strong,
+                    push_settings.clone(),
+                ),
             },
-            response: PushSettings {
-                stop_condition: Acknowledgement::Weak,
-                retry_schedule: push_settings.retry_schedule,
-            },
+            response: PushSettings::compose(Acknowledgement::Weak, push_settings),
         };
 
         let fuse = Fuse::new();
