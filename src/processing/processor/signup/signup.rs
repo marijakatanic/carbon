@@ -80,3 +80,51 @@ impl Processor {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::{processing::test::System, signup::IdRequest};
+
+    #[tokio::test]
+    async fn allocation_priority() {
+        let System {
+            view,
+            brokers,
+            processors,
+        } = System::setup(4, 1).await;
+
+        let allocator = processors[0].0.keycard().identity();
+
+        let client = KeyChain::random();
+        let request = IdRequest::new(&client, &view, allocator);
+
+        let mut allocations = brokers[0].id_requests(vec![request.clone()]).await;
+        assert_eq!(allocations.len(), 1);
+
+        let allocation = allocations.remove(0);
+        allocation.validate(&request).unwrap();
+        assert!(allocation.id() <= u32::MAX as u64);
+    }
+
+    #[tokio::test]
+    async fn signup() {
+        let System {
+            view,
+            brokers,
+            processors,
+        } = System::setup(4, 1).await;
+
+        let allocator = processors[0].0.keycard().identity();
+
+        let client = KeyChain::random();
+        let request = IdRequest::new(&client, &view, allocator);
+
+        let mut assignments = brokers[0].signup(vec![request.clone()]).await;
+        assert_eq!(assignments.len(), 1);
+
+        let _assignment = assignments.remove(0).unwrap();
+        // TODO: Validate `_assignment`
+    }
+}
