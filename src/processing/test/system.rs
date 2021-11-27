@@ -52,6 +52,7 @@ impl System {
                         Database::new(),
                         connectors.remove(0),
                         listeners.remove(0),
+                        Default::default()
                     ),
                 )
             })

@@ -1,8 +1,9 @@
 use crate::{
     database::Database,
     processing::{
-        messages::SignupRequest,processor_settings::SignupSettings,
+        messages::SignupRequest,
         processor::signup::{errors::ServeSignupError, message_handlers},
+        processor_settings::SignupSettings,
         Processor,
     },
     view::View,
@@ -24,7 +25,7 @@ impl Processor {
         view: View,
         database: Arc<Voidable<Database>>,
         listener: L,
-        settings: SignupSettings
+        settings: SignupSettings,
     ) where
         L: Listener,
     {
@@ -50,7 +51,7 @@ impl Processor {
         view: View,
         database: Arc<Voidable<Database>>,
         mut session: Session,
-        settings: SignupSettings
+        settings: SignupSettings,
     ) -> Result<(), Top<ServeSignupError>> {
         let request = session
             .receive::<SignupRequest>()
@@ -63,12 +64,16 @@ impl Processor {
                 .pot(ServeSignupError::DatabaseVoid, here!())?;
 
             match request {
-                SignupRequest::IdRequests(requests) => {
-                    message_handlers::id_requests(&keychain, &view, &mut database, requests, &settings)?
-                }
+                SignupRequest::IdRequests(requests) => message_handlers::id_requests(
+                    &keychain,
+                    &view,
+                    &mut database,
+                    requests,
+                    &settings,
+                )?,
 
                 SignupRequest::IdClaims(claims) => {
-                    message_handlers::id_claims(&keychain, &view, &mut database, claims)?
+                    message_handlers::id_claims(&keychain, &view, &mut database, claims, &settings)?
                 }
             }
         };
@@ -102,7 +107,7 @@ mod tests {
         let allocator = processors[0].0.keycard().identity();
 
         let client = KeyChain::random();
-        let request = IdRequest::new(&client, &view, allocator);
+        let request = IdRequest::new(&client, &view, allocator, SignupSettings::default().work_difficulty);
 
         let mut allocations = brokers[0].id_requests(vec![request.clone()]).await;
         assert_eq!(allocations.len(), 1);
@@ -125,7 +130,7 @@ mod tests {
         let allocator = processors[0].0.keycard().identity();
 
         let client = KeyChain::random();
-        let request = IdRequest::new(&client, &view, allocator);
+        let request = IdRequest::new(&client, &view, allocator, SignupSettings::default().work_difficulty);
 
         let mut assignments = brokers[0].signup(vec![request.clone()]).await;
         assert_eq!(assignments.len(), 1);

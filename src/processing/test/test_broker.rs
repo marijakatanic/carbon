@@ -1,9 +1,4 @@
-use crate::{
-    crypto::Identify,
-    processing::messages::{SignupRequest, SignupResponse},
-    signup::{IdAllocation, IdAssignment, IdAssignmentAggregator, IdClaim, IdRequest},
-    view::View,
-};
+use crate::{crypto::Identify, processing::{messages::{SignupRequest, SignupResponse}, processor_settings::SignupSettings}, signup::{IdAllocation, IdAssignment, IdAssignmentAggregator, IdClaim, IdRequest}, view::View};
 
 use futures::stream::{FuturesUnordered, StreamExt};
 
@@ -49,7 +44,7 @@ impl TestBroker {
             .all(|request| request.allocator() == allocator));
 
         for request in requests.iter() {
-            request.validate().unwrap();
+            request.validate(SignupSettings::default().work_difficulty).unwrap();
         }
 
         let mut session = self.signup_connector.connect(allocator).await.unwrap();
@@ -86,7 +81,7 @@ impl TestBroker {
         assert!(claims.iter().all(|claim| claim.allocator() == allocator));
 
         for claim in claims.iter() {
-            claim.validate().unwrap();
+            claim.validate(SignupSettings::default().work_difficulty).unwrap();
         }
 
         let mut session = self.signup_connector.connect(assigner).await.unwrap();
@@ -170,7 +165,7 @@ impl TestBroker {
                         let id = aggregator.as_ref().unwrap().id();
                         let client = aggregator.as_ref().unwrap().keycard();
 
-                        collision.validate().unwrap();
+                        collision.validate(SignupSettings::default().work_difficulty).unwrap();
                         assert_eq!(collision.id(), id);
                         assert_eq!(collision.client(), client);
 

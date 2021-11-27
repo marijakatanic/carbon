@@ -31,7 +31,7 @@ impl Processor {
 
         let _connect_dispatcher = ConnectDispatcher::new(connector);
         let listen_dispatcher =
-            ListenDispatcher::new(listener, settings.listen_dispatcher_settings); // TODO: Forward settings
+            ListenDispatcher::new(listener, settings.listen_dispatcher_settings);
 
         let fuse = Fuse::new();
 
@@ -45,14 +45,8 @@ impl Processor {
             let signup_settings = settings.signup_settings;
 
             fuse.spawn(async move {
-                Processor::run_signup(
-                    keychain,
-                    view,
-                    database,
-                    signup_listener,
-                    signup_settings
-                )
-                .await;
+                Processor::run_signup(keychain, view, database, signup_listener, signup_settings)
+                    .await;
             });
         }
 

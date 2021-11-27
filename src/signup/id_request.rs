@@ -39,7 +39,12 @@ pub(crate) enum RequestIdError {
 }
 
 impl IdRequest {
-    pub fn new(keychain: &KeyChain, view: &View, allocator: Identity) -> Self {
+    pub fn new(
+        keychain: &KeyChain,
+        view: &View,
+        allocator: Identity,
+        work_difficulty: u64,
+    ) -> Self {
         let view = view.identifier();
         let client = keychain.keycard();
 
@@ -49,7 +54,7 @@ impl IdRequest {
             client,
         };
 
-        let work = Work::new(10, &request).unwrap(); // TODO: Add settings
+        let work = Work::new(work_difficulty, &request).unwrap();
         let rogue = Rogue::new(keychain);
 
         IdRequest {
@@ -71,7 +76,7 @@ impl IdRequest {
         self.request.client.clone()
     }
 
-    pub fn validate(&self) -> Result<(), Top<RequestIdError>> {
+    pub fn validate(&self, work_difficulty: u64) -> Result<(), Top<RequestIdError>> {
         let view = View::get(self.request.view)
             .ok_or(RequestIdError::UnknownView.into_top())
             .spot(here!())?;
@@ -81,7 +86,7 @@ impl IdRequest {
         }
 
         self.work
-            .verify(10, &self.request)
+            .verify(work_difficulty, &self.request)
             .pot(RequestIdError::WorkInvalid, here!())?;
 
         self.rogue
@@ -101,7 +106,7 @@ impl Statement for Request {
 mod tests {
     use super::*;
 
-    use crate::view::test::InstallGenerator;
+    use crate::{processing::processor_settings::SignupSettings, view::test::InstallGenerator};
 
     #[test]
     fn correct() {
@@ -112,7 +117,7 @@ mod tests {
 
         let client = KeyChain::random();
 
-        let request = IdRequest::new(&client, &view, allocator);
-        request.validate().unwrap();
+        let request = IdRequest::new(&client, &view, allocator, SignupSettings::default().work_difficulty);
+        request.validate(SignupSettings::default().work_difficulty).unwrap();
     }
 }

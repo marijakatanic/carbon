@@ -47,9 +47,9 @@ impl IdClaim {
         self.request.client()
     }
 
-    pub fn validate(&self) -> Result<(), Top<IdClaimError>> {
+    pub fn validate(&self, work_difficulty: u64) -> Result<(), Top<IdClaimError>> {
         self.request
-            .validate()
+            .validate(work_difficulty)
             .pot(IdClaimError::IdRequestInvalid, here!())?;
 
         self.allocation
