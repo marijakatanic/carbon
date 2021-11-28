@@ -1,5 +1,5 @@
 use crate::{
-    brokers::signup::Failure,
+    brokers::signup::BrokerFailure,
     crypto::Identify,
     data::Sponge,
     processing::messages::{SignupRequest, SignupResponse},
@@ -28,8 +28,8 @@ use tokio::{
     sync::oneshot::{self, Receiver, Sender},
 };
 
-type OutcomeInlet = Sender<Result<IdAssignment, Failure>>;
-type OutcomeOutlet = Receiver<Result<IdAssignment, Failure>>;
+type OutcomeInlet = Sender<Result<IdAssignment, BrokerFailure>>;
+type OutcomeOutlet = Receiver<Result<IdAssignment, BrokerFailure>>;
 
 pub(crate) struct Broker {
     address: SocketAddr,
@@ -257,7 +257,7 @@ impl Broker {
             }
             Err(_) => {
                 for outcome_inlet in outcome_inlets {
-                    let _ = outcome_inlet.send(Err(Failure::Network));
+                    let _ = outcome_inlet.send(Err(BrokerFailure::Network));
                 }
             }
         }
@@ -453,9 +453,9 @@ impl Broker {
     }
 }
 
-impl Into<Failure> for Collision {
-    fn into(self) -> Failure {
-        Failure::Collision {
+impl Into<BrokerFailure> for Collision {
+    fn into(self) -> BrokerFailure {
+        BrokerFailure::Collision {
             brokered: self.brokered,
             collided: self.collided,
         }
