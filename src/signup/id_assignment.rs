@@ -18,14 +18,14 @@ use talk::crypto::{
     KeyCard, KeyChain, Statement as CryptoStatement,
 };
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct IdAssignment {
     view: Hash,
     assignment: Assignment,
     certificate: Certificate,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct Assignment {
     id: Id,
     keycard: KeyCard,
