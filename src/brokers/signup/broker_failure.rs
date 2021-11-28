@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) enum BrokerFailure {
-    Network,
+    Error,
     Collision {
         brokered: IdClaim,
         collided: IdClaim,

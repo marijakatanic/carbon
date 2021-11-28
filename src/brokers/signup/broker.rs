@@ -3,9 +3,7 @@ use crate::{
     crypto::Identify,
     data::Sponge,
     processing::messages::{SignupRequest, SignupResponse},
-    signup::{
-        IdAllocation, IdAssignment, IdAssignmentAggregator, IdClaim, IdRequest, SignupSettings,
-    },
+    signup::{IdAssignment, IdAssignmentAggregator, IdClaim, IdRequest, SignupSettings},
     view::View,
 };
 
@@ -16,7 +14,7 @@ use futures::stream::{FuturesUnordered, StreamExt};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use talk::{
-    crypto::{primitives::multi::Signature as MultiSignature, Identity},
+    crypto::Identity,
     link::context::ConnectDispatcher,
     net::{Connector, PlainConnection, SessionConnector},
     sync::fuse::Fuse,
@@ -37,7 +35,7 @@ pub(crate) struct Broker {
 }
 
 #[derive(Debug)]
-struct Request {
+struct Brokerage {
     request: IdRequest,
     outcome_inlet: OutcomeInlet,
 }
@@ -65,39 +63,40 @@ enum ServeError {
     ForeignView,
     #[doom(description("Request directed to a foreign allocator"))]
     ForeignAllocator,
-    #[doom(description("Request forfeited (most likely, the `Broker` is shutting down)"))]
+    #[doom(description("`Brokerage` forfeited (most likely, the `Broker` is shutting down)"))]
     #[doom(wrap(request_forfeited))]
-    RequestForfeited { source: oneshot::error::RecvError },
+    BrokerageForfeited { source: oneshot::error::RecvError },
 }
 
 #[derive(Doom)]
-enum DriveError {
-    #[doom(description("Failed to establish a connection to the allocator"))]
-    AllocatorConnectionFailed,
-    #[doom(description("Allocator connection error"))]
-    AllocatorConnectionError,
-    #[doom(description("Unexpected response from allocator"))]
-    UnexpectedAllocatorResponse,
-    #[doom(description("Malformed response from allocator"))]
-    MalformedAllocatorResponse,
+enum SubmitError {
+    #[doom(description("Failed to establish a connection"))]
+    ConnectionFailed,
+    #[doom(description("Connection error"))]
+    ConnectionError,
+    #[doom(description("Unexpected response"))]
+    UnexpectedResponse,
+    #[doom(description("Malformed response"))]
+    MalformedResponse,
     #[doom(description("Invalid allocation"))]
     InvalidAllocation,
-    #[doom(description("Failed to establish a connection to the assigner"))]
-    AssignerConnectionFailed,
-    #[doom(description("Assigner connection error"))]
-    AssignerConnectionError,
-    #[doom(description("Unexpected response from assigner"))]
-    UnexpectedAssignerResponse,
-    #[doom(description("Malformed response from assigner"))]
-    MalformedAssignerResponse,
     #[doom(description("Invalid assignment"))]
     InvalidAssignment,
-    #[doom(description("Multiplicity insufficient"))]
+    #[doom(description("Invalid claim"))]
+    InvalidClaim,
+    #[doom(description("Not a collision"))]
+    NotACollision,
+    #[doom(description("Insufficient multiplicity to reach a quorum"))]
     MultiplicityInsufficient,
 }
 
 impl Broker {
-    pub async fn new<A, C>(view: View, address: A, connector: C, settings: BrokerSettings) -> Result<Self, Top<BrokerError>>
+    pub async fn new<A, C>(
+        view: View,
+        address: A,
+        connector: C,
+        settings: BrokerSettings,
+    ) -> Result<Self, Top<BrokerError>>
     where
         A: ToSocketAddrs,
         C: Connector,
@@ -121,18 +120,20 @@ impl Broker {
         let sponges = Arc::new(
             view.members()
                 .keys()
-                .map(|member| (*member, Sponge::new(settings.sponge_settings.clone()))) 
+                .map(|member| (*member, Sponge::new(settings.sponge_settings.clone())))
                 .collect::<HashMap<_, _>>(),
         );
 
+        let signup_settings = settings.signup_settings;
         let fuse = Fuse::new();
 
         {
             let view = view.clone();
             let sponges = sponges.clone();
+            let signup_settings = signup_settings.clone();
 
             fuse.spawn(async move {
-                Broker::listen(listener, view, sponges, settings.signup_settings).await;
+                Broker::listen(view, sponges, listener, signup_settings).await;
             });
         }
 
@@ -140,9 +141,10 @@ impl Broker {
             let view = view.clone();
             let sponges = sponges.clone();
             let connector = connector.clone();
+            let signup_settings = signup_settings.clone();
 
             fuse.spawn(async move {
-                Broker::flush(view, sponges, allocator, connector).await;
+                Broker::flush(view, allocator, sponges, connector, signup_settings).await;
             });
         }
 
@@ -153,10 +155,10 @@ impl Broker {
     }
 
     async fn listen(
-        listener: TcpListener,
         view: View,
-        sponges: Arc<HashMap<Identity, Sponge<Request>>>,
-        signup_settings: SignupSettings
+        sponges: Arc<HashMap<Identity, Sponge<Brokerage>>>,
+        listener: TcpListener,
+        signup_settings: SignupSettings,
     ) {
         let fuse = Fuse::new();
 
@@ -178,8 +180,8 @@ impl Broker {
     async fn serve(
         mut connection: PlainConnection,
         view: View,
-        sponges: Arc<HashMap<Identity, Sponge<Request>>>,
-        signup_settings: SignupSettings
+        sponges: Arc<HashMap<Identity, Sponge<Brokerage>>>,
+        signup_settings: SignupSettings,
     ) -> Result<(), Top<ServeError>> {
         let request = connection
             .receive::<IdRequest>()
@@ -187,7 +189,7 @@ impl Broker {
             .pot(ServeError::ConnectionError, here!())?;
 
         request
-            .validate(signup_settings.work_difficulty) 
+            .validate(signup_settings.work_difficulty)
             .pot(ServeError::RequestInvalid, here!())?;
 
         if request.view() != view.identifier() {
@@ -200,12 +202,12 @@ impl Broker {
 
         let (outcome_inlet, outcome_outlet) = oneshot::channel();
 
-        let request = Request {
+        let brokerage = Brokerage {
             request,
             outcome_inlet,
         };
 
-        sponge.push(request);
+        sponge.push(brokerage);
 
         let outcome = outcome_outlet
             .await
@@ -223,60 +225,87 @@ impl Broker {
 
     async fn flush(
         view: View,
-        sponges: Arc<HashMap<Identity, Sponge<Request>>>,
         allocator: Identity,
+        sponges: Arc<HashMap<Identity, Sponge<Brokerage>>>,
         connector: Arc<SessionConnector>,
+        signup_settings: SignupSettings,
     ) {
         let sponge = sponges.get(&allocator).unwrap();
         let fuse = Fuse::new();
 
         loop {
-            let requests = sponge.flush().await;
+            let brokerages = sponge.flush().await;
             let view = view.clone();
             let connector = connector.clone();
+            let signup_settings = signup_settings.clone();
 
             fuse.spawn(async move {
-                Broker::broker(view, allocator, connector, requests).await;
+                Broker::broker(view, allocator, connector, brokerages, signup_settings).await;
             });
         }
     }
 
+    // Contract: all `brokerages` provided to `Broker::broker` are eventually resolved
     async fn broker(
         view: View,
         allocator: Identity,
         connector: Arc<SessionConnector>,
-        requests: Vec<Request>,
+        brokerages: Vec<Brokerage>,
+        signup_settings: SignupSettings,
     ) {
-        let (requests, outcome_inlets): (Vec<_>, Vec<_>) = requests
+        let (requests, outcome_inlets): (Vec<_>, Vec<_>) = brokerages
             .into_iter()
-            .map(|request| (request.request, request.outcome_inlet))
+            .map(|brokerage| (brokerage.request, brokerage.outcome_inlet))
             .unzip();
 
-        match Broker::drive(view, allocator, connector, requests).await {
+        match Broker::submit(
+            view,
+            allocator,
+            connector.as_ref(),
+            requests,
+            &signup_settings,
+        )
+        .await
+        {
             Ok(assignments) => {
                 for (assignment, outcome_inlet) in assignments.into_iter().zip(outcome_inlets) {
+                    // All `outcome_inlets` are guaranteed to be alive unless `Broker` is shutting down
                     let _ = outcome_inlet.send(assignment.map_err(Into::into));
                 }
             }
             Err(_) => {
                 for outcome_inlet in outcome_inlets {
-                    let _ = outcome_inlet.send(Err(BrokerFailure::Network));
+                    // All `outcome_inlets` are guaranteed to be alive unless `Broker` is shutting down
+                    let _ = outcome_inlet.send(Err(BrokerFailure::Error));
                 }
             }
         }
     }
 
-    async fn drive(
+    async fn submit(
         view: View,
         allocator: Identity,
-        connector: Arc<SessionConnector>,
+        connector: &SessionConnector,
         requests: Vec<IdRequest>,
-    ) -> Result<Vec<Result<IdAssignment, Collision>>, Top<DriveError>> {
-        let allocations =
-            Broker::submit_id_requests(allocator, connector.as_ref(), requests.clone()).await?;
+        signup_settings: &SignupSettings,
+    ) -> Result<Vec<Result<IdAssignment, Collision>>, Top<SubmitError>> {
+        let (requests, allocations) = {
+            let request = SignupRequest::IdRequests(requests);
+            let response = Broker::request(allocator, connector, &request).await?;
+            let requests = request.unwrap_id_requests();
+
+            let allocations = match response {
+                SignupResponse::IdAllocations(allocations) => allocations,
+                _ => {
+                    return SubmitError::UnexpectedResponse.fail().spot(here!());
+                }
+            };
+
+            (requests, allocations)
+        };
 
         if allocations.len() != requests.len() {
-            return DriveError::MalformedAllocatorResponse.fail().spot(here!());
+            return SubmitError::MalformedResponse.fail().spot(here!());
         }
 
         let claims = requests
@@ -285,10 +314,13 @@ impl Broker {
             .map(|(request, allocation)| {
                 allocation
                     .validate(&request)
-                    .pot(DriveError::InvalidAllocation, here!())?;
+                    .pot(SubmitError::InvalidAllocation, here!())?;
+
                 Ok(IdClaim::new(request, allocation))
             })
-            .collect::<Result<Vec<IdClaim>, Top<DriveError>>>()?;
+            .collect::<Result<Vec<IdClaim>, Top<SubmitError>>>()?;
+
+        let request = SignupRequest::IdClaims(claims.clone());
 
         let mut unordered = view
             .members()
@@ -297,19 +329,26 @@ impl Broker {
                 let assigner_identity = assigner_identity.clone();
                 let assigner_keycard = assigner_keycard.clone();
 
-                let claims = claims.clone();
-                let connector = connector.as_ref();
+                let request = &request;
 
                 async move {
-                    (
-                        assigner_keycard,
-                        Broker::submit_id_claims(assigner_identity, connector, claims).await,
-                    )
+                    let result = async {
+                        let response =
+                            Broker::request(assigner_identity, connector, request).await?;
+
+                        match response {
+                            SignupResponse::IdAssignments(assignments) => Ok(assignments),
+                            _ => SubmitError::UnexpectedResponse.fail().spot(here!()),
+                        }
+                    }
+                    .await;
+
+                    (assigner_keycard, result)
                 }
             })
             .collect::<FuturesUnordered<_>>();
 
-        let mut aggregators: Vec<Result<IdAssignmentAggregator, Collision>> = claims
+        let mut slots: Vec<Result<IdAssignmentAggregator, Collision>> = claims
             .iter()
             .map(|claim| {
                 Ok(IdAssignmentAggregator::new(
@@ -329,35 +368,33 @@ impl Broker {
             };
 
             if assignments.len() != claims.len() {
-                return DriveError::MalformedAssignerResponse.fail().spot(here!());
+                return SubmitError::MalformedResponse.fail().spot(here!());
             }
 
-            let progress = aggregators
-                .iter_mut()
-                .zip(claims.iter())
+            let progress = claims
+                .iter()
                 .zip(assignments)
-                .filter(|((aggregator, _), _)| aggregator.is_ok());
+                .zip(slots.iter_mut())
+                .filter(|(_, aggregator)| aggregator.is_ok());
 
             let result = async {
-                for ((aggregator, brokered_claim), assignment) in progress {
+                for ((brokered_claim, assignment), slot) in progress {
                     match assignment {
                         Ok(signature) => {
-                            aggregator
-                                .as_mut()
+                            slot.as_mut()
                                 .unwrap()
                                 .add(&assigner, signature)
-                                .pot(DriveError::MalformedAssignerResponse, here!())?;
+                                .pot(SubmitError::InvalidAssignment, here!())?;
                         }
                         Err(collided_claim) => {
-                            let id = aggregator.as_ref().unwrap().id();
-                            let client = aggregator.as_ref().unwrap().keycard();
-
                             collided_claim
-                                .validate(SignupSettings::default().work_difficulty)
-                                .pot(DriveError::MalformedAssignerResponse, here!())?;
+                                .validate(signup_settings.work_difficulty)
+                                .pot(SubmitError::InvalidClaim, here!())?;
 
-                            if collided_claim.id() != id || collided_claim.client() == client {
-                                return DriveError::MalformedAssignerResponse.fail().spot(here!());
+                            if collided_claim.id() != brokered_claim.id()
+                                || collided_claim.client() == brokered_claim.client()
+                            {
+                                return SubmitError::NotACollision.fail().spot(here!());
                             }
 
                             let collision = Collision {
@@ -365,7 +402,7 @@ impl Broker {
                                 collided: collided_claim,
                             };
 
-                            *aggregator = Err(collision);
+                            *slot = Err(collision);
                         }
                     }
                 }
@@ -379,80 +416,41 @@ impl Broker {
             }
 
             if multiplicity >= view.quorum() {
-                let assignments = aggregators
+                let assignments = slots
                     .into_iter()
-                    .map(|aggregator| aggregator.map(|aggregator| aggregator.finalize()))
+                    .map(|slot| slot.map(|aggregator| aggregator.finalize()))
                     .collect::<Vec<_>>();
 
                 return Ok(assignments);
             }
         }
 
-        DriveError::MultiplicityInsufficient.fail().spot(here!())
+        SubmitError::MultiplicityInsufficient.fail().spot(here!())
     }
 
-    async fn submit_id_requests(
-        allocator: Identity,
+    async fn request(
+        replica: Identity,
         connector: &SessionConnector,
-        requests: Vec<IdRequest>,
-    ) -> Result<Vec<IdAllocation>, Top<DriveError>> {
+        request: &SignupRequest,
+    ) -> Result<SignupResponse, Top<SubmitError>> {
         let mut session = connector
-            .connect(allocator)
+            .connect(replica)
             .await
-            .pot(DriveError::AllocatorConnectionFailed, here!())?;
+            .pot(SubmitError::ConnectionFailed, here!())?;
 
         session
-            .send(&SignupRequest::IdRequests(requests))
+            .send(&request)
             .await
-            .pot(DriveError::AllocatorConnectionError, here!())?;
+            .pot(SubmitError::ConnectionError, here!())?;
 
         let response = session
             .receive::<SignupResponse>()
             .await
-            .pot(DriveError::AllocatorConnectionError, here!())?;
+            .pot(SubmitError::ConnectionError, here!())?;
 
         session.end();
 
-        let allocations = match response {
-            SignupResponse::IdAllocations(allocations) => allocations,
-            _ => {
-                return DriveError::UnexpectedAllocatorResponse.fail().spot(here!());
-            }
-        };
-
-        Ok(allocations)
-    }
-
-    async fn submit_id_claims(
-        assigner: Identity,
-        connector: &SessionConnector,
-        claims: Vec<IdClaim>,
-    ) -> Result<Vec<Result<MultiSignature, IdClaim>>, Top<DriveError>> {
-        let mut session = connector
-            .connect(assigner)
-            .await
-            .pot(DriveError::AssignerConnectionFailed, here!())?;
-
-        session
-            .send(&SignupRequest::IdClaims(claims))
-            .await
-            .pot(DriveError::AssignerConnectionError, here!())?;
-
-        let response = session
-            .receive::<SignupResponse>()
-            .await
-            .pot(DriveError::AllocatorConnectionError, here!())?;
-
-        session.end();
-
-        let assignments = match response {
-            SignupResponse::IdAssignments(assignments) => assignments,
-            _ => {
-                return DriveError::UnexpectedAssignerResponse.fail().spot(here!());
-            }
-        };
-
-        Ok(assignments)
+        Ok(response)
     }
 }
 
