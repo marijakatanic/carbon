@@ -126,15 +126,17 @@ impl TestBroker {
         let mut unordered = self
             .view
             .members()
-            .keys()
-            .map(|assigner_identity| {
-                let assigner_keycard = self.view.members().get(assigner_identity).cloned().unwrap();
+            .iter()
+            .map(|(assigner_identity, assigner_keycard)| {
+                let assigner_identity = assigner_identity.clone();
+                let assigner_keycard = assigner_keycard.clone();
+
                 let claims = claims.clone();
 
                 async move {
                     (
                         assigner_keycard,
-                        self.id_claims(*assigner_identity, claims).await,
+                        self.id_claims(assigner_identity, claims).await,
                     )
                 }
             })
@@ -179,8 +181,9 @@ impl TestBroker {
                         collision
                             .validate(SignupSettings::default().work_difficulty)
                             .unwrap();
+
                         assert_eq!(collision.id(), id);
-                        assert_eq!(collision.client(), client);
+                        assert_ne!(collision.client(), client);
 
                         aggregator.take();
                     }

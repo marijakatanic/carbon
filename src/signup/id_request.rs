@@ -12,14 +12,14 @@ use talk::crypto::{
     Identity, KeyCard, KeyChain, Statement,
 };
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct IdRequest {
     request: Request,
     work: Work,
     rogue: Rogue,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct Request {
     view: Hash,
     allocator: Identity,

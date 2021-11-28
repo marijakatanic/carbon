@@ -9,7 +9,7 @@ use talk::crypto::{
     KeyCard, KeyChain, Statement,
 };
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Rogue {
     sign: Signature,
     multi: MultiSignature,
