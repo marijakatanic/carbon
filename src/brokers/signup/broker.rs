@@ -259,7 +259,7 @@ impl Broker {
             .unzip();
 
         match Broker::submit(
-            view,
+            &view,
             allocator,
             connector.as_ref(),
             requests,
@@ -283,16 +283,31 @@ impl Broker {
     }
 
     async fn submit(
-        view: View,
+        view: &View,
         allocator: Identity,
         connector: &SessionConnector,
         requests: Vec<IdRequest>,
         signup_settings: &SignupSettings,
     ) -> Result<Vec<Result<IdAssignment, Collision>>, Top<SubmitError>> {
+        let claims = Broker::submit_requests(allocator, connector, requests).await?;
+        let assignments = Broker::submit_claims(view, connector, claims, signup_settings).await?;
+
+        Ok(assignments)
+    }
+
+    async fn submit_requests(
+        allocator: Identity,
+        connector: &SessionConnector,
+        requests: Vec<IdRequest>,
+    ) -> Result<Vec<IdClaim>, Top<SubmitError>> {
         let (requests, allocations) = {
+            // Build and submit `SignupRequest::IdRequests` to `allocator`
+
             let request = SignupRequest::IdRequests(requests);
             let response = Broker::request(allocator, connector, &request).await?;
             let requests = request.unwrap_id_requests();
+
+            // Extract unvalidated `allocations` from `allocator`'s `response`
 
             let allocations = match response {
                 SignupResponse::IdAllocations(allocations) => allocations,
@@ -304,14 +319,19 @@ impl Broker {
             (requests, allocations)
         };
 
+        // Validate `allocations`
+
+        // Each element of `allocations` must match  a corresponding element of `requests`
         if allocations.len() != requests.len() {
             return SubmitError::MalformedResponse.fail().spot(here!());
         }
 
+        // Zip `requests` and `allocations` into `claims`
         let claims = requests
             .into_iter()
             .zip(allocations)
             .map(|(request, allocation)| {
+                // Each `allocation` must be valid against the corresponding `request`
                 allocation
                     .validate(&request)
                     .pot(SubmitError::InvalidAllocation, here!())?;
@@ -320,21 +340,42 @@ impl Broker {
             })
             .collect::<Result<Vec<IdClaim>, Top<SubmitError>>>()?;
 
+        Ok(claims)
+    }
+
+    async fn submit_claims(
+        view: &View,
+        connector: &SessionConnector,
+        claims: Vec<IdClaim>,
+        signup_settings: &SignupSettings,
+    ) -> Result<Vec<Result<IdAssignment, Collision>>, Top<SubmitError>> {
+        // Build `SignupRequest::IdClaims`
+
         let request = SignupRequest::IdClaims(claims.clone());
+
+        // Concurrently submit `request` to all members of `view`
 
         let mut unordered = view
             .members()
             .iter()
             .map(|(assigner_identity, assigner_keycard)| {
                 let assigner_identity = assigner_identity.clone();
+
+                // Futures are processed in `Unordered` fashion. In order to simplify
+                // subsequent processing, each future returns, along with its
+                // result, the keycard of the relevant assigner
                 let assigner_keycard = assigner_keycard.clone();
 
                 let request = &request;
 
                 async move {
                     let result = async {
+                        // Submit `request` to `assigner_identity`
+
                         let response =
                             Broker::request(assigner_identity, connector, request).await?;
+
+                        // Extract unvalidated `assignments` from `response`
 
                         match response {
                             SignupResponse::IdAssignments(assignments) => Ok(assignments),
@@ -348,6 +389,12 @@ impl Broker {
             })
             .collect::<FuturesUnordered<_>>();
 
+        // At all times, each element of `slots` contains:
+        //  - An `Ok(IdAssignmentAggregator)`, if no collision was found to the
+        //    corresponding element of `claims`
+        //  - A `Collision` otherwise
+        // Upon collecting a quorum of valid assignments from the members of `view`, each
+        // aggregator in `slots` is `finalize`d into the appropriate `MultiSignature`.
         let mut slots: Vec<Result<IdAssignmentAggregator, Collision>> = claims
             .iter()
             .map(|claim| {
@@ -359,43 +406,61 @@ impl Broker {
             })
             .collect::<Vec<_>>();
 
+        // At all times, `multiplicity` counts the valid assignments received from
+        // the members of `view`
         let mut multiplicity = 0;
 
         while let Some((assigner, result)) = unordered.next().await {
+            // Extract unvalidated `assignments` from `result`
+
             let assignments = match result {
                 Ok(assignments) => assignments,
                 Err(_) => continue,
             };
 
-            if assignments.len() != claims.len() {
-                return SubmitError::MalformedResponse.fail().spot(here!());
-            }
-
-            let progress = claims
-                .iter()
-                .zip(assignments)
-                .zip(slots.iter_mut())
-                .filter(|(_, aggregator)| aggregator.is_ok());
+            // Apply `assignments` to `slots`
 
             let result = async {
+                // Each element of `assignments` must match  a corresponding element of `claims`
+                if assignments.len() != claims.len() {
+                    return SubmitError::MalformedResponse.fail().spot(here!());
+                }
+
+                // `progress` zips together corresponding elements of `claims`, `assignment`, and
+                // `slots`, selecting only those `slots` that still contain an `aggregator`
+                let progress = claims
+                    .iter()
+                    .zip(assignments)
+                    .zip(slots.iter_mut())
+                    .filter(|(_, aggregator)| aggregator.is_ok());
+
+                // Each element of `claims` is denoted `brokered_claim` to distinguish it from
+                // a potential `collided_claim` exhibited by `assigner`
                 for ((brokered_claim, assignment), slot) in progress {
                     match assignment {
                         Ok(signature) => {
+                            // Try to aggregate `signature` to `slot`'s inner aggregator:
+                            // this fails if `signature` is invalid
                             slot.as_mut()
                                 .unwrap()
                                 .add(&assigner, signature)
                                 .pot(SubmitError::InvalidAssignment, here!())?;
                         }
                         Err(collided_claim) => {
+                            // Validate `collided_claim`
+
                             collided_claim
                                 .validate(signup_settings.work_difficulty)
                                 .pot(SubmitError::InvalidClaim, here!())?;
 
+                            // `collided_claim` must claim the same id for a different client
                             if collided_claim.id() != brokered_claim.id()
                                 || collided_claim.client() == brokered_claim.client()
                             {
                                 return SubmitError::NotACollision.fail().spot(here!());
                             }
+
+                            // Place a `Collision` in `slot`
 
                             let collision = Collision {
                                 brokered: brokered_claim.clone(),
@@ -411,20 +476,34 @@ impl Broker {
             }
             .await;
 
+            // `result` is `Ok` only if all `assignments` are correctly validated.
+            // As a result, because signatures are aggregated on the fly, some 
+            // aggregators in `slots` might aggregate more than `multiplicity`
+            // signatures. This, however, is not a a security issue, and is expected
+            // to happen very rarely (i.e., upon accountable replica misbehaviour).
             if result.is_ok() {
                 multiplicity += 1;
             }
 
+            // At least each aggregator in `slots` has a quorum of signatures: finalize and return
             if multiplicity >= view.quorum() {
                 let assignments = slots
                     .into_iter()
-                    .map(|slot| slot.map(|aggregator| aggregator.finalize()))
+                    .map(|slot| {
+                        // If `slot` contains an `aggregator`, finalize `aggregator`;
+                        // otherwise, preserve the `Collision`
+                        slot.map(|aggregator| aggregator.finalize())
+                    })
                     .collect::<Vec<_>>();
 
                 return Ok(assignments);
             }
         }
 
+        // Most likely due to network issues, an insufficient number of 
+        // signatures could be collected from `assignments`. 
+        // This function can provide proofs of misbehaviour that are, 
+        // however, not collected at the moment. 
         SubmitError::MultiplicityInsufficient.fail().spot(here!())
     }
 
