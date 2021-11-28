@@ -1,4 +1,5 @@
 use crate::{
+    brokers::signup::Failure,
     crypto::Identify,
     data::Sponge,
     processing::messages::{SignupRequest, SignupResponse},
@@ -11,8 +12,6 @@ use crate::{
 use doomstack::{here, Doom, ResultExt, Top};
 
 use futures::stream::{FuturesUnordered, StreamExt};
-
-use serde::{Deserialize, Serialize};
 
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
@@ -29,29 +28,24 @@ use tokio::{
     sync::oneshot::{self, Receiver, Sender},
 };
 
-type OutcomeInlet = Sender<Result<IdAssignment, BrokerFailure>>;
-type OutcomeOutlet = Receiver<Result<IdAssignment, BrokerFailure>>;
+type OutcomeInlet = Sender<Result<IdAssignment, Failure>>;
+type OutcomeOutlet = Receiver<Result<IdAssignment, Failure>>;
 
 pub(crate) struct Broker {
     address: SocketAddr,
     _fuse: Fuse,
 }
 
+#[derive(Debug)]
 struct Request {
     request: IdRequest,
     outcome_inlet: OutcomeInlet,
 }
 
-#[derive(Serialize, Deserialize)]
-pub(crate) enum BrokerFailure {
-    Network,
-    Collision(Collision),
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct Collision {
-    pub brokered: IdClaim,
-    pub collided: IdClaim,
+#[derive(Debug)]
+struct Collision {
+    brokered: IdClaim,
+    collided: IdClaim,
 }
 
 #[derive(Doom)]
@@ -258,13 +252,12 @@ impl Broker {
         match Broker::drive(view, allocator, connector, requests).await {
             Ok(assignments) => {
                 for (assignment, outcome_inlet) in assignments.into_iter().zip(outcome_inlets) {
-                    let _ = outcome_inlet
-                        .send(assignment.map_err(|collision| BrokerFailure::Collision(collision)));
+                    let _ = outcome_inlet.send(assignment.map_err(Into::into));
                 }
             }
             Err(_) => {
                 for outcome_inlet in outcome_inlets {
-                    let _ = outcome_inlet.send(Err(BrokerFailure::Network));
+                    let _ = outcome_inlet.send(Err(Failure::Network));
                 }
             }
         }
@@ -457,5 +450,14 @@ impl Broker {
         };
 
         Ok(assignments)
+    }
+}
+
+impl Into<Failure> for Collision {
+    fn into(self) -> Failure {
+        Failure::Collision {
+            brokered: self.brokered,
+            collided: self.collided,
+        }
     }
 }
