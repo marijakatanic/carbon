@@ -80,8 +80,8 @@ enum SubmitError {
     MalformedResponse,
     #[doom(description("Invalid allocation"))]
     InvalidAllocation,
-    #[doom(description("Invalid assignment"))]
-    InvalidAssignment,
+    #[doom(description("Invalid shard"))]
+    InvalidShard,
     #[doom(description("Invalid claim"))]
     InvalidClaim,
     #[doom(description("Not a collision"))]
@@ -379,10 +379,10 @@ impl Broker {
                         let response =
                             Broker::request(assigner_identity, connector, request).await?;
 
-                        // Extract unvalidated `assignments` from `response`
+                        // Extract unvalidated `shards` from `response`
 
                         match response {
-                            SignupResponse::IdAssignments(assignments) => Ok(assignments),
+                            SignupResponse::IdAssignmentShards(shards) => Ok(shards),
                             _ => SubmitError::UnexpectedResponse.fail().spot(here!()),
                         }
                     }
@@ -397,8 +397,8 @@ impl Broker {
         //  - An `Ok(IdAssignmentAggregator)`, if no collision was found to the
         //    corresponding element of `claims`
         //  - A `Collision` otherwise
-        // Upon collecting a quorum of valid assignments from the members of `view`, each
-        // aggregator in `slots` is `finalize`d into the appropriate `MultiSignature`.
+        // Upon collecting a quorum of valid assignment shards from the members of `view`, 
+        // each aggregator in `slots` is `finalize`d into the appropriate `MultiSignature`.
         let mut slots: Vec<Result<IdAssignmentAggregator, Collision>> = claims
             .iter()
             .map(|claim| {
@@ -410,45 +410,45 @@ impl Broker {
             })
             .collect::<Vec<_>>();
 
-        // At all times, `multiplicity` counts the valid assignments received from
+        // At all times, `multiplicity` counts the valid shards received from
         // the members of `view`
         let mut multiplicity = 0;
 
         while let Some((assigner, result)) = unordered.next().await {
-            // Extract unvalidated `assignments` from `result`
+            // Extract unvalidated `shards` from `result`
 
-            let assignments = match result {
-                Ok(assignments) => assignments,
+            let shards = match result {
+                Ok(shards) => shards,
                 Err(_) => continue,
             };
 
-            // Apply `assignments` to `slots`
+            // Apply `shards` to `slots`
 
             let result = async {
-                // Each element of `assignments` must match  a corresponding element of `claims`
-                if assignments.len() != claims.len() {
+                // Each element of `shards` must match  a corresponding element of `claims`
+                if shards.len() != claims.len() {
                     return SubmitError::MalformedResponse.fail().spot(here!());
                 }
 
-                // `progress` zips together corresponding elements of `claims`, `assignment`, and
+                // `progress` zips together corresponding elements of `claims`, `shards`, and
                 // `slots`, selecting only those `slots` that still contain an `aggregator`
                 let progress = claims
                     .iter()
-                    .zip(assignments)
+                    .zip(shards)
                     .zip(slots.iter_mut())
                     .filter(|(_, aggregator)| aggregator.is_ok());
 
                 // Each element of `claims` is denoted `brokered_claim` to distinguish it from
                 // a potential `collided_claim` exhibited by `assigner`
-                for ((brokered_claim, assignment), slot) in progress {
-                    match assignment {
+                for ((brokered_claim, shard), slot) in progress {
+                    match shard {
                         Ok(signature) => {
                             // Try to aggregate `signature` to `slot`'s inner aggregator:
                             // this fails if `signature` is invalid
                             slot.as_mut()
                                 .unwrap()
                                 .add(&assigner, signature)
-                                .pot(SubmitError::InvalidAssignment, here!())?;
+                                .pot(SubmitError::InvalidShard, here!())?;
                         }
                         Err(collided_claim) => {
                             // Validate `collided_claim`
@@ -480,7 +480,7 @@ impl Broker {
             }
             .await;
 
-            // `result` is `Ok` only if all `assignments` are correctly validated.
+            // `result` is `Ok` only if all `shards` are correctly validated.
             // As a result, because signatures are aggregated on the fly, some
             // aggregators in `slots` might aggregate more than `multiplicity`
             // signatures. This, however, is not a a security issue, and is expected

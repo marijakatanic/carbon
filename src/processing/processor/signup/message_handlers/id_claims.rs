@@ -24,7 +24,7 @@ pub(in crate::processing::processor::signup) fn id_claims(
 ) -> Result<SignupResponse, Top<ServeSignupError>> {
     let mut transaction = CollectionTransaction::new();
 
-    let signatures = claims
+    let shards = claims
         .into_iter()
         .map(|claim| {
             if claim.view() != view.identifier() {
@@ -59,5 +59,5 @@ pub(in crate::processing::processor::signup) fn id_claims(
     // must be executed before bailing (if `signatures` is `Err`)
     database.signup.claimed.execute(transaction);
 
-    Ok(SignupResponse::IdAssignments(signatures?))
+    Ok(SignupResponse::IdAssignmentShards(shards?))
 }

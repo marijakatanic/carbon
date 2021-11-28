@@ -106,7 +106,7 @@ impl TestBroker {
         session.end();
 
         match response {
-            SignupResponse::IdAssignments(assignments) => assignments,
+            SignupResponse::IdAssignmentShards(shards) => shards,
             _ => panic!("unexpected response"),
         }
     }
@@ -154,19 +154,19 @@ impl TestBroker {
             .collect::<Vec<_>>();
 
         for _ in 0..self.view.quorum() {
-            let (assigner, assignments) = unordered.next().await.unwrap();
+            let (assigner, shards) = unordered.next().await.unwrap();
 
-            if assignments.len() != claims.len() {
+            if shards.len() != claims.len() {
                 panic!("unexpected number of assignments")
             }
 
             let progress = aggregators
                 .iter_mut()
-                .zip(assignments)
+                .zip(shards)
                 .filter(|(aggregator, _)| aggregator.is_some());
 
-            for (aggregator, assignment) in progress {
-                match assignment {
+            for (aggregator, shard) in progress {
+                match shard {
                     Ok(signature) => {
                         aggregator
                             .as_mut()
