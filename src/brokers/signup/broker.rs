@@ -154,6 +154,10 @@ impl Broker {
         })
     }
 
+    pub fn address(&self) -> SocketAddr {
+        self.address
+    }
+
     async fn listen(
         view: View,
         sponges: Arc<HashMap<Identity, Sponge<Brokerage>>>,
@@ -477,7 +481,7 @@ impl Broker {
             .await;
 
             // `result` is `Ok` only if all `assignments` are correctly validated.
-            // As a result, because signatures are aggregated on the fly, some 
+            // As a result, because signatures are aggregated on the fly, some
             // aggregators in `slots` might aggregate more than `multiplicity`
             // signatures. This, however, is not a a security issue, and is expected
             // to happen very rarely (i.e., upon accountable replica misbehaviour).
@@ -500,10 +504,10 @@ impl Broker {
             }
         }
 
-        // Most likely due to network issues, an insufficient number of 
-        // signatures could be collected from `assignments`. 
-        // This function can provide proofs of misbehaviour that are, 
-        // however, not collected at the moment. 
+        // Most likely due to network issues, an insufficient number of
+        // signatures could be collected from `assignments`.
+        // This function can provide proofs of misbehaviour that are,
+        // however, not collected at the moment.
         SubmitError::MultiplicityInsufficient.fail().spot(here!())
     }
 
@@ -538,6 +542,78 @@ impl Into<BrokerFailure> for Collision {
         BrokerFailure::Collision {
             brokered: self.brokered,
             collided: self.collided,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::brokers::test::System;
+
+    use talk::crypto::KeyChain;
+    use tokio::net::TcpStream;
+
+    #[tokio::test]
+    async fn stress() {
+        let System {
+            view,
+            discovery_server: _discovery_server,
+            discovery_client,
+            mut processors,
+            mut signup_brokers,
+        } = System::setup(4, 1).await;
+
+        let discovery_client = Arc::new(discovery_client);
+
+        let signup_broker = signup_brokers.remove(0);
+        let (allocator_keychain, _allocator) = processors.remove(0);
+        let allocator_identity = allocator_keychain.keycard().identity();
+
+        let client_keychains = (0..16).map(|_| KeyChain::random()).collect::<Vec<_>>();
+
+        let client_keycards = client_keychains
+            .iter()
+            .map(KeyChain::keycard)
+            .collect::<Vec<_>>();
+
+        let requests = client_keychains.iter().map(|client| {
+            IdRequest::new(
+                client,
+                &view,
+                allocator_identity,
+                SignupSettings::default().work_difficulty,
+            )
+        });
+
+        let tasks = client_keycards
+            .into_iter()
+            .zip(requests)
+            .map(|(client, request)| {
+                let address = signup_broker.address().clone();
+                let discovery_client = discovery_client.clone();
+
+                tokio::spawn(async move {
+                    let stream = TcpStream::connect(address).await.unwrap();
+                    let mut connection: PlainConnection = stream.into();
+
+                    connection.send(&request).await.unwrap();
+
+                    let assignment = connection
+                        .receive::<Result<IdAssignment, BrokerFailure>>()
+                        .await
+                        .unwrap()
+                        .unwrap();
+
+                    assignment.validate(discovery_client.as_ref()).unwrap();
+                    assert_eq!(assignment.keycard(), client);
+                })
+            })
+            .collect::<Vec<_>>();
+
+        for task in tasks {
+            task.await.unwrap();
         }
     }
 }

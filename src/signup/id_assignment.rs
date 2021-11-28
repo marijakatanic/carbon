@@ -51,6 +51,14 @@ impl IdAssignment {
             .unwrap()
     }
 
+    pub fn id(&self) -> Id {
+        self.assignment.id
+    }
+
+    pub fn keycard(&self) -> KeyCard {
+        self.assignment.keycard.clone()
+    }
+
     pub fn validate(&self, discovery: &Client) -> Result<(), Top<IdAssignmentError>> {
         let view = discovery
             .view(&self.view)
