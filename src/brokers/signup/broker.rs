@@ -397,7 +397,7 @@ impl Broker {
         //  - An `Ok(IdAssignmentAggregator)`, if no collision was found to the
         //    corresponding element of `claims`
         //  - A `Collision` otherwise
-        // Upon collecting a quorum of valid assignment shards from the members of `view`, 
+        // Upon collecting a quorum of valid assignment shards from the members of `view`,
         // each aggregator in `slots` is `finalize`d into the appropriate `MultiSignature`.
         let mut slots: Vec<Result<IdAssignmentAggregator, Collision>> = claims
             .iter()

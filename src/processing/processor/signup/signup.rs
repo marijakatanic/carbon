@@ -75,6 +75,10 @@ impl Processor {
                 SignupRequest::IdClaims(claims) => {
                     message_handlers::id_claims(&keychain, &view, &mut database, claims, &settings)?
                 }
+
+                SignupRequest::IdAssignments(assignments) => {
+                    message_handlers::id_assignments(&mut database, assignments)?
+                }
             }
         };
 
