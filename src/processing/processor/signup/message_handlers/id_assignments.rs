@@ -5,12 +5,20 @@ use crate::{
     signup::IdAssignment,
 };
 
-use doomstack::Top;
+use doomstack::{here, ResultExt, Top};
 
 pub(in crate::processing::processor::signup) fn id_assignments(
-    _discovery: &Client,
-    _database: &mut Database,
-    _assignments: Vec<IdAssignment>,
+    discovery: &Client,
+    database: &mut Database,
+    assignments: Vec<IdAssignment>,
 ) -> Result<SignupResponse, Top<ServeSignupError>> {
-    todo!()
+    for assignment in assignments {
+        assignment
+            .validate(discovery)
+            .pot(ServeSignupError::InvalidRequest, here!())?;
+
+        database.assignments.insert(assignment.id(), assignment);
+    }
+
+    Ok(SignupResponse::AcknowledgeIdAssignments)
 }

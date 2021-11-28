@@ -8,4 +8,5 @@ use talk::crypto::primitives::multi::Signature as MultiSignature;
 pub(crate) enum SignupResponse {
     IdAllocations(Vec<IdAllocation>),
     IdAssignmentShards(Vec<Result<MultiSignature, IdClaim>>),
+    AcknowledgeIdAssignments,
 }
