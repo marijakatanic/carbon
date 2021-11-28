@@ -1,5 +1,5 @@
 use crate::{
-    brokers::signup::BrokerFailure,
+    brokers::signup::{BrokerFailure, BrokerSettings},
     crypto::Identify,
     data::Sponge,
     processing::messages::{SignupRequest, SignupResponse},
@@ -97,7 +97,7 @@ enum DriveError {
 }
 
 impl Broker {
-    pub async fn new<A, C>(view: View, address: A, connector: C) -> Result<Self, Top<BrokerError>>
+    pub async fn new<A, C>(view: View, address: A, connector: C, settings: BrokerSettings) -> Result<Self, Top<BrokerError>>
     where
         A: ToSocketAddrs,
         C: Connector,
@@ -121,7 +121,7 @@ impl Broker {
         let sponges = Arc::new(
             view.members()
                 .keys()
-                .map(|member| (*member, Sponge::new(Default::default()))) // TODO: Add settings
+                .map(|member| (*member, Sponge::new(settings.sponge_settings.clone()))) 
                 .collect::<HashMap<_, _>>(),
         );
 
@@ -132,7 +132,7 @@ impl Broker {
             let sponges = sponges.clone();
 
             fuse.spawn(async move {
-                Broker::listen(listener, view, sponges).await;
+                Broker::listen(listener, view, sponges, settings.signup_settings).await;
             });
         }
 
@@ -156,6 +156,7 @@ impl Broker {
         listener: TcpListener,
         view: View,
         sponges: Arc<HashMap<Identity, Sponge<Request>>>,
+        signup_settings: SignupSettings
     ) {
         let fuse = Fuse::new();
 
@@ -165,9 +166,10 @@ impl Broker {
 
                 let view = view.clone();
                 let sponges = sponges.clone();
+                let signup_settings = signup_settings.clone();
 
                 fuse.spawn(async move {
-                    let _ = Broker::serve(connection, view, sponges).await;
+                    let _ = Broker::serve(connection, view, sponges, signup_settings).await;
                 });
             }
         }
@@ -177,6 +179,7 @@ impl Broker {
         mut connection: PlainConnection,
         view: View,
         sponges: Arc<HashMap<Identity, Sponge<Request>>>,
+        signup_settings: SignupSettings
     ) -> Result<(), Top<ServeError>> {
         let request = connection
             .receive::<IdRequest>()
@@ -184,7 +187,7 @@ impl Broker {
             .pot(ServeError::ConnectionError, here!())?;
 
         request
-            .validate(SignupSettings::default().work_difficulty) // TODO: Add settings
+            .validate(signup_settings.work_difficulty) 
             .pot(ServeError::RequestInvalid, here!())?;
 
         if request.view() != view.identifier() {
