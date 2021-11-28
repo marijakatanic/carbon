@@ -1,5 +1,6 @@
 use crate::{
     database::Database,
+    discovery::Client,
     processing::{
         messages::SignupRequest,
         processor::signup::{errors::ServeSignupError, message_handlers},
@@ -22,6 +23,7 @@ use talk::{
 impl Processor {
     pub(in crate::processing) async fn run_signup<L>(
         keychain: KeyChain,
+        discovery: Arc<Client>,
         view: View,
         database: Arc<Voidable<Database>>,
         listener: L,
@@ -36,18 +38,22 @@ impl Processor {
             let (_, session) = listener.accept().await;
 
             let keychain = keychain.clone();
+            let discovery = discovery.clone();
             let view = view.clone();
             let database = database.clone();
             let settings = settings.clone();
 
             fuse.spawn(async move {
-                let _ = Processor::serve_signup(keychain, view, database, session, settings).await;
+                let _ =
+                    Processor::serve_signup(keychain, discovery, view, database, session, settings)
+                        .await;
             });
         }
     }
 
     async fn serve_signup(
         keychain: KeyChain,
+        discovery: Arc<Client>,
         view: View,
         database: Arc<Voidable<Database>>,
         mut session: Session,
@@ -76,9 +82,11 @@ impl Processor {
                     message_handlers::id_claims(&keychain, &view, &mut database, claims, &settings)?
                 }
 
-                SignupRequest::IdAssignments(assignments) => {
-                    message_handlers::id_assignments(&mut database, assignments)?
-                }
+                SignupRequest::IdAssignments(assignments) => message_handlers::id_assignments(
+                    discovery.as_ref(),
+                    &mut database,
+                    assignments,
+                )?,
             }
         };
 

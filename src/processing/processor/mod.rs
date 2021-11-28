@@ -1,4 +1,7 @@
-use crate::{crypto::Identify, database::Database, processing::ProcessorSettings, view::View};
+use crate::{
+    crypto::Identify, database::Database, discovery::Client, processing::ProcessorSettings,
+    view::View,
+};
 
 use std::sync::Arc;
 
@@ -17,6 +20,7 @@ pub(crate) struct Processor {
 impl Processor {
     pub fn new<C, L>(
         keychain: KeyChain,
+        discovery: Arc<Client>,
         view: View,
         database: Database,
         connector: C,
@@ -37,6 +41,7 @@ impl Processor {
 
         {
             let keychain = keychain.clone();
+            let discovery = discovery.clone();
             let view = view.clone();
             let database = database.clone();
 
@@ -45,8 +50,15 @@ impl Processor {
             let signup_settings = settings.signup;
 
             fuse.spawn(async move {
-                Processor::run_signup(keychain, view, database, signup_listener, signup_settings)
-                    .await;
+                Processor::run_signup(
+                    keychain,
+                    discovery,
+                    view,
+                    database,
+                    signup_listener,
+                    signup_settings,
+                )
+                .await;
             });
         }
 

@@ -6,14 +6,14 @@ use crate::{
     view::View,
 };
 
-use std::net::Ipv4Addr;
+use std::{net::Ipv4Addr, sync::Arc};
 
 use talk::{crypto::KeyChain, net::test::System as NetSystem};
 
 pub(crate) struct System {
     pub view: View,
     pub discovery_server: Server,
-    pub discovery_client: Client,
+    pub discovery_client: Arc<Client>,
     pub processors: Vec<(KeyChain, Processor)>,
     pub signup_brokers: Vec<SignupBroker>,
 }
@@ -23,7 +23,7 @@ impl System {
         let (install_generator, discovery_server, _, mut discovery_clients, _) =
             discovery::test::setup(processors, processors, Mode::Full).await;
 
-        let discovery_client = discovery_clients.next().unwrap();
+        let discovery_client = Arc::new(discovery_clients.next().unwrap());
         let view = install_generator.view(processors);
 
         let mut processor_keychains = install_generator.keychains.clone();
@@ -52,6 +52,7 @@ impl System {
                     keychain.clone(),
                     Processor::new(
                         keychain,
+                        discovery_client.clone(),
                         view.clone(),
                         Database::new(),
                         connectors.remove(0),
