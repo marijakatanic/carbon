@@ -9,3 +9,17 @@ pub(crate) struct Batch {
     root_signature: MultiSignature,
     individual_signatures: Vec<Option<Signature>>,
 }
+
+impl Batch {
+    pub fn new(
+        prepares: Vector<Prepare>,
+        root_signature: MultiSignature,
+        individual_signatures: Vec<Option<Signature>>,
+    ) -> Self {
+        Batch {
+            prepares,
+            root_signature,
+            individual_signatures,
+        }
+    }
+}

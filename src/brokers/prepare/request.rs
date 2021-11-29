@@ -1,4 +1,4 @@
-use crate::{discovery::Client, prepare::Prepare, signup::IdAssignment};
+use crate::{account::Id, discovery::Client, prepare::Prepare, signup::IdAssignment};
 
 use doomstack::{here, Doom, ResultExt, Top};
 
@@ -6,14 +6,14 @@ use serde::{Deserialize, Serialize};
 
 use talk::crypto::{
     primitives::{hash::Hash, sign::Signature},
-    KeyChain,
+    KeyCard, KeyChain,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Request {
-    assignment: IdAssignment,
-    prepare: Prepare,
-    signature: Signature,
+    pub assignment: IdAssignment,
+    pub prepare: Prepare,
+    pub signature: Signature,
 }
 
 #[derive(Doom)]
@@ -39,6 +39,14 @@ impl Request {
             prepare,
             signature,
         }
+    }
+
+    pub fn id(&self) -> Id {
+        self.assignment.id()
+    }
+
+    pub fn keycard(&self) -> KeyCard {
+        self.assignment.keycard()
     }
 
     pub fn validate(&self, discovery: &Client) -> Result<(), Top<RequestError>> {

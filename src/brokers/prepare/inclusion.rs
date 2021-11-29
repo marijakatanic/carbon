@@ -12,35 +12,39 @@ use talk::crypto::{
 use zebra::vector::{Proof, Vector};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct Reduction {
+pub(crate) struct Inclusion {
     root: Hash,
     proof: Proof,
 }
 
 #[derive(Doom)]
-pub(crate) enum ReductionError {
+pub(crate) enum InclusionError {
     #[doom(description("Proof invalid"))]
     ProofInvalid,
 }
 
-impl Reduction {
-    pub fn batch(prepares: &Vector<Prepare>) -> Vec<Reduction> {
+impl Inclusion {
+    pub fn batch(prepares: &Vector<Prepare>) -> Vec<Inclusion> {
         (0..prepares.len())
-            .map(|index| Reduction {
+            .map(|index| Inclusion {
                 root: prepares.root(),
                 proof: prepares.prove(index),
             })
             .collect()
     }
 
+    pub fn root(&self) -> Hash {
+        self.root
+    }
+
     pub fn certify(
         &self,
         keychain: &KeyChain,
         prepare: &Prepare,
-    ) -> Result<MultiSignature, Top<ReductionError>> {
+    ) -> Result<MultiSignature, Top<InclusionError>> {
         self.proof
             .verify(self.root, prepare)
-            .pot(ReductionError::ProofInvalid, here!())?;
+            .pot(InclusionError::ProofInvalid, here!())?;
 
         Ok(keychain.multisign(&BatchRoot::new(self.root)).unwrap())
     }
