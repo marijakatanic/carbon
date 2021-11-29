@@ -22,6 +22,17 @@ pub(in crate::processing::processor::signup) fn id_claims(
     claims: Vec<IdClaim>,
     settings: &Signup,
 ) -> Result<SignupResponse, Top<ServeSignupError>> {
+    // Verify that `claims` is sorted and deduplicated
+
+    if !claims
+        .windows(2)
+        .all(|window| window[0].client() < window[1].client())
+    {
+        return ServeSignupError::InvalidRequest.fail().spot(here!());
+    }
+
+    // Process `claims` into `shards`
+
     let mut transaction = CollectionTransaction::new();
 
     let shards = claims

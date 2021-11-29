@@ -5,13 +5,24 @@ use crate::{
     signup::IdAssignment,
 };
 
-use doomstack::{here, ResultExt, Top};
+use doomstack::{here, Doom, ResultExt, Top};
 
 pub(in crate::processing::processor::signup) fn id_assignments(
     discovery: &Client,
     database: &mut Database,
     assignments: Vec<IdAssignment>,
 ) -> Result<SignupResponse, Top<ServeSignupError>> {
+    // Verify that `assignments` is sorted and deduplicated
+
+    if !assignments
+        .windows(2)
+        .all(|window| window[0].keycard() < window[1].keycard())
+    {
+        return ServeSignupError::InvalidRequest.fail().spot(here!());
+    }
+
+    // Process `assignments`
+
     for assignment in assignments {
         assignment
             .validate(discovery)

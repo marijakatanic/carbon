@@ -24,6 +24,17 @@ pub(in crate::processing::processor::signup) fn id_requests(
     requests: Vec<IdRequest>,
     settings: &Signup,
 ) -> Result<SignupResponse, Top<ServeSignupError>> {
+    // Verify that `requests` is sorted and deduplicated
+
+    if !requests
+        .windows(2)
+        .all(|window| window[0].client() < window[1].client())
+    {
+        return ServeSignupError::InvalidRequest.fail().spot(here!());
+    }
+
+    // Process `requests` into `allocations`
+
     let identity = keychain.keycard().identity();
 
     let allocations = requests
