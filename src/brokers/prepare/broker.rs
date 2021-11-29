@@ -1,10 +1,20 @@
-use crate::{brokers::prepare::BrokerSettings, data::Sponge, discovery::Client, view::View};
+use crate::{
+    brokers::prepare::{BrokerSettings, Request},
+    crypto::Identify,
+    data::Sponge,
+    discovery::Client,
+    view::View,
+};
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 
-use talk::{net::Connector, sync::fuse::Fuse};
+use talk::{
+    link::context::ConnectDispatcher,
+    net::{Connector, SessionConnector},
+    sync::fuse::Fuse,
+};
 
 use tokio::{
     io,
@@ -25,7 +35,7 @@ pub(crate) enum BrokerError {
 
 impl Broker {
     pub async fn new<A, C>(
-        discovery: Client,
+        _discovery: Client,
         view: View,
         address: A,
         connector: C,
@@ -47,7 +57,11 @@ impl Broker {
             .map_err(Doom::into_top)
             .spot(here!())?;
 
-        // let request_sponge = Sponge::new(settings.request_sponge_settings);
+        let dispatcher = ConnectDispatcher::new(connector);
+        let context = format!("{:?}::processor::prepare", view.identifier());
+        let _connector = Arc::new(SessionConnector::new(dispatcher.register(context)));
+
+        let _request_sponge = Sponge::<Request>::new(settings.request_sponge_settings);
 
         let fuse = Fuse::new();
 
@@ -55,7 +69,10 @@ impl Broker {
             Broker::listen().await;
         });
 
-        todo!()
+        Ok(Broker {
+            address,
+            _fuse: fuse,
+        })
     }
 
     async fn listen() {}
