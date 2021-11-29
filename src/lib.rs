@@ -2,9 +2,6 @@
 mod account;
 
 #[allow(dead_code)]
-mod broadcast;
-
-#[allow(dead_code)]
 mod brokers;
 
 #[allow(dead_code)]
@@ -21,6 +18,9 @@ mod discovery;
 
 #[allow(dead_code)]
 mod lattice;
+
+#[allow(dead_code)]
+mod prepare;
 
 #[allow(dead_code)]
 mod processing;
