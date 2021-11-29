@@ -270,7 +270,7 @@ impl Broker {
             .into_iter()
             .filter_map(|brokerage| {
                 if Some(brokerage.request.client()) == previous {
-                    let _ = brokerage.outcome_inlet.send(Err(BrokerFailure::Error));
+                    let _ = brokerage.outcome_inlet.send(Err(BrokerFailure::Throttle));
                     None
                 } else {
                     previous = Some(brokerage.request.client());
