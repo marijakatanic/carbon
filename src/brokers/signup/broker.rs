@@ -40,7 +40,7 @@ struct Brokerage {
     outcome_inlet: OutcomeInlet,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Collision {
     brokered: IdClaim,
     collided: IdClaim,
@@ -272,10 +272,13 @@ impl Broker {
         .await
         {
             Ok(assignments) => {
-                for (assignment, outcome_inlet) in assignments.into_iter().zip(outcome_inlets) {
+                for (assignment, outcome_inlet) in assignments.iter().cloned().zip(outcome_inlets) {
                     // All `outcome_inlets` are guaranteed to be alive unless `Broker` is shutting down
                     let _ = outcome_inlet.send(assignment.map_err(Into::into));
                 }
+
+                let assignments = assignments.into_iter().filter_map(Result::ok).collect();
+                Broker::publish_assignments(&view, connector.as_ref(), assignments).await;
             }
             Err(_) => {
                 for outcome_inlet in outcome_inlets {
@@ -509,6 +512,22 @@ impl Broker {
         // This function can provide proofs of misbehaviour that are,
         // however, not collected at the moment.
         SubmitError::MultiplicityInsufficient.fail().spot(here!())
+    }
+
+    async fn publish_assignments(
+        view: &View,
+        connector: &SessionConnector,
+        assignments: Vec<IdAssignment>,
+    ) {
+        let request = SignupRequest::IdAssignments(assignments);
+
+        let unordered = view
+            .members()
+            .keys()
+            .map(|target| Broker::request(*target, connector, &request))
+            .collect::<FuturesUnordered<_>>();
+
+        unordered.collect::<Vec<_>>().await;
     }
 
     async fn request(
