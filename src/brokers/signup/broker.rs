@@ -238,7 +238,12 @@ impl Broker {
         let fuse = Fuse::new();
 
         loop {
-            let brokerages = sponge.flush().await;
+            let brokerages = Broker::prepare(sponge.flush().await);
+
+            if brokerages.is_empty() {
+                continue;
+            }
+
             let view = view.clone();
             let connector = connector.clone();
             let signup_settings = signup_settings.clone();
@@ -247,6 +252,32 @@ impl Broker {
                 Broker::broker(view, allocator, connector, brokerages, signup_settings).await;
             });
         }
+    }
+
+    fn prepare(mut brokerages: Vec<Brokerage>) -> Vec<Brokerage> {
+        // Sort `brokerages` by requestor
+
+        brokerages.sort_by_key(|brokerage| brokerage.request.client());
+
+        // Deduplicate and fail `brokerages` by requestor
+
+        // The following implementation does not use `Vec::dedup_*` because,
+        // in order to fail a duplicate `Brokerage`, it needs to consume
+        // its `outcome_inlet` (which mutable references don't allow)
+        let mut previous = None;
+
+        brokerages
+            .into_iter()
+            .filter_map(|brokerage| {
+                if Some(brokerage.request.client()) == previous {
+                    let _ = brokerage.outcome_inlet.send(Err(BrokerFailure::Error));
+                    None
+                } else {
+                    previous = Some(brokerage.request.client());
+                    Some(brokerage)
+                }
+            })
+            .collect()
     }
 
     // Contract: all `brokerages` provided to `Broker::broker` are eventually resolved
