@@ -1,10 +1,13 @@
-use crate::prepare::Prepare;
+use crate::prepare::{BatchRoot, Prepare};
 
 use doomstack::{here, Doom, ResultExt, Top};
 
 use serde::{Deserialize, Serialize};
 
-use talk::crypto::primitives::hash::Hash;
+use talk::crypto::{
+    primitives::{hash::Hash, multi::Signature as MultiSignature},
+    KeyChain,
+};
 
 use zebra::vector::{Proof, Vector};
 
@@ -30,9 +33,15 @@ impl Reduction {
             .collect()
     }
 
-    pub fn validate(&self, prepare: &Prepare) -> Result<(), Top<ReductionError>> {
+    pub fn certify(
+        &self,
+        keychain: &KeyChain,
+        prepare: &Prepare,
+    ) -> Result<MultiSignature, Top<ReductionError>> {
         self.proof
             .verify(self.root, prepare)
-            .pot(ReductionError::ProofInvalid, here!())
+            .pot(ReductionError::ProofInvalid, here!())?;
+
+        Ok(keychain.multisign(&BatchRoot::new(self.root)).unwrap())
     }
 }
