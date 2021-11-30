@@ -1,4 +1,4 @@
-use crate::prepare::{BatchRoot, Prepare};
+use crate::broadcast::{Prepare, PrepareBatchRoot};
 
 use doomstack::{here, Doom, ResultExt, Top};
 
@@ -46,6 +46,8 @@ impl Inclusion {
             .verify(self.root, prepare)
             .pot(InclusionError::ProofInvalid, here!())?;
 
-        Ok(keychain.multisign(&BatchRoot::new(self.root)).unwrap())
+        Ok(keychain
+            .multisign(&PrepareBatchRoot::new(self.root))
+            .unwrap())
     }
 }

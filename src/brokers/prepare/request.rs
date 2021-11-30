@@ -1,4 +1,4 @@
-use crate::{account::Id, discovery::Client, prepare::Prepare, signup::IdAssignment};
+use crate::{account::Id, broadcast::Prepare, discovery::Client, signup::IdAssignment};
 
 use doomstack::{here, Doom, ResultExt, Top};
 

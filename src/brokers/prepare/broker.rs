@@ -1,9 +1,9 @@
 use crate::{
+    broadcast::{PrepareBatch, PrepareBatchRoot},
     brokers::prepare::{BrokerSettings, Failure, Inclusion, Request},
     crypto::Identify,
     data::{Sponge, SpongeSettings},
     discovery::Client,
-    prepare::{Batch, BatchRoot},
     view::View,
 };
 
@@ -197,7 +197,7 @@ impl Broker {
             .pot(ServeError::ConnectionError, here!())?;
 
         root_shard
-            .verify([&keycard], &BatchRoot::new(root))
+            .verify([&keycard], &PrepareBatchRoot::new(root))
             .pot(ServeError::RootShardInvalid, here!())?;
 
         let _ = reduction_sponge.push((index, root_shard));
@@ -303,6 +303,6 @@ impl Broker {
             }))
             .unwrap();
 
-        let batch = Batch::new(prepares, root_signature, individual_signatures);
+        let batch = PrepareBatch::new(prepares, root_signature, individual_signatures);
     }
 }

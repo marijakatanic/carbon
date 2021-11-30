@@ -5,15 +5,15 @@ use serde::Serialize;
 use talk::crypto::{primitives::hash::Hash, Statement};
 
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct BatchRoot(Hash);
+pub(crate) struct PrepareBatchRoot(Hash);
 
-impl BatchRoot {
+impl PrepareBatchRoot {
     pub fn new(root: Hash) -> Self {
-        BatchRoot(root)
+        PrepareBatchRoot(root)
     }
 }
 
-impl Statement for BatchRoot {
+impl Statement for PrepareBatchRoot {
     type Header = Header;
     const HEADER: Header = Header::PrepareBatchRoot;
 }

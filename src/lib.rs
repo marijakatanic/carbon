@@ -20,7 +20,7 @@ mod discovery;
 mod lattice;
 
 #[allow(dead_code)]
-mod prepare;
+mod broadcast;
 
 #[allow(dead_code)]
 mod processing;
