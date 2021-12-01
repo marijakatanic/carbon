@@ -303,6 +303,6 @@ impl Broker {
             }))
             .unwrap();
 
-        let batch = Batch::new(prepares, root_signature, individual_signatures);
+        let _batch = Batch::new(prepares, root_signature, individual_signatures);
     }
 }

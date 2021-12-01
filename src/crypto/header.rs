@@ -17,5 +17,6 @@ pub(crate) enum Header {
     IdAssignment = 7,
 
     Prepare = 8,
-    PrepareBatchRoot = 9,
+    PrepareReduction = 9,
+    PrepareWitness = 10,
 }

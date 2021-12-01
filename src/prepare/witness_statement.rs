@@ -5,15 +5,15 @@ use serde::Serialize;
 use talk::crypto::{primitives::hash::Hash, Statement};
 
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct ReductionStatement(Hash);
+pub(crate) struct WitnessStatement(Hash);
 
-impl ReductionStatement {
+impl WitnessStatement {
     pub fn new(root: Hash) -> Self {
-        ReductionStatement(root)
+        WitnessStatement(root)
     }
 }
 
-impl Statement for ReductionStatement {
+impl Statement for WitnessStatement {
     type Header = Header;
-    const HEADER: Header = Header::PrepareReduction;
+    const HEADER: Header = Header::PrepareWitness;
 }
