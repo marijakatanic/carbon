@@ -7,20 +7,20 @@ use std::collections::BTreeSet;
 use talk::crypto::{primitives::hash::Hash, Statement};
 
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct CommitStatement {
+pub(crate) struct BatchCommitStatement {
     view: Hash,
     root: Hash,
     exceptions: BTreeSet<Id>,
 }
 
-impl CommitStatement {
+impl BatchCommitStatement {
     pub fn new<I>(view: Hash, root: Hash, exceptions: I) -> Self
     where
         I: IntoIterator<Item = Id>,
     {
         let exceptions = exceptions.into_iter().collect();
 
-        CommitStatement {
+        BatchCommitStatement {
             view,
             root,
             exceptions,
@@ -28,7 +28,7 @@ impl CommitStatement {
     }
 }
 
-impl Statement for CommitStatement {
+impl Statement for BatchCommitStatement {
     type Header = Header;
     const HEADER: Header = Header::Commit;
 }
