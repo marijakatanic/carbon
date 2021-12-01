@@ -1,4 +1,4 @@
-use crate::prepare::{BatchRoot, Prepare};
+use crate::prepare::{Prepare, ReductionStatement};
 
 use doomstack::{here, Doom, ResultExt, Top};
 
@@ -37,7 +37,7 @@ impl Inclusion {
         self.root
     }
 
-    pub fn certify(
+    pub fn certify_reduction(
         &self,
         keychain: &KeyChain,
         prepare: &Prepare,
@@ -46,6 +46,8 @@ impl Inclusion {
             .verify(self.root, prepare)
             .pot(InclusionError::ProofInvalid, here!())?;
 
-        Ok(keychain.multisign(&BatchRoot::new(self.root)).unwrap())
+        Ok(keychain
+            .multisign(&ReductionStatement::new(self.root))
+            .unwrap())
     }
 }

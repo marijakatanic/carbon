@@ -3,7 +3,7 @@ use crate::{
     crypto::Identify,
     data::{Sponge, SpongeSettings},
     discovery::Client,
-    prepare::{Batch, BatchRoot},
+    prepare::{Batch, ReductionStatement},
     view::View,
 };
 
@@ -191,16 +191,16 @@ impl Broker {
             .await
             .pot(ServeError::ConnectionError, here!())?;
 
-        let root_shard = connection
+        let reduction_shard = connection
             .receive::<MultiSignature>()
             .await
             .pot(ServeError::ConnectionError, here!())?;
 
-        root_shard
-            .verify([&keycard], &BatchRoot::new(root))
+        reduction_shard
+            .verify([&keycard], &ReductionStatement::new(root))
             .pot(ServeError::RootShardInvalid, here!())?;
 
-        let _ = reduction_sponge.push((index, root_shard));
+        let _ = reduction_sponge.push((index, reduction_shard));
 
         // TODO: Wait for and forward outcome to client
         todo!()
