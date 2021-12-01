@@ -142,6 +142,34 @@ impl Certificate {
     {
         self.verify_threshold(view, message, view.quorum())
     }
+
+    pub fn coverage<'c, C>(certificates: C) -> usize
+    where
+        C: IntoIterator<Item = &'c Certificate>,
+    {
+        let mut certificates = certificates.into_iter().peekable();
+
+        let members = match certificates.peek() {
+            Some(first) => first.signers.len(),
+            None => return 0,
+        };
+
+        let mut cover = vec![false; members];
+
+        for certificate in certificates {
+            if certificate.signers.len() != members {
+                panic!("called `Certificate::coverage` with heterogeneous `Certificate`s");
+            }
+
+            cover = cover
+                .into_iter()
+                .zip(certificate.signers.iter())
+                .map(|(lho, rho)| lho || rho)
+                .collect();
+        }
+
+        cover.into_iter().filter(|mask| *mask).count()
+    }
 }
 
 #[cfg(test)]
