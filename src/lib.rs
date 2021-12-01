@@ -5,6 +5,9 @@ mod account;
 mod brokers;
 
 #[allow(dead_code)]
+mod commit;
+
+#[allow(dead_code)]
 mod crypto;
 
 #[allow(dead_code)]
