@@ -1,9 +1,12 @@
 use crate::{
     account::Id,
     crypto::{Aggregator, Certificate, Identify},
+    discovery::Client,
     prepare::{BatchCommitShard, BatchCommitStatement},
     view::View,
 };
+
+use doomstack::{here, Doom, ResultExt, Top};
 
 use std::collections::{BTreeSet, HashMap};
 
@@ -18,6 +21,18 @@ pub(crate) struct BatchCommit {
 struct Patch {
     exceptions: BTreeSet<Id>,
     certificate: Certificate,
+}
+
+#[derive(Doom)]
+pub(crate) enum BatchCommitError {
+    #[doom(description("Unknown view"))]
+    UnknownView,
+    #[doom(description("Invalid certificate"))]
+    InvalidCertificate,
+    #[doom(description("Overlapping patches"))]
+    OverlappingPatches,
+    #[doom(description("Insufficient power"))]
+    InsufficientPower,
 }
 
 impl BatchCommit {
@@ -60,5 +75,35 @@ impl BatchCommit {
             root,
             patches,
         }
+    }
+
+    pub fn validate(&self, discovery: &Client) -> Result<(), Top<BatchCommitError>> {
+        let view = discovery
+            .view(&self.view)
+            .ok_or(BatchCommitError::UnknownView.into_top())
+            .spot(here!())?;
+
+        for patch in self.patches.iter() {
+            let statement = BatchCommitStatement::new(
+                view.identifier(),
+                self.root,
+                patch.exceptions.iter().cloned(),
+            );
+
+            patch
+                .certificate
+                .verify(&view, &statement)
+                .pot(BatchCommitError::InvalidCertificate, here!())?;
+        }
+
+        let power =
+            Certificate::distinct_power(self.patches.iter().map(|patch| &patch.certificate))
+                .pot(BatchCommitError::OverlappingPatches, here!())?;
+
+        if power < view.quorum() {
+            return BatchCommitError::InsufficientPower.fail().spot(here!());
+        }
+
+        Ok(())
     }
 }
