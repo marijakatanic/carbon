@@ -20,6 +20,8 @@ pub(crate) enum CertificateError {
     CertificateInvalid,
     #[doom(description("Not enough signers"))]
     NotEnoughSigners,
+    #[doom(description("Overlapping signers"))]
+    OverlappingSigners,
 }
 
 impl Certificate {
@@ -143,7 +145,7 @@ impl Certificate {
         self.verify_threshold(view, message, view.quorum())
     }
 
-    pub fn coverage<'c, C>(certificates: C) -> usize
+    pub fn distinct_power<'c, C>(certificates: C) -> Result<usize, Top<CertificateError>>
     where
         C: IntoIterator<Item = &'c Certificate>,
     {
@@ -151,24 +153,30 @@ impl Certificate {
 
         let members = match certificates.peek() {
             Some(first) => first.signers.len(),
-            None => return 0,
+            None => return Ok(0),
         };
 
         let mut cover = vec![false; members];
 
         for certificate in certificates {
             if certificate.signers.len() != members {
-                panic!("called `Certificate::coverage` with heterogeneous `Certificate`s");
+                panic!("called `Certificate::coverage` with `Certificate`s from different views");
             }
 
             cover = cover
                 .into_iter()
                 .zip(certificate.signers.iter())
-                .map(|(lho, rho)| lho || rho)
-                .collect();
+                .map(|(lho, rho)| {
+                    if lho && rho {
+                        CertificateError::OverlappingSigners.fail().spot(here!())
+                    } else {
+                        Ok(lho || rho)
+                    }
+                })
+                .collect::<Result<Vec<bool>, Top<CertificateError>>>()?;
         }
 
-        cover.into_iter().filter(|mask| *mask).count()
+        Ok(cover.into_iter().filter(|mask| *mask).count())
     }
 }
 
