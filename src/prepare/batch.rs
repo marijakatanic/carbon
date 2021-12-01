@@ -1,6 +1,6 @@
 use crate::prepare::Prepare;
 
-use talk::crypto::primitives::{multi::Signature as MultiSignature, sign::Signature};
+use talk::crypto::primitives::{hash::Hash, multi::Signature as MultiSignature, sign::Signature};
 
 use zebra::vector::Vector;
 
@@ -21,5 +21,13 @@ impl Batch {
             root_signature,
             individual_signatures,
         }
+    }
+
+    pub fn root(&self) -> Hash {
+        self.prepares.root()
+    }
+
+    pub fn prepares(&self) -> &[Prepare] {
+        self.prepares.items()
     }
 }

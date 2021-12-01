@@ -7,10 +7,13 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
+use serde::{Deserialize, Serialize};
+
 use talk::crypto::primitives::hash::Hash;
 
 use zebra::vector::Proof;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Extract {
     view: Hash,
     root: Hash,
