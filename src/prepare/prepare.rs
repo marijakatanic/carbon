@@ -19,6 +19,10 @@ impl Prepare {
             commitment,
         }
     }
+
+    pub fn id(&self) -> Id {
+        self.id
+    }
 }
 
 impl Statement for Prepare {
