@@ -10,7 +10,7 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use serde::{Deserialize, Serialize};
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use talk::crypto::{
     primitives::{hash::Hash, multi::Signature as MultiSignature},
@@ -52,6 +52,14 @@ impl BatchCommitShard {
             exceptions,
             signature,
         }
+    }
+
+    pub fn exceptions(&self) -> BTreeSet<Id> {
+        self.exceptions.keys().copied().collect()
+    }
+
+    pub fn signature(&self) -> MultiSignature {
+        self.signature.clone()
     }
 
     pub fn validate(

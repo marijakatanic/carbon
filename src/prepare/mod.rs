@@ -1,4 +1,5 @@
 mod batch;
+mod batch_commit;
 mod batch_commit_shard;
 mod batch_commit_statement;
 mod extract;
@@ -7,6 +8,9 @@ mod reduction_statement;
 mod witness_statement;
 
 pub(crate) use batch::Batch;
+
+#[allow(unused_imports)]
+pub(crate) use batch_commit::BatchCommit;
 
 #[allow(unused_imports)]
 pub(crate) use batch_commit_shard::BatchCommitShard;
