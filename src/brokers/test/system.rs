@@ -1,5 +1,5 @@
 use crate::{
-    brokers::signup::Broker as SignupBroker,
+    brokers::{prepare::Broker as PrepareBroker, signup::Broker as SignupBroker},
     database::Database,
     discovery::{self, Client, Mode, Server},
     processing::Processor,
@@ -16,10 +16,11 @@ pub(crate) struct System {
     pub discovery_client: Arc<Client>,
     pub processors: Vec<(KeyChain, Processor)>,
     pub signup_brokers: Vec<SignupBroker>,
+    pub prepare_brokers: Vec<PrepareBroker>,
 }
 
 impl System {
-    pub async fn setup(processors: usize, brokers: usize) -> Self {
+    pub async fn setup(processors: usize, signup_brokers: usize, prepare_brokers: usize) -> Self {
         let (install_generator, discovery_server, _, mut discovery_clients, _) =
             discovery::test::setup(processors, processors, Mode::Full).await;
 
@@ -29,9 +30,17 @@ impl System {
         let mut processor_keychains = install_generator.keychains.clone();
         processor_keychains.sort_by_key(|keychain| keychain.keycard().identity());
 
-        let mut signup_broker_keychains =
-            (0..brokers).map(|_| KeyChain::random()).collect::<Vec<_>>();
+        let mut signup_broker_keychains = (0..signup_brokers)
+            .map(|_| KeyChain::random())
+            .collect::<Vec<_>>();
+
         signup_broker_keychains.sort_by_key(|keychain| keychain.keycard().identity());
+
+        let mut prepare_broker_keychains = (0..prepare_brokers)
+            .map(|_| KeyChain::random())
+            .collect::<Vec<_>>();
+
+        prepare_broker_keychains.sort_by_key(|keychain| keychain.keycard().identity());
 
         let NetSystem {
             mut connectors,
@@ -41,7 +50,8 @@ impl System {
             processor_keychains
                 .iter()
                 .cloned()
-                .chain(signup_broker_keychains.iter().cloned()),
+                .chain(signup_broker_keychains.iter().cloned())
+                .chain(prepare_broker_keychains.iter().cloned()),
         )
         .await;
 
@@ -78,12 +88,29 @@ impl System {
             );
         }
 
+        let mut prepare_brokers = Vec::new();
+
+        for _ in prepare_broker_keychains {
+            prepare_brokers.push(
+                PrepareBroker::new(
+                    discovery_client.clone(),
+                    view.clone(),
+                    (Ipv4Addr::LOCALHOST, 0),
+                    connectors.remove(0),
+                    Default::default(),
+                )
+                .await
+                .unwrap(),
+            );
+        }
+
         System {
             view,
             discovery_server,
             discovery_client,
-            signup_brokers,
             processors,
+            signup_brokers,
+            prepare_brokers,
         }
     }
 }

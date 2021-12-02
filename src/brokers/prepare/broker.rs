@@ -67,7 +67,7 @@ pub(crate) enum ServeError {
 
 impl Broker {
     pub async fn new<A, C>(
-        discovery: Client,
+        discovery: Arc<Client>,
         view: View,
         address: A,
         connector: C,
@@ -93,7 +93,6 @@ impl Broker {
         let context = format!("{:?}::processor::prepare", view.identifier());
         let _connector = Arc::new(SessionConnector::new(dispatcher.register(context)));
 
-        let discovery = Arc::new(discovery);
         let brokerage_sponge = Arc::new(Sponge::new(settings.brokerage_sponge_settings));
 
         let fuse = Fuse::new();
