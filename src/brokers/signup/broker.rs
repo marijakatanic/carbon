@@ -658,7 +658,7 @@ mod tests {
                         .unwrap();
 
                     assignment.validate(discovery_client.as_ref()).unwrap();
-                    assert_eq!(assignment.keycard(), client);
+                    assert_eq!(*assignment.keycard(), client);
                 })
             })
             .collect::<Vec<_>>();
