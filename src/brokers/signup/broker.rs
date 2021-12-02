@@ -603,7 +603,7 @@ mod tests {
     use crate::brokers::test::System;
 
     use talk::crypto::KeyChain;
-    
+
     use tokio::net::TcpStream;
 
     #[tokio::test]
