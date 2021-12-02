@@ -62,6 +62,20 @@ impl Processor {
             });
         }
 
+        {
+            let keychain = keychain.clone();
+            let discovery = discovery.clone();
+            let view = view.clone();
+            let database = database.clone();
+
+            let prepare_context = format!("{:?}::processor::prepare", view.identifier());
+            let prepare_listener = listen_dispatcher.register(prepare_context);
+
+            fuse.spawn(async move {
+                Processor::run_prepare(keychain, discovery, view, database, prepare_listener).await;
+            });
+        }
+
         Processor {
             database,
             _fuse: fuse,
@@ -73,4 +87,5 @@ impl Processor {
     }
 }
 
+mod prepare;
 mod signup;

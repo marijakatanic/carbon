@@ -332,16 +332,13 @@ mod tests {
         let System {
             view,
             discovery_server: _discovery_server,
-            discovery_client,
-            mut processors,
+            discovery_client: _discovery_client,
+            processors,
             mut signup_brokers,
             mut prepare_brokers,
         } = System::setup(4, 1, 1).await;
 
-        let discovery_client = Arc::new(discovery_client);
-
         let client_keychain = KeyChain::random();
-        let client_keycard = client_keychain.keycard();
 
         // Signup
 
