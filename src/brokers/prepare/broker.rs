@@ -156,7 +156,7 @@ impl Broker {
             .validate(discovery.as_ref())
             .pot(ServeError::RequestInvalid, here!())?;
 
-        let keycard = request.keycard();
+        let keycard = request.keycard().clone();
 
         let (reduction_inlet, reduction_outlet) = oneshot::channel();
 
@@ -303,14 +303,14 @@ impl Broker {
 
         let reductions = reduction_sponge.flush().await;
 
-        let root_signature =
+        let reduction_signature =
             MultiSignature::aggregate(reductions.into_iter().map(|(index, shard)| {
                 individual_signatures[index] = None;
                 shard
             }))
             .unwrap();
 
-        let _batch = Batch::new(prepares, root_signature, individual_signatures);
+        let _batch = Batch::new(prepares, reduction_signature, individual_signatures);
     }
 }
 

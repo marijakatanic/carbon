@@ -1,11 +1,16 @@
 use crate::{
     database::Database,
     discovery::Client,
-    processing::{processor::prepare::errors::ServePrepareError, Processor},
+    prepare::{ReductionStatement, WitnessStatement},
+    processing::{
+        messages::{PrepareRequest, PrepareResponse},
+        processor::prepare::errors::ServePrepareError,
+        Processor,
+    },
     view::View,
 };
 
-use doomstack::Top;
+use doomstack::{here, Doom, ResultExt, Top};
 
 use std::sync::Arc;
 
@@ -44,12 +49,159 @@ impl Processor {
     }
 
     async fn serve_prepare(
-        _keychain: KeyChain,
-        _discovery: Arc<Client>,
-        _view: View,
-        _database: Arc<Voidable<Database>>,
-        _session: Session,
+        keychain: KeyChain,
+        discovery: Arc<Client>,
+        view: View,
+        database: Arc<Voidable<Database>>,
+        mut session: Session,
     ) -> Result<(), Top<ServePrepareError>> {
+        let request = session
+            .receive::<PrepareRequest>()
+            .await
+            .pot(ServePrepareError::ConnectionError, here!())?;
+
+        let batch = match request {
+            PrepareRequest::Batch(batch) => batch,
+            _ => return ServePrepareError::UnexpectedRequest.fail().spot(here!()),
+        };
+
+        let request = session
+            .receive::<PrepareRequest>()
+            .await
+            .pot(ServePrepareError::ConnectionError, here!())?;
+
+        let witness =
+            match request {
+                PrepareRequest::Witness(witness) => witness,
+                PrepareRequest::WitnessShardRequest => {
+                    if !batch
+                        .prepares()
+                        .windows(2)
+                        .all(|window| window[0].id() < window[1].id())
+                    {
+                        return ServePrepareError::MalformedBatch.fail().spot(here!());
+                    }
+
+                    let unknown_ids = {
+                        let database = database
+                            .lock()
+                            .pot(ServePrepareError::DatabaseVoid, here!())?;
+
+                        batch
+                            .prepares()
+                            .iter()
+                            .map(|prepare| prepare.id())
+                            .filter(|id| !database.assignments.contains_key(&id))
+                            .collect::<Vec<_>>()
+                    };
+
+                    if !unknown_ids.is_empty() {
+                        session
+                            .send(&PrepareResponse::UnknownIds(unknown_ids.clone())) // TODO: Remove unnecessary `clone`
+                            .await
+                            .pot(ServePrepareError::ConnectionError, here!())?;
+
+                        let request = session
+                            .receive::<PrepareRequest>()
+                            .await
+                            .pot(ServePrepareError::ConnectionError, here!())?;
+
+                        let id_assignments = match request {
+                            PrepareRequest::IdAssignments(id_assignments) => id_assignments,
+                            _ => {
+                                return ServePrepareError::UnexpectedRequest.fail().spot(here!());
+                            }
+                        };
+
+                        if id_assignments.len() != unknown_ids.len() {
+                            return ServePrepareError::MalformedIdAssignments
+                                .fail()
+                                .spot(here!());
+                        }
+
+                        if !unknown_ids.iter().zip(id_assignments.iter()).all(
+                            |(id, id_assignment)| {
+                                id_assignment.id() == *id
+                                    && id_assignment.validate(discovery.as_ref()).is_ok()
+                            },
+                        ) {
+                            return ServePrepareError::InvalidIdAssignment.fail().spot(here!());
+                        }
+
+                        {
+                            let mut database = database
+                                .lock()
+                                .pot(ServePrepareError::DatabaseVoid, here!())?;
+
+                            for id_assignment in id_assignments {
+                                database
+                                    .assignments
+                                    .insert(id_assignment.id(), id_assignment);
+                            }
+                        }
+                    }
+
+                    {
+                        let database = database
+                            .lock()
+                            .pot(ServePrepareError::DatabaseVoid, here!())?;
+
+                        let mut reduction_signers = Vec::new();
+
+                        for (prepare, individual_signature) in
+                            batch.prepares().iter().zip(batch.individual_signatures())
+                        {
+                            let keycard = database.assignments[&prepare.id()].keycard();
+
+                            match individual_signature {
+                                Some(signature) => {
+                                    signature
+                                        .verify(&keycard, prepare)
+                                        .pot(ServePrepareError::InvalidBatch, here!())?;
+                                }
+                                None => {
+                                    reduction_signers.push(keycard);
+                                }
+                            }
+                        }
+
+                        let reduction_statement = ReductionStatement::new(batch.root());
+
+                        batch
+                            .reduction_signature()
+                            .verify(reduction_signers, &reduction_statement)
+                            .pot(ServePrepareError::InvalidBatch, here!())?;
+                    }
+
+                    let witness_statement = WitnessStatement::new(batch.root());
+                    let witness_shard = keychain.multisign(&witness_statement).unwrap();
+
+                    session
+                        .send(&PrepareResponse::WitnessShard(witness_shard))
+                        .await
+                        .pot(ServePrepareError::ConnectionError, here!())?;
+
+                    let request = session
+                        .receive::<PrepareRequest>()
+                        .await
+                        .pot(ServePrepareError::ConnectionError, here!())?;
+
+                    match request {
+                        PrepareRequest::Witness(witness) => witness,
+                        _ => {
+                            return ServePrepareError::UnexpectedRequest.fail().spot(here!());
+                        }
+                    }
+                }
+                _ => return ServePrepareError::UnexpectedRequest.fail().spot(here!()),
+            };
+
+        let witness_statement = WitnessStatement::new(batch.root());
+
+        witness
+            .verify(&view, &witness_statement)
+            .pot(ServePrepareError::InvalidWitness, here!())?;
+
         todo!()
     }
 }

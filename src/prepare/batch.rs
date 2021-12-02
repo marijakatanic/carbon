@@ -9,19 +9,19 @@ use zebra::vector::Vector;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Batch {
     prepares: Vector<Prepare>,
-    root_signature: MultiSignature,
+    reduction_signature: MultiSignature,
     individual_signatures: Vec<Option<Signature>>,
 }
 
 impl Batch {
     pub fn new(
         prepares: Vector<Prepare>,
-        root_signature: MultiSignature,
+        reduction_signature: MultiSignature,
         individual_signatures: Vec<Option<Signature>>,
     ) -> Self {
         Batch {
             prepares,
-            root_signature,
+            reduction_signature,
             individual_signatures,
         }
     }
@@ -32,5 +32,13 @@ impl Batch {
 
     pub fn prepares(&self) -> &[Prepare] {
         self.prepares.items()
+    }
+
+    pub fn reduction_signature(&self) -> MultiSignature {
+        self.reduction_signature
+    }
+
+    pub fn individual_signatures(&self) -> &[Option<Signature>] {
+        self.individual_signatures.as_slice()
     }
 }

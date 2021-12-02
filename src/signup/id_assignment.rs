@@ -55,8 +55,8 @@ impl IdAssignment {
         self.assignment.id
     }
 
-    pub fn keycard(&self) -> KeyCard {
-        self.assignment.keycard.clone()
+    pub fn keycard(&self) -> &KeyCard {
+        &self.assignment.keycard
     }
 
     pub fn validate(&self, discovery: &Client) -> Result<(), Top<IdAssignmentError>> {

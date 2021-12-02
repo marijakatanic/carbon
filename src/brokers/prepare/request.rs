@@ -45,7 +45,7 @@ impl Request {
         self.assignment.id()
     }
 
-    pub fn keycard(&self) -> KeyCard {
+    pub fn keycard(&self) -> &KeyCard {
         self.assignment.keycard()
     }
 
