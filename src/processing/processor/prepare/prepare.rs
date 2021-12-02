@@ -199,7 +199,7 @@ impl Processor {
         let witness_statement = WitnessStatement::new(batch.root());
 
         witness
-            .verify(&view, &witness_statement)
+            .verify_plurality(&view, &witness_statement)
             .pot(ServePrepareError::InvalidWitness, here!())?;
 
         todo!()
