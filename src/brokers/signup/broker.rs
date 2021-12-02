@@ -611,7 +611,7 @@ mod tests {
             view,
             discovery_server: _discovery_server,
             discovery_client,
-            mut processors,
+            processors,
             mut signup_brokers,
             ..
         } = System::setup(4, 1, 0).await;
@@ -619,8 +619,7 @@ mod tests {
         let discovery_client = Arc::new(discovery_client);
 
         let signup_broker = signup_brokers.remove(0);
-        let (allocator_keychain, _allocator) = processors.remove(0);
-        let allocator_identity = allocator_keychain.keycard().identity();
+        let allocator_identity = processors[0].0.keycard().identity();
 
         let client_keychains = (0..16).map(|_| KeyChain::random()).collect::<Vec<_>>();
 
