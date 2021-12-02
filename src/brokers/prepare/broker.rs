@@ -9,7 +9,7 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use std::{iter, net::SocketAddr, sync::Arc};
+use std::{iter, net::SocketAddr, sync::Arc, time::Duration};
 
 use talk::{
     crypto::primitives::multi::Signature as MultiSignature,
@@ -105,9 +105,10 @@ impl Broker {
             });
         }
 
-        let settings = settings.reduction_sponge_settings;
+        let reduction_timeout = settings.reduction_timeout;
+
         fuse.spawn(async move {
-            Broker::flush(brokerage_sponge, settings).await;
+            Broker::flush(brokerage_sponge, reduction_timeout).await;
         });
 
         Ok(Broker {
@@ -209,7 +210,7 @@ impl Broker {
         todo!()
     }
 
-    async fn flush(brokerage_sponge: Arc<Sponge<Brokerage>>, settings: SpongeSettings) {
+    async fn flush(brokerage_sponge: Arc<Sponge<Brokerage>>, reduction_timeout: Duration) {
         let fuse = Fuse::new();
 
         loop {
@@ -219,10 +220,10 @@ impl Broker {
                 continue;
             }
 
-            let settings = settings.clone();
+            let reduction_timeout = reduction_timeout.clone();
 
             fuse.spawn(async move {
-                Broker::broker(brokerages, settings).await;
+                Broker::broker(brokerages, reduction_timeout).await;
             });
         }
     }
@@ -253,7 +254,7 @@ impl Broker {
             .collect()
     }
 
-    async fn broker(brokerages: Vec<Brokerage>, settings: SpongeSettings) {
+    async fn broker(brokerages: Vec<Brokerage>, reduction_timeout: Duration) {
         let mut assignments = Vec::new();
         let mut prepares = Vec::new();
         let mut individual_signatures = Vec::new();
@@ -280,7 +281,10 @@ impl Broker {
         let prepares = Vector::new(prepares).unwrap();
         let inclusions = Inclusion::batch(&prepares);
 
-        let reduction_sponge = Arc::new(Sponge::<(usize, MultiSignature)>::new(settings));
+        let reduction_sponge = Arc::new(Sponge::<(usize, MultiSignature)>::new(SpongeSettings {
+            capacity: inclusions.len(),
+            timeout: reduction_timeout,
+        }));
 
         let reductions = inclusions
             .into_iter()
