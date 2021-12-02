@@ -116,6 +116,10 @@ impl Broker {
         })
     }
 
+    pub fn address(&self) -> SocketAddr {
+        self.address
+    }
+
     async fn listen(
         discovery: Arc<Client>,
         brokerage_sponge: Arc<Sponge<Brokerage>>,
@@ -303,5 +307,83 @@ impl Broker {
             .unwrap();
 
         let _batch = Batch::new(prepares, root_signature, individual_signatures);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::{
+        brokers::{signup::BrokerFailure as SignupBrokerFailure, test::System},
+        signup::{IdAssignment, IdRequest, SignupSettings},
+    };
+
+    use talk::crypto::{primitives::hash, KeyChain};
+
+    use tokio::net::TcpStream;
+
+    #[tokio::test]
+    async fn develop() {
+        let System {
+            view,
+            discovery_server: _discovery_server,
+            discovery_client,
+            mut processors,
+            mut signup_brokers,
+            mut prepare_brokers,
+        } = System::setup(4, 1, 1).await;
+
+        let discovery_client = Arc::new(discovery_client);
+
+        let client_keychain = KeyChain::random();
+        let client_keycard = client_keychain.keycard();
+
+        // Signup
+
+        let signup_broker = signup_brokers.remove(0);
+        let allocator_identity = processors[0].0.keycard().identity();
+
+        let request = IdRequest::new(
+            &client_keychain,
+            &view,
+            allocator_identity,
+            SignupSettings::default().work_difficulty,
+        );
+
+        let stream = TcpStream::connect(signup_broker.address()).await.unwrap();
+        let mut connection: PlainConnection = stream.into();
+
+        connection.send(&request).await.unwrap();
+
+        let assignment = connection
+            .receive::<Result<IdAssignment, SignupBrokerFailure>>()
+            .await
+            .unwrap()
+            .unwrap();
+
+        // Prepare
+
+        let prepare_broker = prepare_brokers.remove(0);
+        let request = Request::new(&client_keychain, assignment, 0, hash::hash(&42u32).unwrap());
+
+        let stream = TcpStream::connect(prepare_broker.address()).await.unwrap();
+        let mut connection: PlainConnection = stream.into();
+
+        connection.send(&request).await.unwrap();
+
+        let inclusion = connection
+            .receive::<Result<Inclusion, Failure>>()
+            .await
+            .unwrap()
+            .unwrap();
+
+        let reduction_shard = inclusion
+            .certify_reduction(&client_keychain, request.prepare())
+            .unwrap();
+
+        connection.send(&reduction_shard).await.unwrap();
+
+        // tokio::time::sleep(std::time::Duration::from_secs(10)).await;
     }
 }

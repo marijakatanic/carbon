@@ -49,6 +49,10 @@ impl Request {
         self.assignment.keycard()
     }
 
+    pub fn prepare(&self) -> &Prepare {
+        &self.prepare
+    }
+
     pub fn validate(&self, discovery: &Client) -> Result<(), Top<RequestError>> {
         self.assignment
             .validate(&discovery)
