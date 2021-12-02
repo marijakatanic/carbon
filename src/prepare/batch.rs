@@ -1,9 +1,12 @@
 use crate::prepare::Prepare;
 
+use serde::{Deserialize, Serialize};
+
 use talk::crypto::primitives::{hash::Hash, multi::Signature as MultiSignature, sign::Signature};
 
 use zebra::vector::Vector;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Batch {
     prepares: Vector<Prepare>,
     root_signature: MultiSignature,
