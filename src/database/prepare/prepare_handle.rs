@@ -1,10 +1,10 @@
 use crate::{database::prepare::BatchHolder, prepare::Extract};
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub(crate) enum PrepareHandle {
     Batched {
-        batch: Rc<BatchHolder>,
+        batch: Arc<BatchHolder>,
         index: usize,
     },
     Standalone(Extract),
