@@ -18,6 +18,10 @@ impl BatchHolder {
         BatchHolder { batch, references }
     }
 
+    pub fn extract(&self, index: usize) -> Extract {
+        self.batch.extract(index)
+    }
+
     pub fn unref(&mut self, index: usize) {
         self.references.set(index, false);
     }

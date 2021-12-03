@@ -9,3 +9,12 @@ pub(crate) enum PrepareHandle {
     },
     Standalone(Extract),
 }
+
+impl PrepareHandle {
+    pub fn extract(&self) -> Extract {
+        match self {
+            PrepareHandle::Batched { batch, index } => batch.extract(*index),
+            PrepareHandle::Standalone(extract) => extract.clone(),
+        }
+    }
+}

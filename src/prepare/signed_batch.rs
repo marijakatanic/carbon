@@ -45,7 +45,7 @@ impl SignedBatch {
         self.individual_signatures.as_slice()
     }
 
-    pub fn into_witnessed(self, witness: Certificate) -> WitnessedBatch {
-        WitnessedBatch::new(self.prepares, witness)
+    pub fn into_witnessed(self, view: Hash, witness: Certificate) -> WitnessedBatch {
+        WitnessedBatch::new(view, self.prepares, witness)
     }
 }

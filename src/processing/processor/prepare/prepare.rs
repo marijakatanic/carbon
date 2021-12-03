@@ -1,4 +1,5 @@
 use crate::{
+    crypto::Identify,
     database::Database,
     discovery::Client,
     prepare::{ReductionStatement, SignedBatch, WitnessStatement, WitnessedBatch},
@@ -71,7 +72,9 @@ impl Processor {
             .pot(ServePrepareError::ConnectionError, here!())?;
 
         let _batch = match request {
-            PrepareRequest::Witness(witness) => WitnessedBatch::new(prepares, witness),
+            PrepareRequest::Witness(witness) => {
+                WitnessedBatch::new(view.identifier(), prepares, witness)
+            }
             PrepareRequest::Signatures(reduction_signature, individual_signatures) => {
                 let batch = SignedBatch::new(prepares, reduction_signature, individual_signatures);
 
@@ -202,7 +205,7 @@ impl Processor {
                     .verify_plurality(&view, &witness_statement)
                     .pot(ServePrepareError::InvalidWitness, here!())?;
 
-                batch.into_witnessed(witness)
+                batch.into_witnessed(view.identifier(), witness)
             }
             _ => return ServePrepareError::UnexpectedRequest.fail().spot(here!()),
         };
