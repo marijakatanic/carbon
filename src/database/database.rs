@@ -1,6 +1,6 @@
 use crate::{
     account::{Id, State},
-    database::Signup,
+    database::{Families, Signup},
     signup::IdAssignment,
 };
 
@@ -15,10 +15,6 @@ pub(crate) struct Database {
     pub signup: Signup,
 
     pub families: Families,
-}
-
-pub(crate) struct Families {
-    pub id: Family<Id>,
 }
 
 impl Database {
