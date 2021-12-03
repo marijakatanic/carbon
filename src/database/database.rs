@@ -1,5 +1,5 @@
 use crate::{
-    account::{Id, State},
+    account::Id,
     database::{Families, Signup},
     signup::IdAssignment,
 };
@@ -10,10 +10,7 @@ use zebra::database::Family;
 
 pub(crate) struct Database {
     pub assignments: HashMap<Id, IdAssignment>,
-    pub states: HashMap<Id, State>,
-
     pub signup: Signup,
-
     pub families: Families,
 }
 
@@ -23,7 +20,6 @@ impl Database {
 
         Database {
             assignments: HashMap::new(),
-            states: HashMap::new(),
             signup: Signup {
                 allocations: HashMap::new(),
                 allocated: HashSet::new(),
