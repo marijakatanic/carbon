@@ -13,10 +13,10 @@ use talk::crypto::primitives::hash::Hash;
 use zebra::database::Table;
 
 pub(crate) struct Prepare {
-    advertisements: Table<Id, Advertisement>,
-    states: HashMap<Id, State>,
-    stale: HashSet<Id>,
-    batches: HashMap<Hash, BatchHolder>,
+    pub advertisements: Table<Id, Advertisement>,
+    pub states: HashMap<Id, State>,
+    pub stale: HashSet<Id>,
+    pub batches: HashMap<Hash, BatchHolder>,
 }
 
 impl Prepare {

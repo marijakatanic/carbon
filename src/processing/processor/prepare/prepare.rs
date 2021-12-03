@@ -1,8 +1,11 @@
 use crate::{
     crypto::Identify,
-    database::Database,
+    database::{
+        prepare::{PrepareHandle, State},
+        Database,
+    },
     discovery::Client,
-    prepare::{ReductionStatement, SignedBatch, WitnessStatement, WitnessedBatch},
+    prepare::{Equivocation, ReductionStatement, SignedBatch, WitnessStatement, WitnessedBatch},
     processing::{
         messages::{PrepareRequest, PrepareResponse},
         processor::prepare::errors::ServePrepareError,
@@ -13,7 +16,7 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use talk::{
     crypto::KeyChain,
@@ -71,7 +74,7 @@ impl Processor {
             .await
             .pot(ServePrepareError::ConnectionError, here!())?;
 
-        let _batch = match request {
+        let batch = match request {
             PrepareRequest::Witness(witness) => {
                 WitnessedBatch::new(view.identifier(), prepares, witness)
             }
@@ -209,6 +212,95 @@ impl Processor {
             }
             _ => return ServePrepareError::UnexpectedRequest.fail().spot(here!()),
         };
+
+        {
+            let mut database = database
+                .lock()
+                .pot(ServePrepareError::DatabaseVoid, here!())?;
+
+            let root = batch.root();
+
+            let mut exceptions = HashMap::new();
+
+            for (index, prepare) in batch.prepares().iter().enumerate() {
+                let id = prepare.id();
+                let height = prepare.height();
+                let commitment = prepare.commitment();
+                let prepare = PrepareHandle::Batched { batch: root, index };
+
+                let (state, staled) = match database.prepare.states.get(&id) {
+                    Some(state) => match state {
+                        State::Consistent {
+                            height: state_height,
+                            commitment: state_commitment,
+                            prepare: state_prepare,
+                            stale: state_stale,
+                        } => {
+                            if height == *state_height {
+                                if commitment == *state_commitment {
+                                    continue;
+                                } else {
+                                    let state_extract = match state_prepare {
+                                        PrepareHandle::Batched {
+                                            batch: state_batch,
+                                            index: state_index,
+                                        } => database
+                                            .prepare
+                                            .batches
+                                            .get(state_batch)
+                                            .unwrap()
+                                            .extract(*state_index),
+                                        PrepareHandle::Standalone(extract) => extract.clone(),
+                                    };
+
+                                    let equivocation =
+                                        Equivocation::new(batch.extract(index), state_extract);
+
+                                    let state = State::Equivocated(equivocation);
+                                    let staled = !state_stale;
+
+                                    (state, staled)
+                                }
+                            } else {
+                                let state = State::Consistent {
+                                    height,
+                                    commitment,
+                                    prepare,
+                                    stale: true,
+                                };
+
+                                let staled = !state_stale;
+
+                                (state, staled)
+                            }
+                        }
+                        equivocated => (equivocated.clone(), false),
+                    },
+                    None => {
+                        let state = State::Consistent {
+                            height,
+                            commitment,
+                            prepare,
+                            stale: true,
+                        };
+
+                        let staled = true;
+
+                        (state, staled)
+                    }
+                };
+
+                if let State::Equivocated(equivocation) = &state {
+                    exceptions.insert(id, equivocation.clone());
+                }
+
+                database.prepare.states.insert(id, state);
+
+                if staled {
+                    database.prepare.stale.insert(id);
+                }
+            }
+        }
 
         todo!()
     }

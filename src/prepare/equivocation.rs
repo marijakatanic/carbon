@@ -2,6 +2,7 @@ use crate::{discovery::Client, prepare::Extract};
 
 use doomstack::{here, Doom, ResultExt, Top};
 
+#[derive(Clone)]
 pub(crate) struct Equivocation(Extract, Extract);
 
 #[derive(Doom)]

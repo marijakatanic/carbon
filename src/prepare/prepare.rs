@@ -24,6 +24,10 @@ impl Prepare {
         self.id
     }
 
+    pub fn height(&self) -> u64 {
+        self.height
+    }
+
     pub fn commitment(&self) -> Hash {
         self.commitment
     }
