@@ -1,4 +1,4 @@
-use crate::account::Id;
+use crate::{account::Id, prepare::BatchCommitShard};
 
 use serde::{Deserialize, Serialize};
 
@@ -8,4 +8,5 @@ use talk::crypto::primitives::multi::Signature as MultiSignature;
 pub(crate) enum PrepareResponse {
     UnknownIds(Vec<Id>),
     WitnessShard(MultiSignature),
+    CommitShard(BatchCommitShard),
 }

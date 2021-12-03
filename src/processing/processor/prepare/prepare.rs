@@ -5,7 +5,10 @@ use crate::{
         Database,
     },
     discovery::Client,
-    prepare::{Equivocation, ReductionStatement, SignedBatch, WitnessStatement, WitnessedBatch},
+    prepare::{
+        BatchCommitShard, Equivocation, ReductionStatement, SignedBatch, WitnessStatement,
+        WitnessedBatch,
+    },
     processing::{
         messages::{PrepareRequest, PrepareResponse},
         processor::prepare::errors::ServePrepareError,
@@ -16,7 +19,7 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use talk::{
     crypto::KeyChain,
@@ -213,14 +216,13 @@ impl Processor {
             _ => return ServePrepareError::UnexpectedRequest.fail().spot(here!()),
         };
 
+        let mut exceptions = Vec::new();
+        let root = batch.root();
+
         {
             let mut database = database
                 .lock()
                 .pot(ServePrepareError::DatabaseVoid, here!())?;
-
-            let root = batch.root();
-
-            let mut exceptions = HashMap::new();
 
             for (index, prepare) in batch.prepares().iter().enumerate() {
                 let id = prepare.id();
@@ -291,7 +293,7 @@ impl Processor {
                 };
 
                 if let State::Equivocated(equivocation) = &state {
-                    exceptions.insert(id, equivocation.clone());
+                    exceptions.push(equivocation.clone());
                 }
 
                 database.prepare.states.insert(id, state);
@@ -301,6 +303,13 @@ impl Processor {
                 }
             }
         }
+
+        let shard = BatchCommitShard::new(&keychain, view.identifier(), root, exceptions);
+
+        session
+            .send(&PrepareResponse::CommitShard(shard))
+            .await
+            .pot(ServePrepareError::ConnectionError, here!())?;
 
         todo!()
     }
