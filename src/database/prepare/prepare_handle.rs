@@ -1,20 +1,8 @@
-use crate::{database::prepare::BatchHolder, prepare::Extract};
+use crate::prepare::Extract;
 
-use std::sync::Arc;
+use talk::crypto::primitives::hash::Hash;
 
 pub(crate) enum PrepareHandle {
-    Batched {
-        batch: Arc<BatchHolder>,
-        index: usize,
-    },
+    Batched { batch: Hash, index: usize },
     Standalone(Extract),
-}
-
-impl PrepareHandle {
-    pub fn extract(&self) -> Extract {
-        match self {
-            PrepareHandle::Batched { batch, index } => batch.extract(*index),
-            PrepareHandle::Standalone(extract) => extract.clone(),
-        }
-    }
 }
