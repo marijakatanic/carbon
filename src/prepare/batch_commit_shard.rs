@@ -2,7 +2,7 @@ use crate::{
     account::Id,
     crypto::Identify,
     discovery::Client,
-    prepare::{Batch, BatchCommitStatement, Extract},
+    prepare::{BatchCommitStatement, Extract, SignedBatch},
     view::View,
 };
 
@@ -66,7 +66,7 @@ impl BatchCommitShard {
         &self,
         discovery: &Client,
         view: &View,
-        batch: &Batch,
+        batch: &SignedBatch,
         committer: &KeyCard,
     ) -> Result<(), Top<BatchCommitShardError>> {
         for (id, extract) in self.exceptions.iter() {

@@ -3,7 +3,7 @@ use crate::{
     crypto::Identify,
     data::{Sponge, SpongeSettings},
     discovery::Client,
-    prepare::{Batch, ReductionStatement},
+    prepare::{ReductionStatement, SignedBatch},
     view::View,
 };
 
@@ -310,7 +310,7 @@ impl Broker {
             }))
             .unwrap();
 
-        let _batch = Batch::new(prepares, reduction_signature, individual_signatures);
+        let _batch = SignedBatch::new(prepares, reduction_signature, individual_signatures);
     }
 }
 

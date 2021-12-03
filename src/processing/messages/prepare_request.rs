@@ -1,10 +1,10 @@
-use crate::{crypto::Certificate, prepare::Batch, signup::IdAssignment};
+use crate::{crypto::Certificate, prepare::SignedBatch, signup::IdAssignment};
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub(crate) enum PrepareRequest {
-    Batch(Batch),
+    Batch(SignedBatch),
     WitnessShardRequest,
     IdAssignments(Vec<IdAssignment>),
     Witness(Certificate),

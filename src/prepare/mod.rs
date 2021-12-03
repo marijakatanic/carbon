@@ -1,4 +1,4 @@
-mod batch;
+mod signed_batch;
 mod batch_commit;
 mod batch_commit_shard;
 mod batch_commit_statement;
@@ -8,7 +8,7 @@ mod reduction_statement;
 mod witness_statement;
 mod witnessed_batch;
 
-pub(crate) use batch::Batch;
+pub(crate) use signed_batch::SignedBatch;
 pub(crate) use batch_commit::BatchCommit;
 pub(crate) use batch_commit_shard::BatchCommitShard;
 pub(crate) use batch_commit_statement::BatchCommitStatement;

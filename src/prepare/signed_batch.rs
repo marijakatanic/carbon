@@ -10,19 +10,19 @@ use talk::crypto::primitives::{hash::Hash, multi::Signature as MultiSignature, s
 use zebra::vector::Vector;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct Batch {
+pub(crate) struct SignedBatch {
     prepares: Vector<Prepare>,
     reduction_signature: MultiSignature,
     individual_signatures: Vec<Option<Signature>>,
 }
 
-impl Batch {
+impl SignedBatch {
     pub fn new(
         prepares: Vector<Prepare>,
         reduction_signature: MultiSignature,
         individual_signatures: Vec<Option<Signature>>,
     ) -> Self {
-        Batch {
+        SignedBatch {
             prepares,
             reduction_signature,
             individual_signatures,
