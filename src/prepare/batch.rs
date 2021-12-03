@@ -1,4 +1,7 @@
-use crate::prepare::Prepare;
+use crate::{
+    crypto::Certificate,
+    prepare::{Prepare, WitnessedBatch},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -40,5 +43,9 @@ impl Batch {
 
     pub fn individual_signatures(&self) -> &[Option<Signature>] {
         self.individual_signatures.as_slice()
+    }
+
+    pub fn witness(self, witness: Certificate) -> WitnessedBatch {
+        WitnessedBatch::new(self.prepares, witness)
     }
 }
