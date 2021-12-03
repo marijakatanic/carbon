@@ -2,7 +2,7 @@ use crate::{
     account::Id,
     crypto::Identify,
     discovery::Client,
-    prepare::{BatchCommitStatement, Extract, WitnessedBatch},
+    prepare::{BatchCommitStatement, Equivocation, WitnessedBatch},
     view::View,
 };
 
@@ -19,7 +19,7 @@ use talk::crypto::{
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct BatchCommitShard {
-    exceptions: HashMap<Id, Extract>,
+    exceptions: HashMap<Id, Equivocation>,
     signature: MultiSignature,
 }
 
@@ -30,7 +30,7 @@ pub(crate) enum BatchCommitShardError {
     #[doom(description("Mismatched id"))]
     MismatchedId,
     #[doom(description("Extract invalid"))]
-    ExtractInvalid,
+    EquivocationInvalid,
     #[doom(description("Signature invalid"))]
     SignatureInvalid,
 }
@@ -38,7 +38,7 @@ pub(crate) enum BatchCommitShardError {
 impl BatchCommitShard {
     pub fn new<E>(keychain: &KeyChain, view: Hash, root: Hash, exceptions: E) -> Self
     where
-        E: IntoIterator<Item = Extract>,
+        E: IntoIterator<Item = Equivocation>,
     {
         let exceptions = exceptions
             .into_iter()
@@ -69,20 +69,20 @@ impl BatchCommitShard {
         batch: &WitnessedBatch,
         committer: &KeyCard,
     ) -> Result<(), Top<BatchCommitShardError>> {
-        for (id, extract) in self.exceptions.iter() {
+        for (id, equivocation) in self.exceptions.iter() {
+            equivocation
+                .validate(discovery)
+                .pot(BatchCommitShardError::EquivocationInvalid, here!())?;
+
+            if equivocation.id() != *id {
+                return BatchCommitShardError::MismatchedId.fail().spot(here!());
+            }
+
             batch
                 .prepares()
                 .binary_search_by_key(id, |prepare| prepare.id())
                 .map_err(|_| BatchCommitShardError::ForeignException.into_top())
                 .spot(here!())?;
-
-            if extract.id() != *id {
-                return BatchCommitShardError::MismatchedId.fail().spot(here!());
-            }
-
-            extract
-                .validate(discovery)
-                .pot(BatchCommitShardError::ExtractInvalid, here!())?;
         }
 
         let exceptions = self.exceptions.keys().copied();

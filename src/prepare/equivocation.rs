@@ -1,8 +1,10 @@
-use crate::{discovery::Client, prepare::Extract};
+use crate::{account::Id, discovery::Client, prepare::Extract};
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-#[derive(Clone)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Equivocation(Extract, Extract);
 
 #[derive(Doom)]
@@ -18,6 +20,11 @@ pub(crate) enum EquivocationError {
 impl Equivocation {
     pub fn new(lhe: Extract, rhe: Extract) -> Self {
         Equivocation(lhe, rhe)
+    }
+
+    pub fn id(&self) -> Id {
+        // Assuming that `self` is valid, `self.0.id() == self.1.id()`
+        self.0.id()
     }
 
     pub fn validate(&self, discovery: &Client) -> Result<(), Top<EquivocationError>> {
