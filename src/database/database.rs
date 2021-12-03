@@ -1,13 +1,12 @@
 use crate::{
     account::{Id, State},
-    signup::{IdAssignment, IdClaim},
+    database::Signup,
+    signup::IdAssignment,
 };
 
 use std::collections::{HashMap, HashSet};
 
-use talk::crypto::Identity;
-
-use zebra::database::{Collection, Family};
+use zebra::database::Family;
 
 pub(crate) struct Database {
     pub assignments: HashMap<Id, IdAssignment>,
@@ -16,16 +15,6 @@ pub(crate) struct Database {
     pub signup: Signup,
 
     pub families: Families,
-}
-
-pub(crate) struct Signup {
-    pub allocated: HashSet<Id>,
-    pub allocations: HashMap<Identity, Id>,
-
-    // TODO: Include in state-transfer {
-    pub claimed: Collection<Id>,
-    pub claims: HashMap<Id, IdClaim>,
-    // }
 }
 
 pub(crate) struct Families {
