@@ -1,9 +1,9 @@
-use crate::database::Families;
+use crate::database::Zebras;
 
 pub(crate) struct Prepare {}
 
 impl Prepare {
-    pub fn new(_families: &Families) -> Self {
+    pub fn new(_zebras: &Zebras) -> Self {
         Prepare {}
     }
 }

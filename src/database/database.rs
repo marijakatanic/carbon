@@ -1,6 +1,6 @@
 use crate::{
     account::Id,
-    database::{Families, Prepare, Signup},
+    database::{Prepare, Signup, Zebras},
     signup::IdAssignment,
 };
 
@@ -10,18 +10,18 @@ pub(crate) struct Database {
     pub assignments: HashMap<Id, IdAssignment>,
     pub signup: Signup,
     pub prepare: Prepare,
-    pub families: Families,
+    pub families: Zebras,
 }
 
 impl Database {
     pub fn new() -> Self {
-        let families = Families::new();
+        let zebras = Zebras::new();
 
         Database {
             assignments: HashMap::new(),
-            signup: Signup::new(&families),
-            prepare: Prepare::new(&families),
-            families,
+            signup: Signup::new(&zebras),
+            prepare: Prepare::new(&zebras),
+            families: zebras,
         }
     }
 }
