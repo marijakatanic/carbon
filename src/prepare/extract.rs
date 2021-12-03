@@ -53,6 +53,10 @@ impl Extract {
         self.prepare.id()
     }
 
+    pub fn commitment(&self) -> Hash {
+        self.prepare.commitment()
+    }
+
     pub fn validate(&self, discovery: &Client) -> Result<(), Top<ExtractError>> {
         let view = discovery
             .view(&self.view)

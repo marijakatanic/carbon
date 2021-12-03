@@ -1,6 +1,7 @@
 mod batch_commit;
 mod batch_commit_shard;
 mod batch_commit_statement;
+mod equivocation;
 mod extract;
 mod prepare;
 mod reduction_statement;
@@ -16,6 +17,9 @@ pub(crate) use prepare::Prepare;
 pub(crate) use reduction_statement::ReductionStatement;
 pub(crate) use signed_batch::SignedBatch;
 pub(crate) use witness_statement::WitnessStatement;
+
+#[allow(unused_imports)]
+pub(crate) use equivocation::Equivocation;
 
 #[allow(unused_imports)]
 pub(crate) use witnessed_batch::WitnessedBatch;

@@ -23,6 +23,10 @@ impl Prepare {
     pub fn id(&self) -> Id {
         self.id
     }
+
+    pub fn commitment(&self) -> Hash {
+        self.commitment
+    }
 }
 
 impl Statement for Prepare {
