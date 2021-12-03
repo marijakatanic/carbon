@@ -4,9 +4,7 @@ use crate::{
     signup::IdAssignment,
 };
 
-use std::collections::{HashMap, HashSet};
-
-use zebra::database::Family;
+use std::collections::HashMap;
 
 pub(crate) struct Database {
     pub assignments: HashMap<Id, IdAssignment>,
@@ -16,17 +14,11 @@ pub(crate) struct Database {
 
 impl Database {
     pub fn new() -> Self {
-        let families = Families { id: Family::new() };
+        let families = Families::new();
 
         Database {
             assignments: HashMap::new(),
-            signup: Signup {
-                allocations: HashMap::new(),
-                allocated: HashSet::new(),
-
-                claimed: families.id.empty_collection(),
-                claims: HashMap::new(),
-            },
+            signup: Signup::new(&families),
             families,
         }
     }

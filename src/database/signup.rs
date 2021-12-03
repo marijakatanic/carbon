@@ -1,4 +1,4 @@
-use crate::{account::Id, signup::IdClaim};
+use crate::{account::Id, database::Families, signup::IdClaim};
 
 use std::collections::{HashMap, HashSet};
 
@@ -14,4 +14,15 @@ pub(crate) struct Signup {
     pub claimed: Collection<Id>,
     pub claims: HashMap<Id, IdClaim>,
     // }
+}
+
+impl Signup {
+    pub fn new(families: &Families) -> Self {
+        Signup {
+            allocated: HashSet::new(),
+            allocations: HashMap::new(),
+            claimed: families.id.empty_collection(),
+            claims: HashMap::new(),
+        }
+    }
 }
