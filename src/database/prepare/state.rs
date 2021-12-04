@@ -8,7 +8,6 @@ pub(crate) enum State {
         height: u64,
         commitment: Hash,
         prepare: PrepareHandle,
-        stale: bool,
     },
     Equivocated(Equivocation),
 }

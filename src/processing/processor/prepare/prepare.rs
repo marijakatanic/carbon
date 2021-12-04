@@ -230,13 +230,12 @@ impl Processor {
                 let commitment = prepare.commitment();
                 let prepare = PrepareHandle::Batched { batch: root, index };
 
-                let (state, staled) = match database.prepare.states.get(&id) {
+                let state = match database.prepare.states.get(&id) {
                     Some(state) => match state {
                         State::Consistent {
                             height: state_height,
                             commitment: state_commitment,
                             prepare: state_prepare,
-                            stale: state_stale,
                         } => {
                             if height == *state_height {
                                 if commitment == *state_commitment {
@@ -258,38 +257,23 @@ impl Processor {
                                     let equivocation =
                                         Equivocation::new(batch.extract(index), state_extract);
 
-                                    let state = State::Equivocated(equivocation);
-                                    let staled = !state_stale;
-
-                                    (state, staled)
+                                    State::Equivocated(equivocation)
                                 }
                             } else {
-                                let state = State::Consistent {
+                                State::Consistent {
                                     height,
                                     commitment,
                                     prepare,
-                                    stale: true,
-                                };
-
-                                let staled = !state_stale;
-
-                                (state, staled)
+                                }
                             }
                         }
-                        equivocated => (equivocated.clone(), false),
+                        equivocated => equivocated.clone(),
                     },
-                    None => {
-                        let state = State::Consistent {
-                            height,
-                            commitment,
-                            prepare,
-                            stale: true,
-                        };
-
-                        let staled = true;
-
-                        (state, staled)
-                    }
+                    None => State::Consistent {
+                        height,
+                        commitment,
+                        prepare,
+                    },
                 };
 
                 if let State::Equivocated(equivocation) = &state {
@@ -297,10 +281,7 @@ impl Processor {
                 }
 
                 database.prepare.states.insert(id, state);
-
-                if staled {
-                    database.prepare.stale.insert(id);
-                }
+                database.prepare.stale.insert(id);
             }
         }
 
