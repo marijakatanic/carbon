@@ -1,3 +1,3 @@
 mod errors;
-mod message_handlers;
+mod handlers;
 mod signup;

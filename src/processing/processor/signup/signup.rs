@@ -3,7 +3,7 @@ use crate::{
     discovery::Client,
     processing::{
         messages::SignupRequest,
-        processor::signup::{errors::ServeSignupError, message_handlers},
+        processor::signup::{errors::ServeSignupError, handlers},
         processor_settings::Signup,
         Processor,
     },
@@ -70,23 +70,17 @@ impl Processor {
                 .pot(ServeSignupError::DatabaseVoid, here!())?;
 
             match request {
-                SignupRequest::IdRequests(requests) => message_handlers::id_requests(
-                    &keychain,
-                    &view,
-                    &mut database,
-                    requests,
-                    &settings,
-                )?,
-
-                SignupRequest::IdClaims(claims) => {
-                    message_handlers::id_claims(&keychain, &view, &mut database, claims, &settings)?
+                SignupRequest::IdRequests(requests) => {
+                    handlers::id_requests(&keychain, &view, &mut database, requests, &settings)?
                 }
 
-                SignupRequest::IdAssignments(assignments) => message_handlers::id_assignments(
-                    discovery.as_ref(),
-                    &mut database,
-                    assignments,
-                )?,
+                SignupRequest::IdClaims(claims) => {
+                    handlers::id_claims(&keychain, &view, &mut database, claims, &settings)?
+                }
+
+                SignupRequest::IdAssignments(assignments) => {
+                    handlers::id_assignments(discovery.as_ref(), &mut database, assignments)?
+                }
             }
         };
 
