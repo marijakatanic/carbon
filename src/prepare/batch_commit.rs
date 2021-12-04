@@ -48,15 +48,14 @@ impl BatchCommit {
             HashMap::new();
 
         for (committer, shard) in shards {
-            let exceptions = shard.exceptions();
+            let aggregator = aggregators.entry(shard.exceptions()).or_insert_with(|| {
+                let statement =
+                    BatchCommitStatement::new(view.identifier(), root, shard.exceptions());
 
-            let view = view.clone();
-            let statement = BatchCommitStatement::new(view.identifier(), root, exceptions.clone());
+                Aggregator::new(view.clone(), statement)
+            });
 
-            let aggregator = aggregators
-                .entry(exceptions)
-                .or_insert(Aggregator::new(view, statement));
-
+            // Assuming that `shards` are valid, `shard.signature()` is valid
             aggregator.add(&committer, shard.signature()).unwrap();
         }
 
@@ -92,15 +91,14 @@ impl BatchCommit {
             .spot(here!())?;
 
         for patch in self.patches.iter() {
-            let statement = BatchCommitStatement::new(
-                view.identifier(),
-                self.root,
-                patch.exceptions.iter().cloned(),
-            );
+            let statement =
+                BatchCommitStatement::new(view.identifier(), self.root, patch.exceptions.clone());
 
+            // Verify only the validity of `patch.certificate`, regardless of power
+            // (`distinct_power` is invoked later to determine if quorum is reached overall)
             patch
                 .certificate
-                .verify(&view, &statement)
+                .verify_raw(&view, &statement)
                 .pot(BatchCommitError::InvalidCertificate, here!())?;
         }
 

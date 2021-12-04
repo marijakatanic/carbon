@@ -28,8 +28,8 @@ pub(crate) enum ExtractError {
     ViewUnknown,
     #[doom(description("Witness invalid"))]
     WitnessInvalid,
-    #[doom(description("Proof invalid"))]
-    ProofInvalid,
+    #[doom(description("Inclusion proof invalid"))]
+    InclusionProofInvalid,
 }
 
 impl Extract {
@@ -71,7 +71,7 @@ impl Extract {
 
         self.inclusion
             .verify(self.root, &self.prepare)
-            .pot(ExtractError::ProofInvalid, here!())?;
+            .pot(ExtractError::InclusionProofInvalid, here!())?;
 
         Ok(())
     }

@@ -14,12 +14,7 @@ pub(crate) struct BatchCommitStatement {
 }
 
 impl BatchCommitStatement {
-    pub fn new<I>(view: Hash, root: Hash, exceptions: I) -> Self
-    where
-        I: IntoIterator<Item = Id>,
-    {
-        let exceptions = exceptions.into_iter().collect();
-
+    pub fn new(view: Hash, root: Hash, exceptions: BTreeSet<Id>) -> Self {
         BatchCommitStatement {
             view,
             root,

@@ -12,14 +12,10 @@ mod witnessed_batch;
 pub(crate) use batch_commit::BatchCommit;
 pub(crate) use batch_commit_shard::BatchCommitShard;
 pub(crate) use batch_commit_statement::BatchCommitStatement;
+pub(crate) use equivocation::Equivocation;
 pub(crate) use extract::Extract;
 pub(crate) use prepare::Prepare;
 pub(crate) use reduction_statement::ReductionStatement;
 pub(crate) use signed_batch::SignedBatch;
 pub(crate) use witness_statement::WitnessStatement;
-
-#[allow(unused_imports)]
-pub(crate) use equivocation::Equivocation;
-
-#[allow(unused_imports)]
 pub(crate) use witnessed_batch::WitnessedBatch;

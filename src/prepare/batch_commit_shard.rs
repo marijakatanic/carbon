@@ -42,10 +42,10 @@ impl BatchCommitShard {
     {
         let exceptions = exceptions
             .into_iter()
-            .map(|extract| (extract.id(), extract))
+            .map(|equivocation| (equivocation.id(), equivocation))
             .collect::<HashMap<_, _>>();
 
-        let statement = BatchCommitStatement::new(view, root, exceptions.keys().copied());
+        let statement = BatchCommitStatement::new(view, root, exceptions.keys().copied().collect());
         let signature = keychain.multisign(&statement).unwrap();
 
         BatchCommitShard {
@@ -70,22 +70,24 @@ impl BatchCommitShard {
         committer: &KeyCard,
     ) -> Result<(), Top<BatchCommitShardError>> {
         for (id, equivocation) in self.exceptions.iter() {
-            equivocation
-                .validate(discovery)
-                .pot(BatchCommitShardError::EquivocationInvalid, here!())?;
-
-            if equivocation.id() != *id {
-                return BatchCommitShardError::MismatchedId.fail().spot(here!());
-            }
-
+            // Assuming that `batch` is valid, `batch.prepares()` is sorted by `Id`,
+            // and can therefore be searched using `binary_search*`
             batch
                 .prepares()
                 .binary_search_by_key(id, |prepare| prepare.id())
                 .map_err(|_| BatchCommitShardError::ForeignException.into_top())
                 .spot(here!())?;
+
+            if equivocation.id() != *id {
+                return BatchCommitShardError::MismatchedId.fail().spot(here!());
+            }
+
+            equivocation
+                .validate(discovery)
+                .pot(BatchCommitShardError::EquivocationInvalid, here!())?;
         }
 
-        let exceptions = self.exceptions.keys().copied();
+        let exceptions = self.exceptions.keys().copied().collect();
         let statement = BatchCommitStatement::new(view.identifier(), batch.root(), exceptions);
 
         self.signature

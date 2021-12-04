@@ -36,7 +36,7 @@ pub(in crate::processing::processor::prepare) async fn witnessed_batch(
         .await
         .pot(ServePrepareError::ConnectionError, here!())?;
 
-    match request {
+    let batch = match request {
         PrepareRequest::Witness(witness) => {
             Ok(WitnessedBatch::new(view.identifier(), prepares, witness))
         }
@@ -53,5 +53,11 @@ pub(in crate::processing::processor::prepare) async fn witnessed_batch(
             Ok(batch)
         }
         _ => ServePrepareError::UnexpectedRequest.fail().spot(here!()),
-    }
+    }?;
+
+    batch
+        .validate(discovery)
+        .pot(ServePrepareError::InvalidBatch, here!())?;
+
+    Ok(batch)
 }
