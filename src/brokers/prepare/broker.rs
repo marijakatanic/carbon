@@ -210,7 +210,7 @@ impl Broker {
         todo!()
     }
 
-    async fn flush(brokerage_sponge: Arc<Sponge<Brokerage>>, reduction_timeout: Duration) {
+    async fn flush(brokerage_sponge: Arc<Sponge<Brokerage>>, reduction_timeout: Option<Duration>) {
         let fuse = Fuse::new();
 
         loop {
@@ -254,7 +254,7 @@ impl Broker {
             .collect()
     }
 
-    async fn broker(brokerages: Vec<Brokerage>, reduction_timeout: Duration) {
+    async fn broker(brokerages: Vec<Brokerage>, reduction_timeout: Option<Duration>) {
         let mut assignments = Vec::new();
         let mut prepares = Vec::new();
         let mut individual_signatures = Vec::new();

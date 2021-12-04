@@ -3,7 +3,7 @@ use crate::data::SpongeSettings;
 use std::{
     mem,
     sync::{Arc, Mutex},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use talk::sync::fuse::Fuse;
@@ -52,10 +52,12 @@ impl<Item> Sponge<Item> {
             let notify = self.notify.clone();
             let settings = self.settings.clone();
 
-            self.fuse.spawn(async move {
-                time::sleep(settings.timeout).await;
-                notify.notify_one();
-            });
+            if let Some(timeout) = settings.timeout {
+                self.fuse.spawn(async move {
+                    time::sleep(timeout).await;
+                    notify.notify_one();
+                });
+            }
         }
 
         if database.items.len() >= self.settings.capacity {
@@ -73,8 +75,12 @@ impl<Item> Sponge<Item> {
                 continue;
             }
 
-            if database.items.len() >= self.settings.capacity
-                || database.start.elapsed() > self.settings.timeout
+            let timeout = match self.settings.timeout {
+                Some(timeout) => timeout,
+                None => Duration::MAX, // For all intents and purposes, `Duration::MAX` represents infinite time
+            };
+
+            if database.items.len() >= self.settings.capacity || database.start.elapsed() > timeout
             {
                 let mut flush = Vec::new();
                 mem::swap(&mut flush, &mut database.items);
@@ -96,7 +102,7 @@ mod tests {
     async fn empty() {
         let sponge = Arc::new(Sponge::<u32>::new(SpongeSettings {
             capacity: 10,
-            timeout: Duration::from_secs_f64(0.1),
+            timeout: Some(Duration::from_secs_f64(0.1)),
         }));
 
         {
@@ -115,7 +121,7 @@ mod tests {
     async fn timeout() {
         let sponge = Arc::new(Sponge::new(SpongeSettings {
             capacity: 10,
-            timeout: Duration::from_secs_f64(0.1),
+            timeout: Some(Duration::from_secs_f64(0.1)),
         }));
 
         let handle = {
@@ -135,7 +141,7 @@ mod tests {
     async fn repeated_timeout() {
         let sponge = Arc::new(Sponge::new(SpongeSettings {
             capacity: 10,
-            timeout: Duration::from_secs_f64(0.1),
+            timeout: Some(Duration::from_secs_f64(0.1)),
         }));
 
         for size in 1..5 {
@@ -160,7 +166,7 @@ mod tests {
     async fn overflow() {
         let sponge = Arc::new(Sponge::new(SpongeSettings {
             capacity: 10,
-            timeout: Duration::from_secs_f64(0.5),
+            timeout: Some(Duration::from_secs_f64(0.5)),
         }));
 
         let handle = {
@@ -185,7 +191,7 @@ mod tests {
     async fn repeated_overflow() {
         let sponge = Arc::new(Sponge::new(SpongeSettings {
             capacity: 10,
-            timeout: Duration::from_secs_f64(0.5),
+            timeout: Some(Duration::from_secs_f64(0.5)),
         }));
 
         {
