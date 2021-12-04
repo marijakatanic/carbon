@@ -1,12 +1,13 @@
 use bit_vec::BitVec;
 
-use crate::prepare::{Extract, WitnessedBatch};
+use crate::prepare::{BatchCommit, Extract, WitnessedBatch};
 
 use std::iter;
 
 pub(crate) struct BatchHolder {
     batch: WitnessedBatch,
     references: BitVec,
+    commit: Option<BatchCommit>,
 }
 
 impl BatchHolder {
@@ -15,11 +16,19 @@ impl BatchHolder {
             .take(batch.prepares().len())
             .collect::<BitVec>();
 
-        BatchHolder { batch, references }
+        BatchHolder {
+            batch,
+            references,
+            commit: None,
+        }
     }
 
     pub fn extract(&self, index: usize) -> Extract {
         self.batch.extract(index)
+    }
+
+    pub fn commit(&mut self, commit: BatchCommit) {
+        self.commit = Some(commit);
     }
 
     pub fn unref(&mut self, index: usize) {

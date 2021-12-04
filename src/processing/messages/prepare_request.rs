@@ -1,4 +1,8 @@
-use crate::{crypto::Certificate, prepare::Prepare, signup::IdAssignment};
+use crate::{
+    crypto::Certificate,
+    prepare::{BatchCommit, Prepare},
+    signup::IdAssignment,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -12,4 +16,5 @@ pub(crate) enum PrepareRequest {
     Signatures(MultiSignature, Vec<Option<Signature>>),
     Assignments(Vec<IdAssignment>),
     Witness(Certificate),
+    Commit(BatchCommit),
 }

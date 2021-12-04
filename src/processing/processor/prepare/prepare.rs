@@ -292,6 +292,34 @@ impl Processor {
             .await
             .pot(ServePrepareError::ConnectionError, here!())?;
 
-        todo!()
+        let request = session
+            .receive::<PrepareRequest>()
+            .await
+            .pot(ServePrepareError::ConnectionError, here!())?;
+
+        let commit = match request {
+            PrepareRequest::Commit(commit) => commit,
+            _ => return ServePrepareError::UnexpectedRequest.fail().spot(here!()),
+        };
+
+        if commit.root() != root {
+            return ServePrepareError::ForeignCommit.fail().spot(here!());
+        }
+
+        commit
+            .validate(discovery.as_ref())
+            .pot(ServePrepareError::InvalidCommit, here!())?;
+
+        {
+            let mut database = database
+                .lock()
+                .pot(ServePrepareError::DatabaseVoid, here!())?;
+
+            if let Some(holder) = database.prepare.batches.get_mut(&root) {
+                holder.commit(commit);
+            }
+        }
+
+        Ok(())
     }
 }

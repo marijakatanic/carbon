@@ -18,4 +18,8 @@ pub(in crate::processing::processor::prepare) enum ServePrepareError {
     InvalidBatch,
     #[doom(description("Invalid witness"))]
     InvalidWitness,
+    #[doom(description("Foreign commit"))]
+    ForeignCommit,
+    #[doom(description("Invalid commit"))]
+    InvalidCommit,
 }
