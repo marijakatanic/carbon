@@ -12,6 +12,7 @@ use zebra::vector::Vector;
 
 #[derive(Serialize, Deserialize)]
 pub(crate) enum PrepareRequest {
+    Ping,
     Batch(Vector<Prepare>),
     Signatures(MultiSignature, Vec<Option<Signature>>),
     Assignments(Vec<IdAssignment>),

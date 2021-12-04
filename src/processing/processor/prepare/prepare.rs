@@ -60,6 +60,7 @@ impl Processor {
             .pot(ServePrepareError::ConnectionError, here!())?;
 
         match request {
+            PrepareRequest::Ping => handlers::ping(session).await,
             PrepareRequest::Batch(prepares) => {
                 handlers::batch(
                     &keychain,
