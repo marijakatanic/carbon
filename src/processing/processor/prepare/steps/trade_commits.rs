@@ -19,10 +19,15 @@ pub(in crate::processing::processor::prepare) async fn trade_commits(
     root: Hash,
     shard: BatchCommitShard,
 ) -> Result<(), Top<ServePrepareError>> {
+    // Send `BatchCommitShard`
+
     session
         .send(&PrepareResponse::CommitShard(shard))
         .await
         .pot(ServePrepareError::ConnectionError, here!())?;
+
+    // Receive `BatchCommit` (which aggregates a plurality of `BatchCommitShard`s
+    // produced by other replicas in `view`)
 
     let request = session
         .receive::<PrepareRequest>()
@@ -34,6 +39,8 @@ pub(in crate::processing::processor::prepare) async fn trade_commits(
         _ => return ServePrepareError::UnexpectedRequest.fail().spot(here!()),
     };
 
+    // Verify that `commit` applies to the current batch's `root` and is valid
+
     if commit.root() != root {
         return ServePrepareError::ForeignCommit.fail().spot(here!());
     }
@@ -42,12 +49,16 @@ pub(in crate::processing::processor::prepare) async fn trade_commits(
         .validate(discovery)
         .pot(ServePrepareError::InvalidCommit, here!())?;
 
-    let mut database = database
-        .lock()
-        .pot(ServePrepareError::DatabaseVoid, here!())?;
+    // Store `commit` in `root`'s `BatchHolder`, if still available in `database`
+    
+    {
+        let mut database = database
+            .lock()
+            .pot(ServePrepareError::DatabaseVoid, here!())?;
 
-    if let Some(holder) = database.prepare.batches.get_mut(&root) {
-        holder.commit(commit);
+        if let Some(holder) = database.prepare.batches.get_mut(&root) {
+            holder.commit(commit);
+        }
     }
 
     Ok(())
