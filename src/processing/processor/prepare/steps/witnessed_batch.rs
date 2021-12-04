@@ -71,7 +71,7 @@ pub(in crate::processing::processor::prepare) async fn witnessed_batch(
         _ => ServePrepareError::UnexpectedRequest.fail().spot(here!()),
     }?;
 
-    // Validate and return `batch`
+    // Validate and return `batch` (this checks the correctness of the `witness`es acquired above)
 
     batch
         .validate(discovery)
