@@ -41,7 +41,7 @@ impl LatticeElement for SequenceLatticeElement {
         );
 
         self.certificate
-            .verify(view, &decision)
+            .verify_quorum(view, &decision)
             .pot(SequenceProposalError::InvalidCertificate, here!())
             .pot(LatticeElementError::ElementInvalid, here!())
     }

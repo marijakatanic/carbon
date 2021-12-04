@@ -94,7 +94,7 @@ impl Certificate {
         self.signers.iter().filter(|mask| *mask).count()
     }
 
-    pub fn verify<S>(&self, view: &View, message: &S) -> Result<(), Top<CertificateError>>
+    pub fn verify_raw<S>(&self, view: &View, message: &S) -> Result<(), Top<CertificateError>>
     where
         S: Statement,
     {
@@ -125,7 +125,7 @@ impl Certificate {
         S: Statement,
     {
         if self.power() >= threshold {
-            self.verify(view, message)
+            self.verify_raw(view, message)
         } else {
             CertificateError::NotEnoughSigners.fail()
         }
