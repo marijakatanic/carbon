@@ -1,23 +1,14 @@
 use crate::{
-    crypto::Identify,
-    database::{
-        prepare::{PrepareHandle, State},
-        Database,
-    },
+    database::Database,
     discovery::Client,
-    prepare::{
-        BatchCommitShard, Equivocation, ReductionStatement, SignedBatch, WitnessStatement,
-        WitnessedBatch,
-    },
     processing::{
-        messages::{PrepareRequest, PrepareResponse},
-        processor::prepare::errors::ServePrepareError,
+        processor::prepare::{errors::ServePrepareError, steps},
         Processor,
     },
     view::View,
 };
 
-use doomstack::{here, Doom, ResultExt, Top};
+use doomstack::Top;
 
 use std::sync::Arc;
 
@@ -62,263 +53,28 @@ impl Processor {
         database: Arc<Voidable<Database>>,
         mut session: Session,
     ) -> Result<(), Top<ServePrepareError>> {
-        let request = session
-            .receive::<PrepareRequest>()
-            .await
-            .pot(ServePrepareError::ConnectionError, here!())?;
+        let batch = steps::witnessed_batch(
+            &keychain,
+            discovery.as_ref(),
+            &view,
+            database.as_ref(),
+            &mut session,
+        )
+        .await?;
 
-        let prepares = match request {
-            PrepareRequest::Prepares(batch) => batch,
-            _ => return ServePrepareError::UnexpectedRequest.fail().spot(here!()),
-        };
-
-        let request = session
-            .receive::<PrepareRequest>()
-            .await
-            .pot(ServePrepareError::ConnectionError, here!())?;
-
-        let batch = match request {
-            PrepareRequest::Witness(witness) => {
-                WitnessedBatch::new(view.identifier(), prepares, witness)
-            }
-            PrepareRequest::Signatures(reduction_signature, individual_signatures) => {
-                let batch = SignedBatch::new(prepares, reduction_signature, individual_signatures);
-
-                if !batch
-                    .prepares()
-                    .windows(2)
-                    .all(|window| window[0].id() < window[1].id())
-                {
-                    return ServePrepareError::MalformedBatch.fail().spot(here!());
-                }
-
-                let unknown_ids = {
-                    let database = database
-                        .lock()
-                        .pot(ServePrepareError::DatabaseVoid, here!())?;
-
-                    batch
-                        .prepares()
-                        .iter()
-                        .map(|prepare| prepare.id())
-                        .filter(|id| !database.assignments.contains_key(&id))
-                        .collect::<Vec<_>>()
-                };
-
-                if !unknown_ids.is_empty() {
-                    session
-                        .send(&PrepareResponse::UnknownIds(unknown_ids.clone())) // TODO: Remove unnecessary `clone`
-                        .await
-                        .pot(ServePrepareError::ConnectionError, here!())?;
-
-                    let request = session
-                        .receive::<PrepareRequest>()
-                        .await
-                        .pot(ServePrepareError::ConnectionError, here!())?;
-
-                    let id_assignments = match request {
-                        PrepareRequest::Assignments(id_assignments) => id_assignments,
-                        _ => {
-                            return ServePrepareError::UnexpectedRequest.fail().spot(here!());
-                        }
-                    };
-
-                    if id_assignments.len() != unknown_ids.len() {
-                        return ServePrepareError::MalformedIdAssignments
-                            .fail()
-                            .spot(here!());
-                    }
-
-                    if !unknown_ids
-                        .iter()
-                        .zip(id_assignments.iter())
-                        .all(|(id, id_assignment)| {
-                            id_assignment.id() == *id
-                                && id_assignment.validate(discovery.as_ref()).is_ok()
-                        })
-                    {
-                        return ServePrepareError::InvalidIdAssignment.fail().spot(here!());
-                    }
-
-                    {
-                        let mut database = database
-                            .lock()
-                            .pot(ServePrepareError::DatabaseVoid, here!())?;
-
-                        for id_assignment in id_assignments {
-                            database
-                                .assignments
-                                .insert(id_assignment.id(), id_assignment);
-                        }
-                    }
-                }
-
-                {
-                    let database = database
-                        .lock()
-                        .pot(ServePrepareError::DatabaseVoid, here!())?;
-
-                    let mut reduction_signers = Vec::new();
-
-                    for (prepare, individual_signature) in
-                        batch.prepares().iter().zip(batch.individual_signatures())
-                    {
-                        let keycard = database.assignments[&prepare.id()].keycard();
-
-                        match individual_signature {
-                            Some(signature) => {
-                                signature
-                                    .verify(&keycard, prepare)
-                                    .pot(ServePrepareError::InvalidBatch, here!())?;
-                            }
-                            None => {
-                                reduction_signers.push(keycard);
-                            }
-                        }
-                    }
-
-                    let reduction_statement = ReductionStatement::new(batch.root());
-
-                    batch
-                        .reduction_signature()
-                        .verify(reduction_signers, &reduction_statement)
-                        .pot(ServePrepareError::InvalidBatch, here!())?;
-                }
-
-                let witness_statement = WitnessStatement::new(batch.root());
-                let witness_shard = keychain.multisign(&witness_statement).unwrap();
-
-                session
-                    .send(&PrepareResponse::WitnessShard(witness_shard))
-                    .await
-                    .pot(ServePrepareError::ConnectionError, here!())?;
-
-                let request = session
-                    .receive::<PrepareRequest>()
-                    .await
-                    .pot(ServePrepareError::ConnectionError, here!())?;
-
-                let witness = match request {
-                    PrepareRequest::Witness(witness) => witness,
-                    _ => {
-                        return ServePrepareError::UnexpectedRequest.fail().spot(here!());
-                    }
-                };
-
-                let witness_statement = WitnessStatement::new(batch.root());
-
-                witness
-                    .verify_plurality(&view, &witness_statement)
-                    .pot(ServePrepareError::InvalidWitness, here!())?;
-
-                batch.into_witnessed(view.identifier(), witness)
-            }
-            _ => return ServePrepareError::UnexpectedRequest.fail().spot(here!()),
-        };
-
-        let mut exceptions = Vec::new();
         let root = batch.root();
+        let shard = steps::apply_batch(&keychain, &view, database.as_ref(), batch).await?;
 
-        {
-            let mut database = database
-                .lock()
-                .pot(ServePrepareError::DatabaseVoid, here!())?;
+        steps::trade_commits(
+            discovery.as_ref(),
+            database.as_ref(),
+            &mut session,
+            root,
+            shard,
+        )
+        .await?;
 
-            for (index, prepare) in batch.prepares().iter().enumerate() {
-                let id = prepare.id();
-                let height = prepare.height();
-                let commitment = prepare.commitment();
-                let prepare = PrepareHandle::Batched { batch: root, index };
-
-                let state = match database.prepare.states.get(&id) {
-                    Some(state) => match state {
-                        State::Consistent {
-                            height: state_height,
-                            commitment: state_commitment,
-                            prepare: state_prepare,
-                        } => {
-                            if height == *state_height {
-                                if commitment == *state_commitment {
-                                    continue;
-                                } else {
-                                    let state_extract = match state_prepare {
-                                        PrepareHandle::Batched {
-                                            batch: state_batch,
-                                            index: state_index,
-                                        } => database
-                                            .prepare
-                                            .batches
-                                            .get(state_batch)
-                                            .unwrap()
-                                            .extract(*state_index),
-                                        PrepareHandle::Standalone(extract) => extract.clone(),
-                                    };
-
-                                    let equivocation =
-                                        Equivocation::new(batch.extract(index), state_extract);
-
-                                    State::Equivocated(equivocation)
-                                }
-                            } else {
-                                State::Consistent {
-                                    height,
-                                    commitment,
-                                    prepare,
-                                }
-                            }
-                        }
-                        equivocated => equivocated.clone(),
-                    },
-                    None => State::Consistent {
-                        height,
-                        commitment,
-                        prepare,
-                    },
-                };
-
-                if let State::Equivocated(equivocation) = &state {
-                    exceptions.push(equivocation.clone());
-                }
-
-                database.prepare.states.insert(id, state);
-                database.prepare.stale.insert(id);
-            }
-        }
-
-        let shard = BatchCommitShard::new(&keychain, view.identifier(), root, exceptions);
-
-        session
-            .send(&PrepareResponse::CommitShard(shard))
-            .await
-            .pot(ServePrepareError::ConnectionError, here!())?;
-
-        let request = session
-            .receive::<PrepareRequest>()
-            .await
-            .pot(ServePrepareError::ConnectionError, here!())?;
-
-        let commit = match request {
-            PrepareRequest::Commit(commit) => commit,
-            _ => return ServePrepareError::UnexpectedRequest.fail().spot(here!()),
-        };
-
-        if commit.root() != root {
-            return ServePrepareError::ForeignCommit.fail().spot(here!());
-        }
-
-        commit
-            .validate(discovery.as_ref())
-            .pot(ServePrepareError::InvalidCommit, here!())?;
-
-        {
-            let mut database = database
-                .lock()
-                .pot(ServePrepareError::DatabaseVoid, here!())?;
-
-            if let Some(holder) = database.prepare.batches.get_mut(&root) {
-                holder.commit(commit);
-            }
-        }
+        session.end();
 
         Ok(())
     }
