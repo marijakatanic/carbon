@@ -20,6 +20,8 @@ pub(in crate::processing::processor::prepare) async fn validate_signed(
     session: &mut Session,
     batch: &SignedBatch,
 ) -> Result<MultiSignature, Top<ServePrepareError>> {
+    // Verify `batch.prepares()` is strictly increasing by `Id`
+    // (this ensures searchability and non-duplication of `Id`s)
     if !batch
         .prepares()
         .windows(2)
@@ -27,6 +29,9 @@ pub(in crate::processing::processor::prepare) async fn validate_signed(
     {
         return ServePrepareError::MalformedBatch.fail().spot(here!());
     }
+
+    // Identify unknown `Id`s in `batch`. If any, retrieve and store
+    // all missing `IdAssignment`s
 
     steps::gather_assignments(discovery, database, session, batch).await?;
 

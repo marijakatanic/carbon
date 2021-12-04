@@ -53,6 +53,8 @@ impl Processor {
         database: Arc<Voidable<Database>>,
         mut session: Session,
     ) -> Result<(), Top<ServePrepareError>> {
+        // Obtain a `WitnessedBatch`
+
         let batch = steps::witnessed_batch(
             &keychain,
             discovery.as_ref(),
@@ -62,8 +64,12 @@ impl Processor {
         )
         .await?;
 
+        // Apply `batch` to `database` to obtain a `BatchCommitShard`
+
         let root = batch.root();
         let shard = steps::apply_batch(&keychain, &view, database.as_ref(), batch).await?;
+
+        // Trade `shard` for a `BatchCommit` to store in `database`
 
         steps::trade_commits(
             discovery.as_ref(),

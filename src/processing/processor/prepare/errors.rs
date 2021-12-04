@@ -12,6 +12,8 @@ pub(in crate::processing::processor::prepare) enum ServePrepareError {
     DatabaseVoid,
     #[doom(description("Malformed id assignments"))]
     MalformedIdAssignments,
+    #[doom(description("Mismatched id assignment"))]
+    MismatchedIdAssignment,
     #[doom(description("Invalid id assignment"))]
     InvalidIdAssignment,
     #[doom(description("Invalid batch"))]

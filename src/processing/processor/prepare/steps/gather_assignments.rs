@@ -18,6 +18,8 @@ pub(in crate::processing::processor::prepare) async fn gather_assignments(
     session: &mut Session,
     batch: &SignedBatch,
 ) -> Result<(), Top<ServePrepareError>> {
+    // Identify unknown `Id`s in `batch`
+
     let unknown_ids = {
         let database = database
             .lock()
@@ -31,14 +33,20 @@ pub(in crate::processing::processor::prepare) async fn gather_assignments(
             .collect::<Vec<_>>()
     };
 
+    // If `unknown_ids` is empty, no further communication is required
+
     if unknown_ids.is_empty() {
         return Ok(());
     }
+
+    // Query for `unknown_ids`
 
     session
         .send(&PrepareResponse::UnknownIds(unknown_ids.clone())) // TODO: Remove unnecessary `clone`
         .await
         .pot(ServePrepareError::ConnectionError, here!())?;
+
+    // Receive requested of `IdAssignments`
 
     let request = session
         .receive::<PrepareRequest>()
@@ -52,21 +60,38 @@ pub(in crate::processing::processor::prepare) async fn gather_assignments(
         }
     };
 
+    // Validate `id_assignments` against `unknown_ids`
+
+    // This check is necessary to ensure that the subsequent `zip` will
+    // iterate fully over both `unknown_ids` and `id_assignments`
     if id_assignments.len() != unknown_ids.len() {
         return ServePrepareError::MalformedIdAssignments
             .fail()
             .spot(here!());
     }
 
-    if !unknown_ids
+    // Check that each element `id_assignments` is valid and relevant to the
+    // corresponding element of `unknown_ids`. Because the following collects
+    // an iterator of `Result<(), Top<ServePrepareError>>` into a single
+    // `Result<(), Top<ServePrepareError>>`, the following `collect` has no
+    // memory footprint.
+    unknown_ids
         .iter()
         .zip(id_assignments.iter())
-        .all(|(id, id_assignment)| {
-            id_assignment.id() == *id && id_assignment.validate(discovery).is_ok()
+        .map(|(id, id_assignment)| {
+            if id_assignment.id() != *id {
+                ServePrepareError::MismatchedIdAssignment
+                    .fail()
+                    .spot(here!())
+            } else {
+                id_assignment
+                    .validate(discovery)
+                    .pot(ServePrepareError::InvalidIdAssignment, here!())
+            }
         })
-    {
-        return ServePrepareError::InvalidIdAssignment.fail().spot(here!());
-    }
+        .collect::<Result<_, _>>()?;
+
+    // Store `id_assignments` in `database`
 
     {
         let mut database = database
