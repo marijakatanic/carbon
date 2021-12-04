@@ -30,42 +30,48 @@ pub(in crate::processing::processor::prepare) async fn validate_signed(
         return ServePrepareError::MalformedBatch.fail().spot(here!());
     }
 
-    // Identify unknown `Id`s in `batch`. If any, retrieve and store
-    // all missing `IdAssignment`s
+    // Retrieve the `KeyCard` relevant to each of the elements of `batch.prepares()`.
+    // If any `KeyCard` is missing from `database`, query `session` for the necessary
+    // `IdAssignment`s (store in `database` all newly discovered `IdAssignments`).
 
-    steps::gather_assignments(discovery, database, session, batch).await?;
+    let keycards = steps::fetch_keycards(discovery, database, session, batch).await?;
 
-    {
-        let database = database
-            .lock()
-            .pot(ServePrepareError::DatabaseVoid, here!())?;
+    // Check all individual signatures in `batch` while collecting signers to
+    // `batch`'s reduction statement
 
-        let mut reduction_signers = Vec::new();
+    // `steps` zips together corresponding `KeyCard`s, `Prepare`s and individual
+    // `Signature`'s from `keycards` and `batch`
+    let steps = keycards
+        .iter()
+        .zip(batch.prepares().iter().zip(batch.individual_signatures()));
 
-        for (prepare, individual_signature) in
-            batch.prepares().iter().zip(batch.individual_signatures())
-        {
-            let keycard = database.assignments[&prepare.id()].keycard();
+    // The collection of `steps` into `reduction_signers` is expressed iteratively
+    // to improve readability and avoid a useless collection of `Result<Vec<_>, _>`
+    let mut reduction_signers = Vec::new();
 
-            match individual_signature {
-                Some(signature) => {
-                    signature
-                        .verify(&keycard, prepare)
-                        .pot(ServePrepareError::InvalidBatch, here!())?;
-                }
-                None => {
-                    reduction_signers.push(keycard);
-                }
+    for (keycard, (prepare, individual_signature)) in steps {
+        match individual_signature {
+            Some(signature) => {
+                signature
+                    .verify(&keycard, prepare)
+                    .pot(ServePrepareError::InvalidBatch, here!())?;
+            }
+            None => {
+                reduction_signers.push(keycard);
             }
         }
-
-        let reduction_statement = ReductionStatement::new(batch.root());
-
-        batch
-            .reduction_signature()
-            .verify(reduction_signers, &reduction_statement)
-            .pot(ServePrepareError::InvalidBatch, here!())?;
     }
+
+    // Verify `batch`'s reduction statement against `reduction_signers`
+
+    let reduction_statement = ReductionStatement::new(batch.root());
+
+    batch
+        .reduction_signature()
+        .verify(reduction_signers, &reduction_statement)
+        .pot(ServePrepareError::InvalidBatch, here!())?;
+
+    // `batch` is valid, generate and return witness shard
 
     let witness_statement = WitnessStatement::new(batch.root());
     let witness_shard = keychain.multisign(&witness_statement).unwrap();
