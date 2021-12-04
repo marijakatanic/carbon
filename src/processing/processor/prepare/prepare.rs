@@ -2,13 +2,12 @@ use crate::{
     database::Database,
     discovery::Client,
     processing::{
-        processor::prepare::{errors::ServePrepareError, steps},
-        Processor,
+        messages::PrepareRequest, processor::prepare::errors::ServePrepareError, Processor,
     },
     view::View,
 };
 
-use doomstack::Top;
+use doomstack::{here, Doom, ResultExt, Top};
 
 use std::sync::Arc;
 
@@ -17,6 +16,8 @@ use talk::{
     net::{Listener, Session, SessionListener},
     sync::{fuse::Fuse, voidable::Voidable},
 };
+
+use super::handlers;
 
 impl Processor {
     pub(in crate::processing) async fn run_prepare<L>(
@@ -53,35 +54,27 @@ impl Processor {
         database: Arc<Voidable<Database>>,
         mut session: Session,
     ) -> Result<(), Top<ServePrepareError>> {
-        // Obtain a `WitnessedBatch`
+        let request = session
+            .receive::<PrepareRequest>()
+            .await
+            .pot(ServePrepareError::ConnectionError, here!())?;
 
-        let batch = steps::witnessed_batch(
-            &keychain,
-            discovery.as_ref(),
-            &view,
-            database.as_ref(),
-            &mut session,
-        )
-        .await?;
-
-        // Apply `batch` to `database` to obtain a `BatchCommitShard`
-
-        let root = batch.root();
-        let shard = steps::apply_batch(&keychain, &view, database.as_ref(), batch).await?;
-
-        // Trade `shard` for a `BatchCommit` to store in `database`
-
-        steps::trade_commits(
-            discovery.as_ref(),
-            database.as_ref(),
-            &mut session,
-            root,
-            shard,
-        )
-        .await?;
-
-        session.end();
-
-        Ok(())
+        match request {
+            PrepareRequest::Batch(prepares) => {
+                handlers::batch(
+                    &keychain,
+                    discovery.as_ref(),
+                    &view,
+                    database.as_ref(),
+                    session,
+                    prepares,
+                )
+                .await
+            }
+            PrepareRequest::Commit(commit) => {
+                handlers::commit(discovery.as_ref(), database.as_ref(), session, commit).await
+            }
+            _ => ServePrepareError::UnexpectedRequest.fail().spot(here!()),
+        }
     }
 }

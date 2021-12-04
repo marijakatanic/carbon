@@ -1,11 +1,9 @@
 use crate::{
     crypto::Certificate,
-    prepare::SignedBatch,
     processing::{
         messages::{PrepareRequest, PrepareResponse},
         processor::prepare::errors::ServePrepareError,
     },
-    view::View,
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
@@ -13,9 +11,7 @@ use doomstack::{here, Doom, ResultExt, Top};
 use talk::{crypto::primitives::multi::Signature as MultiSignature, net::Session};
 
 pub(in crate::processing::processor::prepare) async fn trade_witnesses(
-    view: &View,
     session: &mut Session,
-    batch: &SignedBatch,
     shard: MultiSignature,
 ) -> Result<Certificate, Top<ServePrepareError>> {
     // Send witness `shard`
@@ -26,7 +22,7 @@ pub(in crate::processing::processor::prepare) async fn trade_witnesses(
         .pot(ServePrepareError::ConnectionError, here!())?;
 
     // Receive witness certificate (which aggregates a plurality of witness
-    // shards produced by other replicas in `view`)
+    // shards produced by other members of the replica's view)
 
     let request = session
         .receive::<PrepareRequest>()
