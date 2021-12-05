@@ -4,10 +4,15 @@ mod broker_settings;
 mod brokerage;
 mod failure;
 mod inclusion;
+mod ping_board;
 mod reduction;
 mod request;
 
 use brokerage::Brokerage;
+
+#[allow(unused_imports)]
+use ping_board::PingBoard;
+
 use reduction::Reduction;
 
 #[allow(unused_imports)]
