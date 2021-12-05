@@ -1,9 +1,14 @@
 mod broker;
 mod broker_failure;
 mod broker_settings;
+mod brokerage;
 mod failure;
 mod inclusion;
+mod reduction;
 mod request;
+
+use brokerage::Brokerage;
+use reduction::Reduction;
 
 #[allow(unused_imports)]
 pub(crate) use inclusion::Inclusion;

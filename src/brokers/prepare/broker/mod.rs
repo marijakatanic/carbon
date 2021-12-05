@@ -1,5 +1,5 @@
 use crate::{
-    brokers::prepare::{BrokerSettings, Failure, Inclusion, Request},
+    brokers::prepare::{BrokerSettings, Brokerage, Failure, Reduction},
     crypto::Identify,
     data::Sponge,
     discovery::Client,
@@ -11,7 +11,6 @@ use doomstack::{here, Doom, ResultExt, Top};
 use std::{net::SocketAddr, sync::Arc};
 
 use talk::{
-    crypto::primitives::multi::Signature as MultiSignature,
     link::context::ConnectDispatcher,
     net::{Connector, SessionConnector},
     sync::fuse::Fuse,
@@ -29,17 +28,6 @@ type ReductionOutlet = Receiver<Result<Reduction, Failure>>;
 pub(crate) struct Broker {
     address: SocketAddr,
     _fuse: Fuse,
-}
-
-struct Brokerage {
-    request: Request,
-    reduction_inlet: ReductionInlet,
-}
-
-struct Reduction {
-    index: usize,
-    inclusion: Inclusion,
-    reduction_sponge: Arc<Sponge<(usize, MultiSignature)>>,
 }
 
 #[derive(Doom)]
@@ -119,16 +107,27 @@ impl Broker {
     }
 }
 
+mod broker;
+mod flush;
+mod frontend;
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     use crate::{
-        brokers::{signup::BrokerFailure as SignupBrokerFailure, test::System},
+        brokers::{
+            prepare::{Inclusion, Request},
+            signup::BrokerFailure as SignupBrokerFailure,
+            test::System,
+        },
         signup::{IdAssignment, IdRequest, SignupSettings},
     };
 
-    use talk::crypto::{primitives::hash, KeyChain};
+    use talk::{
+        crypto::{primitives::hash, KeyChain},
+        net::PlainConnection,
+    };
 
     use tokio::net::TcpStream;
 
@@ -193,7 +192,3 @@ mod tests {
         // tokio::time::sleep(std::time::Duration::from_secs(10)).await;
     }
 }
-
-mod broker;
-mod flush;
-mod frontend;
