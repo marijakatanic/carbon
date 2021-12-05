@@ -1,9 +1,11 @@
 use crate::{prepare::Prepare, processing::messages::PrepareRequest, signup::IdAssignment};
-use talk::crypto::primitives::{multi::Signature as MultiSignature, sign::Signature};
+
+use talk::crypto::primitives::{hash::Hash, multi::Signature as MultiSignature, sign::Signature};
 
 use zebra::vector::Vector;
 
 pub(in crate::brokers::prepare) struct Submission {
+    pub root: Hash,
     pub assignments: Vec<IdAssignment>,
     pub requests: Requests,
 }
@@ -21,6 +23,7 @@ impl Submission {
         individual_signatures: Vec<Option<Signature>>,
     ) -> Self {
         Submission {
+            root: prepares.root(),
             assignments,
             requests: Requests {
                 batch: PrepareRequest::Batch(prepares),

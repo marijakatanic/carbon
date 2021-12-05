@@ -1,5 +1,6 @@
 use crate::{
     brokers::prepare::{ping_board::PingBoard, Broker, Submission},
+    prepare::WitnessStatement,
     processing::messages::PrepareResponse,
     view::View,
 };
@@ -9,7 +10,7 @@ use doomstack::{here, Doom, ResultExt, Top};
 use std::{collections::HashMap, sync::Arc};
 
 use talk::{
-    crypto::{primitives::multi::Signature as MultiSignature, Identity},
+    crypto::{primitives::multi::Signature as MultiSignature, Identity, KeyCard},
     net::SessionConnector,
     sync::fuse::Fuse,
 };
@@ -40,6 +41,8 @@ enum SubmitError {
     ConnectionError,
     #[doom(description("Unexpected response"))]
     UnexpectedResponse,
+    #[doom(description("Invalid witness shard"))]
+    InvalidWitnessShard,
     #[doom(description("Command channel closed"))]
     CommandChannelClosed,
 }
@@ -59,13 +62,13 @@ impl Broker {
 
         let mut command_inlets = HashMap::new();
 
-        for replica in view.members().keys().copied() {
+        for replica in view.members().values().cloned() {
             let connector = connector.clone();
             let submission = submission.clone();
             let update_inlet = update_inlet.clone();
 
             let (command_inlet, command_outlet) = mpsc::unbounded_channel();
-            command_inlets.insert(replica, command_inlet);
+            command_inlets.insert(replica.identity(), command_inlet);
 
             fuse.spawn(async move {
                 Broker::submit(connector, replica, submission, command_outlet, update_inlet)
@@ -86,14 +89,14 @@ impl Broker {
 
     async fn submit(
         connector: Arc<SessionConnector>,
-        replica: Identity,
+        replica: KeyCard,
         submission: Arc<Submission>,
         mut command_outlet: CommandOutlet,
         update_inlet: UpdateInlet,
     ) {
         let result: Result<(), Top<SubmitError>> = async {
             let mut session = connector
-                .connect(replica)
+                .connect(replica.identity())
                 .await
                 .pot(SubmitError::ConnectionFailed, here!())?;
 
@@ -125,7 +128,13 @@ impl Broker {
                         _ => SubmitError::UnexpectedResponse.fail().spot(here!()),
                     }?;
 
-                    let _ = update_inlet.send((replica, Update::WitnessShard(shard)));
+                    let statement = WitnessStatement::new(submission.root);
+
+                    shard
+                        .verify([&replica], &statement)
+                        .pot(SubmitError::InvalidWitnessShard, here!())?;
+
+                    let _ = update_inlet.send((replica.identity(), Update::WitnessShard(shard)));
                 }
             }
 
@@ -134,8 +143,8 @@ impl Broker {
         .await;
 
         let _ = match result {
-            Ok(_) => update_inlet.send((replica, Update::Success)),
-            Err(_) => update_inlet.send((replica, Update::Error)),
+            Ok(_) => update_inlet.send((replica.identity(), Update::Success)),
+            Err(_) => update_inlet.send((replica.identity(), Update::Error)),
         };
     }
 }
