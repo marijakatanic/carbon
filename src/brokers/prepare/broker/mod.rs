@@ -1,5 +1,5 @@
 use crate::{
-    brokers::prepare::{BrokerSettings, Brokerage, Failure, Reduction},
+    brokers::prepare::{BrokerSettings, Brokerage, Failure, PingBoard, Reduction},
     crypto::Identify,
     data::Sponge,
     discovery::Client,
@@ -63,9 +63,13 @@ impl Broker {
 
         let dispatcher = ConnectDispatcher::new(connector);
         let context = format!("{:?}::processor::prepare", view.identifier());
-        let _connector = Arc::new(SessionConnector::new(dispatcher.register(context)));
+        let connector = Arc::new(SessionConnector::new(dispatcher.register(context)));
 
         let brokerage_sponge = Arc::new(Sponge::new(settings.brokerage_sponge_settings));
+        let ping_board = PingBoard::new(&view);
+
+        let reduction_timeout = settings.reduction_timeout;
+        let ping_interval = settings.ping_interval;
 
         let fuse = Fuse::new();
 
@@ -77,11 +81,18 @@ impl Broker {
             });
         }
 
-        let reduction_timeout = settings.reduction_timeout;
-
         fuse.spawn(async move {
             Broker::flush(brokerage_sponge, reduction_timeout).await;
         });
+
+        for replica in view.members().keys().copied() {
+            let ping_board = ping_board.clone();
+            let connector = connector.clone();
+
+            fuse.spawn(
+                async move { Broker::ping(ping_board, connector, replica, ping_interval).await },
+            );
+        }
 
         Ok(Broker {
             address,
@@ -97,6 +108,7 @@ impl Broker {
 mod broker;
 mod flush;
 mod frontend;
+mod ping;
 
 #[cfg(test)]
 mod tests {

@@ -8,6 +8,7 @@ use std::{
 
 use talk::crypto::Identity;
 
+#[derive(Clone)]
 pub(in crate::brokers::prepare) struct PingBoard(Arc<Mutex<HashMap<Identity, Duration>>>);
 
 impl PingBoard {

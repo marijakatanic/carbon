@@ -9,10 +9,7 @@ mod reduction;
 mod request;
 
 use brokerage::Brokerage;
-
-#[allow(unused_imports)]
 use ping_board::PingBoard;
-
 use reduction::Reduction;
 
 pub(crate) use broker::Broker;
