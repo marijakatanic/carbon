@@ -19,7 +19,7 @@ use talk::{
 use tokio::{
     io,
     net::{TcpListener, ToSocketAddrs},
-    sync::oneshot::{self, Receiver, Sender},
+    sync::oneshot::{Receiver, Sender},
 };
 
 type ReductionInlet = Sender<Result<Reduction, Failure>>;
@@ -35,19 +35,6 @@ pub(crate) enum BrokerError {
     #[doom(description("Failed to initialize broker: {}", source))]
     #[doom(wrap(initialize_failed))]
     InitializeFailed { source: io::Error },
-}
-
-#[derive(Doom)]
-pub(crate) enum ServeError {
-    #[doom(description("Connection error"))]
-    ConnectionError,
-    #[doom(description("Request invalid"))]
-    RequestInvalid,
-    #[doom(description("`Brokerage` forfeited (most likely, the `Broker` is shutting down)"))]
-    #[doom(wrap(request_forfeited))]
-    BrokerageForfeited { source: oneshot::error::RecvError },
-    #[doom(description("Root shard invalid"))]
-    RootShardInvalid,
 }
 
 impl Broker {

@@ -1,6 +1,6 @@
 use crate::{
     brokers::prepare::{
-        broker::{Brokerage, Reduction, ServeError},
+        broker::{Brokerage, Reduction},
         Broker, Failure, Inclusion, Request,
     },
     data::Sponge,
@@ -17,6 +17,19 @@ use talk::{
 };
 
 use tokio::{net::TcpListener, sync::oneshot};
+
+#[derive(Doom)]
+enum ServeError {
+    #[doom(description("Connection error"))]
+    ConnectionError,
+    #[doom(description("Request invalid"))]
+    RequestInvalid,
+    #[doom(description("`Brokerage` forfeited (most likely, the `Broker` is shutting down)"))]
+    #[doom(wrap(request_forfeited))]
+    BrokerageForfeited { source: oneshot::error::RecvError },
+    #[doom(description("Root shard invalid"))]
+    RootShardInvalid,
+}
 
 impl Broker {
     pub(in crate::brokers::prepare::broker) async fn listen(
