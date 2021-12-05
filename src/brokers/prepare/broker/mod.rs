@@ -1,0 +1,199 @@
+use crate::{
+    brokers::prepare::{BrokerSettings, Failure, Inclusion, Request},
+    crypto::Identify,
+    data::Sponge,
+    discovery::Client,
+    view::View,
+};
+
+use doomstack::{here, Doom, ResultExt, Top};
+
+use std::{net::SocketAddr, sync::Arc};
+
+use talk::{
+    crypto::primitives::multi::Signature as MultiSignature,
+    link::context::ConnectDispatcher,
+    net::{Connector, SessionConnector},
+    sync::fuse::Fuse,
+};
+
+use tokio::{
+    io,
+    net::{TcpListener, ToSocketAddrs},
+    sync::oneshot::{self, Receiver, Sender},
+};
+
+type ReductionInlet = Sender<Result<Reduction, Failure>>;
+type ReductionOutlet = Receiver<Result<Reduction, Failure>>;
+
+pub(crate) struct Broker {
+    address: SocketAddr,
+    _fuse: Fuse,
+}
+
+struct Brokerage {
+    request: Request,
+    reduction_inlet: ReductionInlet,
+}
+
+struct Reduction {
+    index: usize,
+    inclusion: Inclusion,
+    reduction_sponge: Arc<Sponge<(usize, MultiSignature)>>,
+}
+
+#[derive(Doom)]
+pub(crate) enum BrokerError {
+    #[doom(description("Failed to initialize broker: {}", source))]
+    #[doom(wrap(initialize_failed))]
+    InitializeFailed { source: io::Error },
+}
+
+#[derive(Doom)]
+pub(crate) enum ServeError {
+    #[doom(description("Connection error"))]
+    ConnectionError,
+    #[doom(description("Request invalid"))]
+    RequestInvalid,
+    #[doom(description("`Brokerage` forfeited (most likely, the `Broker` is shutting down)"))]
+    #[doom(wrap(request_forfeited))]
+    BrokerageForfeited { source: oneshot::error::RecvError },
+    #[doom(description("Root shard invalid"))]
+    RootShardInvalid,
+}
+
+impl Broker {
+    pub async fn new<A, C>(
+        discovery: Arc<Client>,
+        view: View,
+        address: A,
+        connector: C,
+        settings: BrokerSettings,
+    ) -> Result<Self, Top<BrokerError>>
+    where
+        A: ToSocketAddrs,
+        C: Connector,
+    {
+        let listener = TcpListener::bind(address)
+            .await
+            .map_err(BrokerError::initialize_failed)
+            .map_err(Doom::into_top)
+            .spot(here!())?;
+
+        let address = listener
+            .local_addr()
+            .map_err(BrokerError::initialize_failed)
+            .map_err(Doom::into_top)
+            .spot(here!())?;
+
+        let dispatcher = ConnectDispatcher::new(connector);
+        let context = format!("{:?}::processor::prepare", view.identifier());
+        let _connector = Arc::new(SessionConnector::new(dispatcher.register(context)));
+
+        let brokerage_sponge = Arc::new(Sponge::new(settings.brokerage_sponge_settings));
+
+        let fuse = Fuse::new();
+
+        {
+            let brokerage_sponge = brokerage_sponge.clone();
+
+            fuse.spawn(async move {
+                Broker::listen(discovery, brokerage_sponge, listener).await;
+            });
+        }
+
+        let reduction_timeout = settings.reduction_timeout;
+
+        fuse.spawn(async move {
+            Broker::flush(brokerage_sponge, reduction_timeout).await;
+        });
+
+        Ok(Broker {
+            address,
+            _fuse: fuse,
+        })
+    }
+
+    pub fn address(&self) -> SocketAddr {
+        self.address
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::{
+        brokers::{signup::BrokerFailure as SignupBrokerFailure, test::System},
+        signup::{IdAssignment, IdRequest, SignupSettings},
+    };
+
+    use talk::crypto::{primitives::hash, KeyChain};
+
+    use tokio::net::TcpStream;
+
+    #[tokio::test]
+    async fn develop() {
+        let System {
+            view,
+            discovery_server: _discovery_server,
+            discovery_client: _discovery_client,
+            processors,
+            mut signup_brokers,
+            mut prepare_brokers,
+        } = System::setup(4, 1, 1).await;
+
+        let client_keychain = KeyChain::random();
+
+        // Signup
+
+        let signup_broker = signup_brokers.remove(0);
+        let allocator_identity = processors[0].0.keycard().identity();
+
+        let request = IdRequest::new(
+            &client_keychain,
+            &view,
+            allocator_identity,
+            SignupSettings::default().work_difficulty,
+        );
+
+        let stream = TcpStream::connect(signup_broker.address()).await.unwrap();
+        let mut connection: PlainConnection = stream.into();
+
+        connection.send(&request).await.unwrap();
+
+        let assignment = connection
+            .receive::<Result<IdAssignment, SignupBrokerFailure>>()
+            .await
+            .unwrap()
+            .unwrap();
+
+        // Prepare
+
+        let prepare_broker = prepare_brokers.remove(0);
+        let request = Request::new(&client_keychain, assignment, 0, hash::hash(&42u32).unwrap());
+
+        let stream = TcpStream::connect(prepare_broker.address()).await.unwrap();
+        let mut connection: PlainConnection = stream.into();
+
+        connection.send(&request).await.unwrap();
+
+        let inclusion = connection
+            .receive::<Result<Inclusion, Failure>>()
+            .await
+            .unwrap()
+            .unwrap();
+
+        let reduction_shard = inclusion
+            .certify_reduction(&client_keychain, request.prepare())
+            .unwrap();
+
+        connection.send(&reduction_shard).await.unwrap();
+
+        // tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+    }
+}
+
+mod broker;
+mod flush;
+mod frontend;
