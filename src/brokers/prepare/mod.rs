@@ -15,13 +15,6 @@ use ping_board::PingBoard;
 
 use reduction::Reduction;
 
-#[allow(unused_imports)]
-pub(crate) use inclusion::Inclusion;
-
-#[allow(unused_imports)]
-pub(crate) use request::Request;
-
-#[allow(unused_imports)]
 pub(crate) use broker::Broker;
 
 #[allow(unused_imports)]
@@ -29,3 +22,5 @@ pub(crate) use broker_failure::BrokerFailure;
 
 pub(crate) use broker_settings::BrokerSettings;
 pub(crate) use failure::Failure;
+pub(crate) use inclusion::Inclusion;
+pub(crate) use request::Request;
