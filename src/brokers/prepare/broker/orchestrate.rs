@@ -1,5 +1,6 @@
 use crate::{
     brokers::prepare::{ping_board::PingBoard, Broker, Submission},
+    processing::messages::PrepareResponse,
     view::View,
 };
 
@@ -7,7 +8,11 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use std::{collections::HashMap, sync::Arc};
 
-use talk::{crypto::Identity, net::SessionConnector, sync::fuse::Fuse};
+use talk::{
+    crypto::{primitives::multi::Signature as MultiSignature, Identity},
+    net::SessionConnector,
+    sync::fuse::Fuse,
+};
 
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
@@ -17,9 +22,12 @@ type CommandOutlet = UnboundedReceiver<Command>;
 type UpdateInlet = UnboundedSender<(Identity, Update)>;
 type UpdateOutlet = UnboundedReceiver<(Identity, Update)>;
 
-enum Command {}
+enum Command {
+    SubmitSignatures,
+}
 
 enum Update {
+    WitnessShard(MultiSignature),
     Success,
     Error,
 }
@@ -30,6 +38,10 @@ enum SubmitError {
     ConnectionFailed,
     #[doom(description("Connection error"))]
     ConnectionError,
+    #[doom(description("Unexpected response"))]
+    UnexpectedResponse,
+    #[doom(description("Command channel closed"))]
+    CommandChannelClosed,
 }
 
 impl Broker {
@@ -59,13 +71,24 @@ impl Broker {
                 Broker::submit(connector, replica, submission, command_outlet, update_inlet)
             });
         }
+
+        let rankings = ping_board.rankings();
+
+        // Instruct fastest plurality to submit signatures
+
+        for replica in &rankings[0..view.plurality()] {
+            let _ = command_inlets
+                .get_mut(replica)
+                .unwrap()
+                .send(Command::SubmitSignatures);
+        }
     }
 
     async fn submit(
         connector: Arc<SessionConnector>,
         replica: Identity,
         submission: Arc<Submission>,
-        command_outlet: CommandOutlet,
+        mut command_outlet: CommandOutlet,
         update_inlet: UpdateInlet,
     ) {
         let result: Result<(), Top<SubmitError>> = async {
@@ -78,6 +101,33 @@ impl Broker {
                 .send(&submission.requests.batch)
                 .await
                 .pot(SubmitError::ConnectionError, here!())?;
+
+            let command = command_outlet
+                .recv()
+                .await
+                .ok_or(SubmitError::CommandChannelClosed.into_top())
+                .spot(here!())?;
+
+            match command {
+                Command::SubmitSignatures => {
+                    session
+                        .send(&submission.requests.signatures)
+                        .await
+                        .pot(SubmitError::ConnectionError, here!())?;
+
+                    let response = session
+                        .receive::<PrepareResponse>()
+                        .await
+                        .pot(SubmitError::ConnectionError, here!())?;
+
+                    let shard = match response {
+                        PrepareResponse::WitnessShard(shard) => Ok(shard),
+                        _ => SubmitError::UnexpectedResponse.fail().spot(here!()),
+                    }?;
+
+                    let _ = update_inlet.send((replica, Update::WitnessShard(shard)));
+                }
+            }
 
             Ok(())
         }
