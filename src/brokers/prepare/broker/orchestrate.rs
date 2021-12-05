@@ -1,13 +1,14 @@
 use crate::{
     brokers::prepare::{ping_board::PingBoard, Broker, Submission},
-    prepare::WitnessStatement,
-    processing::messages::PrepareResponse,
+    crypto::{Aggregator, Certificate},
+    prepare::{BatchCommit, BatchCommitShard, WitnessStatement},
+    processing::messages::{PrepareRequest, PrepareResponse},
     view::View,
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use talk::{
     crypto::{primitives::multi::Signature as MultiSignature, Identity, KeyCard},
@@ -15,7 +16,10 @@ use talk::{
     sync::fuse::Fuse,
 };
 
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::{
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    time,
+};
 
 type CommandInlet = UnboundedSender<Command>;
 type CommandOutlet = UnboundedReceiver<Command>;
@@ -25,12 +29,23 @@ type UpdateOutlet = UnboundedReceiver<(Identity, Update)>;
 
 enum Command {
     SubmitSignatures,
+    SubmitWitness(Certificate),
 }
 
 enum Update {
     WitnessShard(MultiSignature),
-    Success,
+    CommitShard(BatchCommitShard),
     Error,
+}
+
+struct WitnessProgress {
+    aggregator: Aggregator<WitnessStatement>,
+    errors: usize,
+}
+
+struct CommitProgress {
+    shards: Vec<(KeyCard, BatchCommitShard)>,
+    errors: usize,
 }
 
 #[derive(Doom)]
@@ -56,7 +71,7 @@ impl Broker {
     ) {
         let submission = Arc::new(submission);
 
-        let (update_inlet, update_outlet) = mpsc::unbounded_channel();
+        let (update_inlet, mut update_outlet) = mpsc::unbounded_channel();
 
         let fuse = Fuse::new();
 
@@ -85,6 +100,68 @@ impl Broker {
                 .unwrap()
                 .send(Command::SubmitSignatures);
         }
+
+        let statement = WitnessStatement::new(submission.root);
+        let aggregator = Aggregator::new(view.clone(), statement);
+
+        let mut progress = WitnessProgress {
+            aggregator,
+            errors: 0,
+        };
+
+        // Wait for plurality to respond, with a timeout
+
+        let _ = time::timeout(
+            Duration::from_secs(1),
+            witness_progress(&view, &mut update_outlet, &mut progress),
+        )
+        .await; // TODO: Add settings
+
+        if progress.errors >= view.plurality() {
+            return; // TODO: Return error
+        }
+
+        // If not enough responded in time, extend request to quorum, wait for shards without timeout
+
+        if progress.aggregator.multiplicity() < view.plurality() {
+            for replica in &rankings[view.plurality()..view.quorum()] {
+                let _ = command_inlets
+                    .get_mut(replica)
+                    .unwrap()
+                    .send(Command::SubmitSignatures);
+            }
+
+            witness_progress(&view, &mut update_outlet, &mut progress).await;
+        }
+
+        if progress.errors >= view.plurality() {
+            return; // TODO: Return error
+        }
+
+        let (_, witness) = progress.aggregator.finalize();
+
+        // Send witness to all replicas
+
+        for command_inlet in command_inlets.values_mut() {
+            let _ = command_inlet.send(Command::SubmitWitness(witness.clone()));
+        }
+
+        // Wait for a quorum of commit shards
+
+        let mut progress = CommitProgress {
+            shards: Vec::new(),
+            errors: progress.errors,
+        };
+
+        commit_progress(&view, &mut update_outlet, &mut progress).await;
+
+        if progress.errors >= view.plurality() {
+            return; // TODO: Return error
+        }
+
+        let commit = BatchCommit::new(view, submission.root, progress.shards);
+
+        // TODO: Return `commit`
     }
 
     async fn submit(
@@ -94,7 +171,7 @@ impl Broker {
         mut command_outlet: CommandOutlet,
         update_inlet: UpdateInlet,
     ) {
-        let result: Result<(), Top<SubmitError>> = async {
+        let result: Result<BatchCommitShard, Top<SubmitError>> = async {
             let mut session = connector
                 .connect(replica.identity())
                 .await
@@ -111,7 +188,7 @@ impl Broker {
                 .ok_or(SubmitError::CommandChannelClosed.into_top())
                 .spot(here!())?;
 
-            match command {
+            let witness = match command {
                 Command::SubmitSignatures => {
                     session
                         .send(&submission.requests.signatures)
@@ -135,16 +212,87 @@ impl Broker {
                         .pot(SubmitError::InvalidWitnessShard, here!())?;
 
                     let _ = update_inlet.send((replica.identity(), Update::WitnessShard(shard)));
-                }
-            }
 
-            Ok(())
+                    let command = command_outlet
+                        .recv()
+                        .await
+                        .ok_or(SubmitError::CommandChannelClosed.into_top())
+                        .spot(here!())?;
+
+                    match command {
+                        Command::SubmitWitness(witness) => witness,
+                        _ => {
+                            panic!("unexpected `Command`");
+                        }
+                    }
+                }
+                Command::SubmitWitness(witness) => witness,
+            };
+
+            session
+                .send(&PrepareRequest::Witness(witness))
+                .await
+                .pot(SubmitError::ConnectionError, here!())?;
+
+            let response = session
+                .receive::<PrepareResponse>()
+                .await
+                .pot(SubmitError::ConnectionError, here!())?;
+
+            match response {
+                PrepareResponse::CommitShard(shard) => Ok(shard),
+                _ => SubmitError::UnexpectedResponse.fail().spot(here!()),
+            }
         }
         .await;
 
         let _ = match result {
-            Ok(_) => update_inlet.send((replica.identity(), Update::Success)),
+            Ok(shard) => update_inlet.send((replica.identity(), Update::CommitShard(shard))),
             Err(_) => update_inlet.send((replica.identity(), Update::Error)),
         };
+    }
+}
+
+async fn witness_progress(
+    view: &View,
+    update_outlet: &mut UpdateOutlet,
+    progress: &mut WitnessProgress,
+) {
+    while progress.aggregator.multiplicity() < view.plurality()
+        && progress.errors < view.plurality()
+    {
+        match update_outlet.recv().await.unwrap() {
+            // TODO: Check the `unwrap` above
+            (replica, Update::WitnessShard(shard)) => {
+                let keycard = view.members().get(&replica).unwrap();
+                progress.aggregator.add(&keycard, shard).unwrap();
+            }
+            (_, Update::Error) => {
+                progress.errors += 1;
+            }
+            _ => {
+                panic!("unexpected `Update`");
+            }
+        }
+    }
+}
+
+async fn commit_progress(
+    view: &View,
+    update_outlet: &mut UpdateOutlet,
+    progress: &mut CommitProgress,
+) {
+    while progress.shards.len() < view.quorum() && progress.errors < view.plurality() {
+        match update_outlet.recv().await.unwrap() {
+            // TODO: Check the `unwrap` above
+            (replica, Update::CommitShard(shard)) => {
+                let keycard = view.members().get(&replica).unwrap().clone();
+                progress.shards.push((keycard, shard));
+            }
+            (_, Update::Error) => {
+                progress.errors += 1;
+            }
+            (_, Update::WitnessShard(_)) => {}
+        }
     }
 }
