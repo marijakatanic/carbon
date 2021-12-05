@@ -1,20 +1,23 @@
 use crate::{
     brokers::prepare::{
         broker::{Brokerage, Reduction},
+        submission::Submission,
         Broker, Inclusion, Request,
     },
     data::{Sponge, SpongeSettings},
-    prepare::SignedBatch,
+    view::View,
 };
 
 use std::{iter, sync::Arc, time::Duration};
 
-use talk::crypto::primitives::multi::Signature as MultiSignature;
+use talk::{crypto::primitives::multi::Signature as MultiSignature, net::SessionConnector};
 
 use zebra::vector::Vector;
 
 impl Broker {
     pub(in crate::brokers::prepare::broker) async fn broker(
+        view: View,
+        connector: Arc<SessionConnector>,
         brokerages: Vec<Brokerage>,
         reduction_timeout: Option<Duration>,
     ) {
@@ -73,6 +76,13 @@ impl Broker {
             }))
             .unwrap();
 
-        let _batch = SignedBatch::new(prepares, reduction_signature, individual_signatures);
+        let submission = Submission {
+            assignments,
+            prepares,
+            reduction_signature,
+            individual_signatures,
+        };
+
+        Broker::orchestrate(view, connector, submission).await;
     }
 }

@@ -1,15 +1,18 @@
 use crate::{
     brokers::prepare::{broker::Brokerage, Broker, Failure},
     data::Sponge,
+    view::View,
 };
 
 use std::{sync::Arc, time::Duration};
 
-use talk::sync::fuse::Fuse;
+use talk::{net::SessionConnector, sync::fuse::Fuse};
 
 impl Broker {
     pub(in crate::brokers::prepare::broker) async fn flush(
+        view: View,
         brokerage_sponge: Arc<Sponge<Brokerage>>,
+        connector: Arc<SessionConnector>,
         reduction_timeout: Option<Duration>,
     ) {
         let fuse = Fuse::new();
@@ -21,10 +24,11 @@ impl Broker {
                 continue;
             }
 
-            let reduction_timeout = reduction_timeout.clone();
+            let view = view.clone();
+            let connector = connector.clone();
 
             fuse.spawn(async move {
-                Broker::broker(brokerages, reduction_timeout).await;
+                Broker::broker(view, connector, brokerages, reduction_timeout).await;
             });
         }
     }

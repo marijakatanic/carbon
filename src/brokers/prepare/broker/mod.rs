@@ -81,9 +81,14 @@ impl Broker {
             });
         }
 
-        fuse.spawn(async move {
-            Broker::flush(brokerage_sponge, reduction_timeout).await;
-        });
+        {
+            let view = view.clone();
+            let connector = connector.clone();
+
+            fuse.spawn(async move {
+                Broker::flush(view, brokerage_sponge, connector, reduction_timeout).await;
+            });
+        }
 
         for replica in view.members().keys().copied() {
             let ping_board = ping_board.clone();
@@ -108,6 +113,7 @@ impl Broker {
 mod broker;
 mod flush;
 mod frontend;
+mod orchestrate;
 mod ping;
 
 #[cfg(test)]
