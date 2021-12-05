@@ -76,12 +76,12 @@ impl Broker {
             }))
             .unwrap();
 
-        let submission = Submission {
+        let submission = Submission::new(
             assignments,
             prepares,
             reduction_signature,
             individual_signatures,
-        };
+        );
 
         Broker::orchestrate(view, connector, submission).await;
     }
