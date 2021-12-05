@@ -1,5 +1,5 @@
 use crate::{
-    brokers::prepare::{broker::Brokerage, Broker, Failure},
+    brokers::prepare::{broker::Brokerage, ping_board::PingBoard, Broker, Failure},
     data::Sponge,
     view::View,
 };
@@ -13,6 +13,7 @@ impl Broker {
         view: View,
         brokerage_sponge: Arc<Sponge<Brokerage>>,
         connector: Arc<SessionConnector>,
+        ping_board: PingBoard,
         reduction_timeout: Option<Duration>,
     ) {
         let fuse = Fuse::new();
@@ -26,9 +27,10 @@ impl Broker {
 
             let view = view.clone();
             let connector = connector.clone();
+            let ping_board = ping_board.clone();
 
             fuse.spawn(async move {
-                Broker::broker(view, connector, brokerages, reduction_timeout).await;
+                Broker::broker(view, connector, ping_board, brokerages, reduction_timeout).await;
             });
         }
     }

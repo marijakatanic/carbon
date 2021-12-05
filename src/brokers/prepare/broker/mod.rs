@@ -84,9 +84,17 @@ impl Broker {
         {
             let view = view.clone();
             let connector = connector.clone();
+            let ping_board = ping_board.clone();
 
             fuse.spawn(async move {
-                Broker::flush(view, brokerage_sponge, connector, reduction_timeout).await;
+                Broker::flush(
+                    view,
+                    brokerage_sponge,
+                    connector,
+                    ping_board,
+                    reduction_timeout,
+                )
+                .await;
             });
         }
 

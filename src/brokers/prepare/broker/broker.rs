@@ -1,6 +1,7 @@
 use crate::{
     brokers::prepare::{
         broker::{Brokerage, Reduction},
+        ping_board::PingBoard,
         submission::Submission,
         Broker, Inclusion, Request,
     },
@@ -18,6 +19,7 @@ impl Broker {
     pub(in crate::brokers::prepare::broker) async fn broker(
         view: View,
         connector: Arc<SessionConnector>,
+        ping_board: PingBoard,
         brokerages: Vec<Brokerage>,
         reduction_timeout: Option<Duration>,
     ) {
@@ -83,6 +85,6 @@ impl Broker {
             individual_signatures,
         );
 
-        Broker::orchestrate(view, connector, submission).await;
+        Broker::orchestrate(view, connector, ping_board, submission).await;
     }
 }

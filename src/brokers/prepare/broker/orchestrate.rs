@@ -1,5 +1,5 @@
 use crate::{
-    brokers::prepare::{Broker, Submission},
+    brokers::prepare::{ping_board::PingBoard, Broker, Submission},
     view::View,
 };
 
@@ -36,6 +36,7 @@ impl Broker {
     pub(in crate::brokers::prepare::broker) async fn orchestrate(
         view: View,
         connector: Arc<SessionConnector>,
+        ping_board: PingBoard,
         submission: Submission,
     ) {
         let submission = Arc::new(submission);
