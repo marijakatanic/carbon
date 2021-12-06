@@ -137,6 +137,7 @@ mod tests {
             signup::BrokerFailure as SignupBrokerFailure,
             test::System,
         },
+        prepare::BatchCommit,
         signup::{IdAssignment, IdRequest, SignupSettings},
     };
 
@@ -194,7 +195,7 @@ mod tests {
         connection.send(&request).await.unwrap();
 
         let inclusion = connection
-            .receive::<Result<Inclusion, Failure>>()
+            .receive::<Result<Inclusion, BrokerFailure>>()
             .await
             .unwrap()
             .unwrap();
@@ -204,6 +205,15 @@ mod tests {
             .unwrap();
 
         connection.send(&reduction_shard).await.unwrap();
+
+        let commit = connection
+            .receive::<Result<BatchCommit, BrokerFailure>>()
+            .await
+            .unwrap()
+            .unwrap();
+
+        println!("{:?}\n", inclusion);
+        println!("{:?}", commit);
 
         // tokio::time::sleep(std::time::Duration::from_secs(10)).await;
     }
