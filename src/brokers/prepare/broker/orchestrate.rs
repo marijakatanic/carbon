@@ -3,6 +3,7 @@ use crate::{
     crypto::{Aggregator, Certificate},
     prepare::{BatchCommit, BatchCommitShard, WitnessStatement},
     processing::messages::{PrepareRequest, PrepareResponse},
+    signup::IdAssignment,
     view::View,
 };
 
@@ -56,6 +57,8 @@ enum SubmitError {
     ConnectionError,
     #[doom(description("Unexpected response"))]
     UnexpectedResponse,
+    #[doom(description("Malformed response"))]
+    MalformedResponse,
     #[doom(description("Invalid witness shard"))]
     InvalidWitnessShard,
     #[doom(description("Command channel closed"))]
@@ -201,6 +204,35 @@ impl Broker {
                         .pot(SubmitError::ConnectionError, here!())?;
 
                     let shard = match response {
+                        PrepareResponse::UnknownIds(unknown_ids) => {
+                            let id_assignments = unknown_ids
+                                .into_iter()
+                                .map(|id| {
+                                    let index = submission
+                                        .assignments
+                                        .binary_search_by_key(&id, |assignment| assignment.id())
+                                        .map_err(|_| SubmitError::MalformedResponse.into_top())
+                                        .spot(here!())?;
+
+                                    Ok(submission.assignments[index].clone())
+                                })
+                                .collect::<Result<Vec<IdAssignment>, Top<SubmitError>>>()?;
+
+                            session
+                                .send(&PrepareRequest::Assignments(id_assignments))
+                                .await
+                                .pot(SubmitError::ConnectionError, here!())?;
+
+                            let response = session
+                                .receive::<PrepareResponse>()
+                                .await
+                                .pot(SubmitError::ConnectionError, here!())?;
+
+                            match response {
+                                PrepareResponse::WitnessShard(shard) => Ok(shard),
+                                _ => SubmitError::UnexpectedResponse.fail().spot(here!()),
+                            }
+                        }
                         PrepareResponse::WitnessShard(shard) => Ok(shard),
                         _ => SubmitError::UnexpectedResponse.fail().spot(here!()),
                     }?;
