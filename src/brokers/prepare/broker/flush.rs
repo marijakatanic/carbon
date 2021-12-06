@@ -1,5 +1,5 @@
 use crate::{
-    brokers::prepare::{broker::Brokerage, ping_board::PingBoard, Broker, Failure},
+    brokers::prepare::{broker::Brokerage, ping_board::PingBoard, Broker, BrokerFailure},
     data::Sponge,
     discovery::Client,
     view::View,
@@ -62,7 +62,7 @@ impl Broker {
             .into_iter()
             .filter_map(|brokerage| {
                 if Some(brokerage.request.id()) == previous {
-                    let _ = brokerage.reduction_inlet.send(Err(Failure::Throttle));
+                    let _ = brokerage.reduction_inlet.send(Err(BrokerFailure::Throttle));
                     None
                 } else {
                     previous = Some(brokerage.request.id());

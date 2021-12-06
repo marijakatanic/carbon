@@ -1,5 +1,5 @@
 use crate::{
-    brokers::prepare::{BrokerSettings, Brokerage, Failure, PingBoard, Reduction},
+    brokers::prepare::{BrokerFailure, BrokerSettings, Brokerage, PingBoard, Reduction},
     crypto::Identify,
     data::Sponge,
     discovery::Client,
@@ -22,8 +22,8 @@ use tokio::{
     sync::oneshot::{Receiver, Sender},
 };
 
-type ReductionInlet = Sender<Result<Reduction, Failure>>;
-type ReductionOutlet = Receiver<Result<Reduction, Failure>>;
+type ReductionInlet = Sender<Result<Reduction, BrokerFailure>>;
+type ReductionOutlet = Receiver<Result<Reduction, BrokerFailure>>;
 
 pub(crate) struct Broker {
     address: SocketAddr,

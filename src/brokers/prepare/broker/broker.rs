@@ -3,7 +3,7 @@ use crate::{
         broker::{Brokerage, Reduction},
         ping_board::PingBoard,
         submission::Submission,
-        Broker, Inclusion, Request,
+        Broker, BrokerFailure, Inclusion, Request,
     },
     data::{Sponge, SpongeSettings},
     discovery::Client,
@@ -30,6 +30,7 @@ impl Broker {
         let mut individual_signatures = Vec::new();
 
         let mut reduction_inlets = Vec::new();
+        let mut outcome_inlets = Vec::new();
 
         for Brokerage {
             request:
@@ -39,13 +40,15 @@ impl Broker {
                     signature,
                 },
             reduction_inlet,
+            outcome_inlet,
         } in brokerages
         {
             assignments.push(assignment);
             prepares.push(prepare);
             individual_signatures.push(Some(signature));
 
-            reduction_inlets.push(reduction_inlet)
+            reduction_inlets.push(reduction_inlet);
+            outcome_inlets.push(outcome_inlet);
         }
 
         let prepares = Vector::new(prepares).unwrap();
@@ -87,6 +90,12 @@ impl Broker {
             individual_signatures,
         );
 
-        let commit = Broker::orchestrate(discovery, view, connector, ping_board, submission).await;
+        let outcome = Broker::orchestrate(discovery, view, connector, ping_board, submission)
+            .await
+            .map_err(|_| BrokerFailure::Error);
+
+        for outcome_inlet in outcome_inlets {
+            let _ = outcome_inlet.send(outcome.clone());
+        }
     }
 }

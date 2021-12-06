@@ -1,7 +1,7 @@
 use crate::{
     brokers::prepare::{
         broker::{Brokerage, Reduction},
-        Broker, Failure, Inclusion, Request,
+        Broker, BrokerFailure, Inclusion, Request,
     },
     data::Sponge,
     discovery::Client,
@@ -70,10 +70,12 @@ impl Broker {
         let keycard = request.keycard().clone();
 
         let (reduction_inlet, reduction_outlet) = oneshot::channel();
+        let (outcome_inlet, outcome_outlet) = oneshot::channel();
 
         let brokerage = Brokerage {
             request,
             reduction_inlet,
+            outcome_inlet,
         };
 
         brokerage_sponge.push(brokerage);
@@ -86,7 +88,7 @@ impl Broker {
 
         if let Err(failure) = reduction {
             connection
-                .send::<Result<Inclusion, Failure>>(&Err(failure))
+                .send::<Result<Inclusion, BrokerFailure>>(&Err(failure))
                 .await
                 .pot(ServeError::ConnectionError, here!())?;
 
@@ -102,7 +104,7 @@ impl Broker {
         let root = inclusion.root();
 
         connection
-            .send::<Result<Inclusion, Failure>>(&Ok(inclusion))
+            .send::<Result<Inclusion, BrokerFailure>>(&Ok(inclusion))
             .await
             .pot(ServeError::ConnectionError, here!())?;
 
@@ -117,7 +119,17 @@ impl Broker {
 
         let _ = reduction_sponge.push((index, reduction_shard));
 
-        // TODO: Wait for and forward outcome to client
-        todo!()
+        let reduction = outcome_outlet
+            .await
+            .map_err(ServeError::request_forfeited)
+            .map_err(Doom::into_top)
+            .spot(here!())?;
+
+        connection
+            .send(&reduction)
+            .await
+            .pot(ServeError::ConnectionError, here!())?;
+
+        Ok(())
     }
 }
