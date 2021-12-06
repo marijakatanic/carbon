@@ -6,6 +6,7 @@ use crate::{
         Broker, Inclusion, Request,
     },
     data::{Sponge, SpongeSettings},
+    discovery::Client,
     view::View,
 };
 
@@ -17,6 +18,7 @@ use zebra::vector::Vector;
 
 impl Broker {
     pub(in crate::brokers::prepare::broker) async fn broker(
+        discovery: Arc<Client>,
         view: View,
         connector: Arc<SessionConnector>,
         ping_board: PingBoard,
@@ -85,6 +87,6 @@ impl Broker {
             individual_signatures,
         );
 
-        Broker::orchestrate(view, connector, ping_board, submission).await;
+        let commit = Broker::orchestrate(discovery, view, connector, ping_board, submission).await;
     }
 }

@@ -31,4 +31,11 @@ impl Submission {
             },
         }
     }
+
+    pub fn prepares(&self) -> &[Prepare] {
+        match &self.requests.batch {
+            PrepareRequest::Batch(prepares) => prepares.items(),
+            _ => unreachable!(),
+        }
+    }
 }

@@ -1,6 +1,7 @@
 use crate::{
     brokers::prepare::{broker::Brokerage, ping_board::PingBoard, Broker, Failure},
     data::Sponge,
+    discovery::Client,
     view::View,
 };
 
@@ -10,6 +11,7 @@ use talk::{net::SessionConnector, sync::fuse::Fuse};
 
 impl Broker {
     pub(in crate::brokers::prepare::broker) async fn flush(
+        discovery: Arc<Client>,
         view: View,
         brokerage_sponge: Arc<Sponge<Brokerage>>,
         connector: Arc<SessionConnector>,
@@ -25,12 +27,21 @@ impl Broker {
                 continue;
             }
 
+            let discovery = discovery.clone();
             let view = view.clone();
             let connector = connector.clone();
             let ping_board = ping_board.clone();
 
             fuse.spawn(async move {
-                Broker::broker(view, connector, ping_board, brokerages, reduction_timeout).await;
+                Broker::broker(
+                    discovery,
+                    view,
+                    connector,
+                    ping_board,
+                    brokerages,
+                    reduction_timeout,
+                )
+                .await;
             });
         }
     }

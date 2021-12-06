@@ -74,6 +74,7 @@ impl Broker {
         let fuse = Fuse::new();
 
         {
+            let discovery = discovery.clone();
             let brokerage_sponge = brokerage_sponge.clone();
 
             fuse.spawn(async move {
@@ -82,12 +83,14 @@ impl Broker {
         }
 
         {
+            let discovery = discovery.clone();
             let view = view.clone();
             let connector = connector.clone();
             let ping_board = ping_board.clone();
 
             fuse.spawn(async move {
                 Broker::flush(
+                    discovery,
                     view,
                     brokerage_sponge,
                     connector,

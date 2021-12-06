@@ -1,6 +1,7 @@
 use crate::{
     brokers::prepare::{ping_board::PingBoard, Broker, Submission},
     crypto::{Aggregator, Certificate},
+    discovery::Client,
     prepare::{BatchCommit, BatchCommitShard, WitnessStatement},
     processing::messages::{PrepareRequest, PrepareResponse},
     signup::IdAssignment,
@@ -50,6 +51,14 @@ struct CommitProgress {
 }
 
 #[derive(Doom)]
+pub(in crate::brokers::prepare::broker) enum OrchestrateError {
+    #[doom(description("Failed to collect batch witness"))]
+    WitnessCollectionFailed,
+    #[doom(description("Failed to collect batch commit"))]
+    CommitCollectionFailed,
+}
+
+#[derive(Doom)]
 enum SubmitError {
     #[doom(description("Connection failed"))]
     ConnectionFailed,
@@ -61,17 +70,20 @@ enum SubmitError {
     MalformedResponse,
     #[doom(description("Invalid witness shard"))]
     InvalidWitnessShard,
+    #[doom(description("Invalid commit shard"))]
+    InvalidCommitShard,
     #[doom(description("Command channel closed"))]
     CommandChannelClosed,
 }
 
 impl Broker {
     pub(in crate::brokers::prepare::broker) async fn orchestrate(
+        discovery: Arc<Client>,
         view: View,
         connector: Arc<SessionConnector>,
         ping_board: PingBoard,
         submission: Submission,
-    ) {
+    ) -> Result<BatchCommit, Top<OrchestrateError>> {
         let submission = Arc::new(submission);
 
         let (update_inlet, mut update_outlet) = mpsc::unbounded_channel();
@@ -81,6 +93,8 @@ impl Broker {
         let mut command_inlets = HashMap::new();
 
         for replica in view.members().values().cloned() {
+            let discovery = discovery.clone();
+            let view = view.clone();
             let connector = connector.clone();
             let submission = submission.clone();
             let update_inlet = update_inlet.clone();
@@ -89,7 +103,15 @@ impl Broker {
             command_inlets.insert(replica.identity(), command_inlet);
 
             fuse.spawn(async move {
-                Broker::submit(connector, replica, submission, command_outlet, update_inlet)
+                Broker::submit(
+                    discovery,
+                    view,
+                    connector,
+                    replica,
+                    submission,
+                    command_outlet,
+                    update_inlet,
+                )
             });
         }
 
@@ -121,7 +143,9 @@ impl Broker {
         .await; // TODO: Add settings
 
         if progress.errors >= view.plurality() {
-            return; // TODO: Return error
+            return OrchestrateError::WitnessCollectionFailed
+                .fail()
+                .spot(here!());
         }
 
         // If not enough responded in time, extend request to quorum, wait for shards without timeout
@@ -138,7 +162,9 @@ impl Broker {
         }
 
         if progress.errors >= view.plurality() {
-            return; // TODO: Return error
+            return OrchestrateError::WitnessCollectionFailed
+                .fail()
+                .spot(here!());
         }
 
         let (_, witness) = progress.aggregator.finalize();
@@ -159,15 +185,19 @@ impl Broker {
         commit_progress(&view, &mut update_outlet, &mut progress).await;
 
         if progress.errors >= view.plurality() {
-            return; // TODO: Return error
+            return OrchestrateError::CommitCollectionFailed
+                .fail()
+                .spot(here!());
         }
 
         let commit = BatchCommit::new(view, submission.root, progress.shards);
 
-        // TODO: Return `commit`
+        Ok(commit)
     }
 
     async fn submit(
+        discovery: Arc<Client>,
+        view: View,
         connector: Arc<SessionConnector>,
         replica: KeyCard,
         submission: Arc<Submission>,
@@ -271,10 +301,22 @@ impl Broker {
                 .await
                 .pot(SubmitError::ConnectionError, here!())?;
 
-            match response {
+            let shard = match response {
                 PrepareResponse::CommitShard(shard) => Ok(shard),
                 _ => SubmitError::UnexpectedResponse.fail().spot(here!()),
-            }
+            }?;
+
+            shard
+                .validate(
+                    discovery.as_ref(),
+                    &view,
+                    submission.root,
+                    submission.prepares(),
+                    &replica,
+                )
+                .pot(SubmitError::InvalidCommitShard, here!())?;
+
+            Ok(shard)
         }
         .await;
 
