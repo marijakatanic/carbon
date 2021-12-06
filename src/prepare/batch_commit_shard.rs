@@ -2,7 +2,7 @@ use crate::{
     account::Id,
     crypto::Identify,
     discovery::Client,
-    prepare::{BatchCommitStatement, Equivocation, WitnessedBatch},
+    prepare::{BatchCommitStatement, Equivocation, Prepare},
     view::View,
 };
 
@@ -66,14 +66,14 @@ impl BatchCommitShard {
         &self,
         discovery: &Client,
         view: &View,
-        batch: &WitnessedBatch,
+        root: Hash,
+        prepares: &[Prepare],
         committer: &KeyCard,
     ) -> Result<(), Top<BatchCommitShardError>> {
         for (id, equivocation) in self.exceptions.iter() {
-            // Assuming that `batch` is valid, `batch.prepares()` is sorted by `Id`,
+            // Assuming that `prepares` was generated locally, it is is sorted by `Id`,
             // and can therefore be searched using `binary_search*`
-            batch
-                .prepares()
+            prepares
                 .binary_search_by_key(id, |prepare| prepare.id())
                 .map_err(|_| BatchCommitShardError::ForeignException.into_top())
                 .spot(here!())?;
@@ -88,7 +88,7 @@ impl BatchCommitShard {
         }
 
         let exceptions = self.exceptions.keys().copied().collect();
-        let statement = BatchCommitStatement::new(view.identifier(), batch.root(), exceptions);
+        let statement = BatchCommitStatement::new(view.identifier(), root, exceptions);
 
         self.signature
             .verify([committer], &statement)
