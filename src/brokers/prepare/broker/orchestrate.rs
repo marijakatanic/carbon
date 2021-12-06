@@ -103,7 +103,7 @@ impl Broker {
             command_inlets.insert(replica.identity(), command_inlet);
 
             fuse.spawn(async move {
-                Broker::submit(
+                let _ = Broker::submit(
                     discovery,
                     view,
                     connector,
@@ -111,7 +111,7 @@ impl Broker {
                     submission,
                     command_outlet,
                     update_inlet,
-                )
+                ).await;
             });
         }
 
