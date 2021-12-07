@@ -129,7 +129,7 @@ impl Broker {
                 .send(Command::SubmitSignatures);
         }
 
-        let statement = WitnessStatement::new(submission.root);
+        let statement = WitnessStatement::new(submission.root());
         let aggregator = Aggregator::new(view.clone(), statement);
 
         let mut progress = WitnessProgress {
@@ -193,7 +193,7 @@ impl Broker {
                 .spot(here!());
         }
 
-        let commit = BatchCommit::new(view, submission.root, progress.shards);
+        let commit = BatchCommit::new(view, submission.root(), progress.shards);
 
         Ok(commit)
     }
@@ -214,7 +214,7 @@ impl Broker {
                 .pot(SubmitError::ConnectionFailed, here!())?;
 
             session
-                .send(&submission.requests.batch)
+                .send(&submission.requests.batch())
                 .await
                 .pot(SubmitError::ConnectionError, here!())?;
 
@@ -227,7 +227,7 @@ impl Broker {
             let witness = match command {
                 Command::SubmitSignatures => {
                     session
-                        .send(&submission.requests.signatures)
+                        .send(&submission.requests.signatures())
                         .await
                         .pot(SubmitError::ConnectionError, here!())?;
 
@@ -242,12 +242,12 @@ impl Broker {
                                 .into_iter()
                                 .map(|id| {
                                     let index = submission
-                                        .assignments
+                                        .assignments()
                                         .binary_search_by_key(&id, |assignment| assignment.id())
                                         .map_err(|_| SubmitError::MalformedResponse.into_top())
                                         .spot(here!())?;
 
-                                    Ok(submission.assignments[index].clone())
+                                    Ok(submission.assignments()[index].clone())
                                 })
                                 .collect::<Result<Vec<IdAssignment>, Top<SubmitError>>>()?;
 
@@ -270,7 +270,7 @@ impl Broker {
                         _ => SubmitError::UnexpectedResponse.fail().spot(here!()),
                     }?;
 
-                    let statement = WitnessStatement::new(submission.root);
+                    let statement = WitnessStatement::new(submission.root());
 
                     shard
                         .verify([&replica], &statement)
@@ -313,7 +313,7 @@ impl Broker {
                 .validate(
                     discovery.as_ref(),
                     &view,
-                    submission.root,
+                    submission.root(),
                     submission.prepares(),
                     &replica,
                 )
