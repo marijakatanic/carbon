@@ -8,7 +8,7 @@ mod request;
 mod submission;
 
 use broker_settings::BrokerSettingsComponents;
-use brokerage::Brokerage;
+use brokerage::{Brokerage, UnzippedBrokerages};
 use reduction::Reduction;
 use submission::Submission;
 
