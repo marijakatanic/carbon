@@ -16,7 +16,7 @@ impl Broker {
         brokerage_sponge: Arc<Sponge<Brokerage>>,
         connector: Arc<SessionConnector>,
         ping_board: PingBoard,
-        reduction_timeout: Option<Duration>,
+        reduction_timeout: Duration,
         fast_witness_timeout: Duration,
     ) {
         let fuse = Fuse::new();

@@ -22,7 +22,7 @@ impl Broker {
         connector: Arc<SessionConnector>,
         ping_board: PingBoard,
         brokerages: Vec<Brokerage>,
-        reduction_timeout: Option<Duration>,
+        reduction_timeout: Duration,
         fast_witness_timeout: Duration,
     ) {
         let mut assignments = Vec::new();
