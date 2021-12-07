@@ -32,10 +32,12 @@ mod processing;
 mod signup;
 
 #[allow(dead_code)]
-mod view;
+pub mod view;
 
 #[allow(dead_code)]
 mod view_generator;
 
 #[allow(dead_code)]
 mod churn;
+
+mod executables;
