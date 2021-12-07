@@ -1,7 +1,5 @@
 use crate::{
-    brokers::prepare::{
-        BrokerFailure, BrokerSettings, BrokerSettingsComponents, Brokerage, Reduction,
-    },
+    brokers::prepare::{BrokerSettings, BrokerSettingsComponents, Brokerage, Reduction},
     crypto::Identify,
     data::{PingBoard, Sponge},
     discovery::Client,
@@ -21,11 +19,7 @@ use talk::{
 use tokio::{
     io,
     net::{TcpListener, ToSocketAddrs},
-    sync::oneshot::{Receiver, Sender},
 };
-
-type ReductionInlet = Sender<Result<Reduction, BrokerFailure>>;
-type ReductionOutlet = Receiver<Result<Reduction, BrokerFailure>>;
 
 pub(crate) struct Broker {
     address: SocketAddr,
@@ -90,16 +84,16 @@ impl Broker {
         {
             let discovery = discovery.clone();
             let view = view.clone();
-            let connector = connector.clone();
             let ping_board = ping_board.clone();
+            let connector = connector.clone();
 
             fuse.spawn(async move {
                 Broker::flush(
                     discovery,
                     view,
                     brokerage_sponge,
-                    connector,
                     ping_board,
+                    connector,
                     broker_settings,
                 )
                 .await;
@@ -135,11 +129,9 @@ mod ping;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use crate::{
         brokers::{
-            prepare::{Inclusion, Request},
+            prepare::{BrokerFailure, Inclusion, Request},
             signup::BrokerFailure as SignupBrokerFailure,
             test::System,
         },

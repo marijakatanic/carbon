@@ -16,8 +16,8 @@ impl Broker {
         discovery: Arc<Client>,
         view: View,
         brokerage_sponge: Arc<Sponge<Brokerage>>,
-        connector: Arc<SessionConnector>,
         ping_board: PingBoard,
+        connector: Arc<SessionConnector>,
         settings: BrokerTaskSettings,
     ) {
         let fuse = Fuse::new();

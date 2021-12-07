@@ -20,7 +20,7 @@ pub(in crate::brokers::prepare) struct Requests {
 //      a priori of any replica exchange.
 //  (2) All information relevant to the batch, such as its root and `Prepare`s.
 // In order to do so, `Submission` wraps a `Vector<Prepare>` into a
-// `PrepareRequest::Batch`, but still accesses its immutable reference (via 
+// `PrepareRequest::Batch`, but still accesses its immutable reference (via
 // stubbed `match`es) to extract and make available the items of (2).
 impl Submission {
     pub fn new(
