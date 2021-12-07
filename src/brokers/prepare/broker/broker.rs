@@ -20,8 +20,8 @@ impl Broker {
     pub(in crate::brokers::prepare::broker) async fn broker(
         discovery: Arc<Client>,
         view: View,
-        connector: Arc<SessionConnector>,
         ping_board: PingBoard,
+        connector: Arc<SessionConnector>,
         brokerages: Vec<Brokerage>,
         settings: BrokerTaskSettings,
     ) {
