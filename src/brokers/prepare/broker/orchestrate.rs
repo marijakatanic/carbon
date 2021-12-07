@@ -1,5 +1,5 @@
 use crate::{
-    brokers::prepare::{Broker, Submission},
+    brokers::prepare::{broker_settings::BrokerTaskSettings, Broker, Submission},
     crypto::{Aggregator, Certificate},
     data::PingBoard,
     discovery::Client,
@@ -11,7 +11,7 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc};
 
 use talk::{
     crypto::{primitives::multi::Signature as MultiSignature, Identity, KeyCard},
@@ -84,7 +84,7 @@ impl Broker {
         connector: Arc<SessionConnector>,
         ping_board: PingBoard,
         submission: Submission,
-        fast_witness_timeout: Duration,
+        settings: BrokerTaskSettings,
     ) -> Result<BatchCommit, Top<OrchestrateError>> {
         let submission = Arc::new(submission);
 
@@ -140,7 +140,7 @@ impl Broker {
         // Wait for plurality to respond, with a timeout
 
         let _ = time::timeout(
-            fast_witness_timeout,
+            settings.optimistic_witness_timeout,
             witness_progress(&view, &mut update_outlet, &mut progress),
         )
         .await;

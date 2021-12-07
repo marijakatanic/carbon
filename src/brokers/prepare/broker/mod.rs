@@ -1,5 +1,7 @@
 use crate::{
-    brokers::prepare::{BrokerFailure, BrokerSettings, Brokerage, Reduction},
+    brokers::prepare::{
+        BrokerFailure, BrokerSettings, BrokerSettingsComponents, Brokerage, Reduction,
+    },
     crypto::Identify,
     data::{PingBoard, Sponge},
     discovery::Client,
@@ -49,6 +51,12 @@ impl Broker {
         A: ToSocketAddrs,
         C: Connector,
     {
+        let BrokerSettingsComponents {
+            flush: flush_settings,
+            broker: broker_settings,
+            ping: ping_settings,
+        } = settings.into_components();
+
         let listener = TcpListener::bind(address)
             .await
             .map_err(BrokerError::initialize_failed)
@@ -65,12 +73,8 @@ impl Broker {
         let context = format!("{:?}::processor::prepare", view.identifier());
         let connector = Arc::new(SessionConnector::new(dispatcher.register(context)));
 
-        let brokerage_sponge = Arc::new(Sponge::new(settings.brokerage_sponge_settings));
+        let brokerage_sponge = Arc::new(Sponge::new(flush_settings.brokerage_sponge_settings));
         let ping_board = PingBoard::new(&view);
-
-        let reduction_timeout = settings.reduction_timeout;
-        let ping_interval = settings.ping_interval;
-        let fast_witness_timeout = settings.fast_witness_timeout;
 
         let fuse = Fuse::new();
 
@@ -96,8 +100,7 @@ impl Broker {
                     brokerage_sponge,
                     connector,
                     ping_board,
-                    reduction_timeout,
-                    fast_witness_timeout,
+                    broker_settings,
                 )
                 .await;
             });
@@ -106,9 +109,10 @@ impl Broker {
         for replica in view.members().keys().copied() {
             let ping_board = ping_board.clone();
             let connector = connector.clone();
+            let ping_settings = ping_settings.clone();
 
             fuse.spawn(
-                async move { Broker::ping(ping_board, connector, replica, ping_interval).await },
+                async move { Broker::ping(ping_board, connector, replica, ping_settings).await },
             );
         }
 

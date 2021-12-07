@@ -1,6 +1,7 @@
 use crate::{
     brokers::prepare::{
         broker::{Brokerage, Reduction},
+        broker_settings::BrokerTaskSettings,
         submission::Submission,
         Broker, BrokerFailure, Inclusion, Request,
     },
@@ -9,7 +10,7 @@ use crate::{
     view::View,
 };
 
-use std::{iter, sync::Arc, time::Duration};
+use std::{iter, sync::Arc};
 
 use talk::{crypto::primitives::multi::Signature as MultiSignature, net::SessionConnector};
 
@@ -22,8 +23,7 @@ impl Broker {
         connector: Arc<SessionConnector>,
         ping_board: PingBoard,
         brokerages: Vec<Brokerage>,
-        reduction_timeout: Duration,
-        fast_witness_timeout: Duration,
+        settings: BrokerTaskSettings,
     ) {
         let mut assignments = Vec::new();
         let mut prepares = Vec::new();
@@ -56,7 +56,7 @@ impl Broker {
 
         let reduction_sponge = Arc::new(Sponge::<(usize, MultiSignature)>::new(SpongeSettings {
             capacity: inclusions.len(),
-            timeout: reduction_timeout,
+            timeout: settings.reduction_timeout,
         }));
 
         let reductions = inclusions
@@ -90,16 +90,10 @@ impl Broker {
             individual_signatures,
         );
 
-        let outcome = Broker::orchestrate(
-            discovery,
-            view,
-            connector,
-            ping_board,
-            submission,
-            fast_witness_timeout,
-        )
-        .await
-        .map_err(|_| BrokerFailure::Error);
+        let outcome =
+            Broker::orchestrate(discovery, view, connector, ping_board, submission, settings)
+                .await
+                .map_err(|_| BrokerFailure::Error);
 
         for outcome_inlet in outcome_inlets {
             let _ = outcome_inlet.send(outcome.clone());

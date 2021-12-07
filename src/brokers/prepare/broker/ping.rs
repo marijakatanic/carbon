@@ -1,5 +1,5 @@
 use crate::{
-    brokers::prepare::Broker,
+    brokers::prepare::{broker_settings::PingTaskSettings, Broker},
     data::PingBoard,
     processing::messages::{PrepareRequest, PrepareResponse},
 };
@@ -30,7 +30,7 @@ impl Broker {
         board: PingBoard,
         connector: Arc<SessionConnector>,
         replica: Identity,
-        interval: Duration,
+        settings: PingTaskSettings,
     ) {
         loop {
             let start = Instant::now();
@@ -61,7 +61,7 @@ impl Broker {
             let ping = ping.unwrap_or(Duration::MAX);
             board.submit(replica, ping);
 
-            time::sleep(interval).await;
+            time::sleep(settings.ping_interval).await;
         }
     }
 }
