@@ -103,7 +103,7 @@ impl Broker {
         // Orchestrate submission of `submission`
 
         let commit =
-            Broker::orchestrate(discovery, view, connector, ping_board, submission, settings)
+            Broker::orchestrate(discovery, view, ping_board, connector, submission, settings)
                 .await
                 .map_err(|_| BrokerFailure::Error);
 

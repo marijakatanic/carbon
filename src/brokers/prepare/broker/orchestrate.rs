@@ -45,11 +45,15 @@ enum Update {
 }
 
 struct WitnessCollector {
+    view: View,
+    root: Hash,
     aggregator: Aggregator<WitnessStatement>,
     errors: usize,
 }
 
 struct CommitCollector {
+    view: View,
+    root: Hash,
     shards: Vec<(KeyCard, BatchCommitShard)>,
     errors: usize,
 }
@@ -58,7 +62,7 @@ struct CommitCollector {
 pub(in crate::brokers::prepare::broker) enum OrchestrateError {
     #[doom(description("Failed to collect batch witness"))]
     WitnessCollectionFailed,
-    #[doom(description("Failed to collect batch commit"))]
+    #[doom(description("Failed to collect `BatchCommit`"))]
     CommitCollectionFailed,
 }
 
@@ -74,34 +78,35 @@ enum SubmitError {
     MalformedResponse,
     #[doom(description("Invalid witness shard"))]
     InvalidWitnessShard,
-    #[doom(description("Invalid commit shard"))]
+    #[doom(description("Invalid `BatchCommitShard`"))]
     InvalidCommitShard,
-    #[doom(description("Command channel closed"))]
+    #[doom(description("`Command` channel closed (most likely, the `Broker` is shutting down)"))]
     CommandChannelClosed,
 }
 
 #[derive(Doom)]
-enum ProgressError {
-    #[doom(description("Error overflow"))]
-    ErrorOverflow,
+enum CollectorError {
+    #[doom(description("Reached plurality of errors"))]
+    ErrorPlurality,
 }
 
 impl Broker {
     pub(in crate::brokers::prepare::broker) async fn orchestrate(
         discovery: Arc<Client>,
         view: View,
-        connector: Arc<SessionConnector>,
         ping_board: PingBoard,
+        connector: Arc<SessionConnector>,
         submission: Submission,
         settings: BrokerTaskSettings,
     ) -> Result<BatchCommit, Top<OrchestrateError>> {
+        // Submit a `submit` slave for each replica in `view`
+
         let submission = Arc::new(submission);
 
         let (update_inlet, mut update_outlet) = mpsc::unbounded_channel();
+        let mut command_inlets = HashMap::new();
 
         let fuse = Fuse::new();
-
-        let mut command_inlets = HashMap::new();
 
         for replica in view.members().values().cloned() {
             let discovery = discovery.clone();
@@ -127,9 +132,11 @@ impl Broker {
             });
         }
 
+        // Obtain `PingBoard` rankings
+
         let rankings = ping_board.rankings();
 
-        // Instruct fastest plurality to submit signatures
+        // Optimistically direct the fastest plurality of slaves to submit `submission`'s signatures
 
         for replica in &rankings[0..view.plurality()] {
             let _ = command_inlets
@@ -138,18 +145,25 @@ impl Broker {
                 .send(Command::SubmitSignatures);
         }
 
+        // Initialize `WitnessCollector`
+
         let mut witness_collector = WitnessCollector::new(view.clone(), submission.root());
 
-        // Wait for plurality to respond, with a timeout
+        // Wait (or timeout) for the fastest plurality of slaves to produce witness shards
 
         let _ = time::timeout(
             settings.optimistic_witness_timeout,
-            witness_collector.progress(&view, &mut update_outlet),
+            witness_collector.progress(&mut update_outlet),
         )
         .await;
 
+        // If the fastest plurality of slaves failed to produce witness shards,
+        // extend signature sumbission to fastest quorum of slaves
+
+        // If `witness_collector.complete()` is `Err`, then a plurality of slaves
+        // failed already, and collecting a `BatchCommit` is impossible
         let complete = witness_collector
-            .complete(&view)
+            .complete()
             .pot(OrchestrateError::WitnessCollectionFailed, here!())?;
 
         if !complete {
@@ -160,25 +174,32 @@ impl Broker {
                     .send(Command::SubmitSignatures);
             }
 
-            witness_collector.progress(&view, &mut update_outlet).await;
+            // Because a quorum of replicas is (theoretically) guaranteed to provide
+            // a plurality of responses, collection of witness shards from a quorum
+            // must carry on, without timeout, until success or failure.
+            witness_collector.progress(&mut update_outlet).await;
 
+            // Because `witness_collector.progress()` returned, if `witness_collector.complete()`
+            // is `Ok`, then a plurality of witness shards was achieved.
             witness_collector
-                .complete(&view)
+                .complete()
                 .pot(OrchestrateError::WitnessCollectionFailed, here!())?;
         }
 
+        // Finalize `witness_collector` to obtain witness
+
         let (commit_collector, witness) = witness_collector.finalize();
 
-        // Send witness to all replicas
+        // Direct all slaves to send `witness`
 
         for command_inlet in command_inlets.values_mut() {
             let _ = command_inlet.send(Command::SubmitWitness(witness.clone()));
         }
 
-        // Wait for a quorum of commit shards
+        // Collect `BatchCommit` from a quorum of slaves
 
         let commit = commit_collector
-            .run(view, submission.root(), &mut update_outlet)
+            .run(&mut update_outlet)
             .await
             .pot(OrchestrateError::CommitCollectionFailed, here!())?;
 
@@ -194,16 +215,24 @@ impl Broker {
         mut command_outlet: CommandOutlet,
         update_inlet: UpdateInlet,
     ) {
+        // In order to catch all `Err`s while maintaining `?`-syntax, all
+        // operations are executed within the scope of an `async` block
         let result: Result<BatchCommitShard, Top<SubmitError>> = async {
+            // Connect to `replica`
+
             let mut session = connector
                 .connect(replica.identity())
                 .await
                 .pot(SubmitError::ConnectionFailed, here!())?;
 
+            // Submit `Prepare`s (with a `PrepareRequest::Batch` request)
+
             session
                 .send(&submission.requests.batch())
                 .await
                 .pot(SubmitError::ConnectionError, here!())?;
+
+            // Wait for a `Command` from `orchestrate` master
 
             let command = command_outlet
                 .recv()
@@ -211,12 +240,22 @@ impl Broker {
                 .ok_or(SubmitError::CommandChannelClosed.into_top())
                 .spot(here!())?;
 
+            // Obtain a witness: either directly from master; or by submitting signatures,
+            // obtaining a witness shard, then trading the shard with master
+
             let witness = match command {
+                // If `command` is `SubmitSignatures` then: submit signatures; receive a witness shard;
+                // send the witness shard to master; receive a witness from master
                 Command::SubmitSignatures => {
+                    // Submit signatures (with a `PrepareRequest::Signatures` request)
+
                     session
                         .send(&submission.requests.signatures())
                         .await
                         .pot(SubmitError::ConnectionError, here!())?;
+
+                    // Obtain a witness shard (if requested to do so, first provide `replica` with the
+                    // `IdAssignment`s it is missing)
 
                     let response = session
                         .receive::<PrepareResponse>()
@@ -224,10 +263,17 @@ impl Broker {
                         .pot(SubmitError::ConnectionError, here!())?;
 
                     let shard = match response {
+                        // If `response` is `UnknownIds`, then `replica` misses some `IdAssignment`s,
+                        // required to validate the submitted signatures
                         PrepareResponse::UnknownIds(unknown_ids) => {
+                            // Gather the necessary `IdAssignments`. Assignments are requested
+                            // by `Id`, prompting a binary search on `submission.assignments()`
+                            // (which was sorted by `Id` by `Broker::prepare`)
                             let id_assignments = unknown_ids
                                 .into_iter()
                                 .map(|id| {
+                                    // If `id` is not present in `submission.assignments()`, then
+                                    // `replica` is Byzantine
                                     let index = submission
                                         .assignments()
                                         .binary_search_by_key(&id, |assignment| assignment.id())
@@ -238,10 +284,15 @@ impl Broker {
                                 })
                                 .collect::<Result<Vec<IdAssignment>, Top<SubmitError>>>()?;
 
+                            // Send missing `IdAssignments`
+
                             session
                                 .send(&PrepareRequest::Assignments(id_assignments))
                                 .await
                                 .pot(SubmitError::ConnectionError, here!())?;
+
+                            // Receive witness shard (a correct `replica` cannot provide any
+                            // response other than `WitnessShard`)
 
                             let response = session
                                 .receive::<PrepareResponse>()
@@ -253,9 +304,14 @@ impl Broker {
                                 _ => SubmitError::UnexpectedResponse.fail().spot(here!()),
                             }
                         }
+
+                        // If `command` is `WitnessShard`, return witness shard
                         PrepareResponse::WitnessShard(shard) => Ok(shard),
+
                         _ => SubmitError::UnexpectedResponse.fail().spot(here!()),
                     }?;
+
+                    // Verify `shard`
 
                     let statement = WitnessStatement::new(submission.root());
 
@@ -263,7 +319,11 @@ impl Broker {
                         .verify([&replica], &statement)
                         .pot(SubmitError::InvalidWitnessShard, here!())?;
 
+                    // Send `shard` to master
+
                     let _ = update_inlet.send((replica.identity(), Update::WitnessShard(shard)));
+
+                    // Receive witness from master, return witness
 
                     let command = command_outlet
                         .recv()
@@ -278,13 +338,20 @@ impl Broker {
                         }
                     }
                 }
+
+                // If `command` is `SubmitWitness`, return witness
                 Command::SubmitWitness(witness) => witness,
             };
+
+            // Send `witness` (with a `PrepareRequest::Witness` request)
 
             session
                 .send(&PrepareRequest::Witness(witness))
                 .await
                 .pot(SubmitError::ConnectionError, here!())?;
+
+            // Receive `BatchCommitShard` (a correct `replica` cannot provide
+            // any response other than `CommitShard`)
 
             let response = session
                 .receive::<PrepareResponse>()
@@ -295,6 +362,8 @@ impl Broker {
                 PrepareResponse::CommitShard(shard) => Ok(shard),
                 _ => SubmitError::UnexpectedResponse.fail().spot(here!()),
             }?;
+
+            // Validate and return `shard`
 
             shard
                 .validate(
@@ -310,6 +379,8 @@ impl Broker {
         }
         .await;
 
+        // If `shard` is `Ok`, send `BatchCommitShard` to master, otherwise signal `Error`
+
         let _ = match result {
             Ok(shard) => update_inlet.send((replica.identity(), Update::CommitShard(shard))),
             Err(_) => update_inlet.send((replica.identity(), Update::Error)),
@@ -318,44 +389,55 @@ impl Broker {
 }
 
 impl WitnessCollector {
-    fn new(view: View, root: Hash) -> Self {
+    pub fn new(view: View, root: Hash) -> Self {
         let statement = WitnessStatement::new(root);
+        let aggregator = Aggregator::new(view.clone(), statement);
 
         WitnessCollector {
-            aggregator: Aggregator::new(view, statement),
+            view,
+            root,
+            aggregator,
             errors: 0,
         }
     }
 
-    async fn progress(&mut self, view: &View, update_outlet: &mut UpdateOutlet) {
-        while self.aggregator.multiplicity() < view.plurality() && self.errors < view.plurality() {
+    fn succeeded(&self) -> bool {
+        self.aggregator.multiplicity() >= self.view.plurality()
+    }
+
+    fn failed(&self) -> bool {
+        self.errors >= self.view.plurality()
+    }
+
+    async fn progress(&mut self, update_outlet: &mut UpdateOutlet) {
+        while !self.succeeded() && !self.failed() {
             // A copy of `update_inlet` is held by `orchestrate`.
             // As a result, `update_outlet.recv()` cannot return `None`.
             match update_outlet.recv().await.unwrap() {
                 (replica, Update::WitnessShard(shard)) => {
-                    let keycard = view.members().get(&replica).unwrap();
+                    let keycard = self.view.members().get(&replica).unwrap();
                     self.aggregator.add(keycard, shard).unwrap();
                 }
                 (_, Update::Error) => {
                     self.errors += 1;
                 }
                 _ => {
-                    panic!("unexpected `Update`");
+                    panic!("`WitnessCollector::progress` received an unexpected `Update`");
                 }
             }
         }
     }
 
-    pub fn complete(&self, view: &View) -> Result<bool, Top<ProgressError>> {
-        if self.errors < view.plurality() {
-            Ok(self.aggregator.multiplicity() >= view.plurality())
+    pub fn complete(&self) -> Result<bool, Top<CollectorError>> {
+        if self.failed() {
+            CollectorError::ErrorPlurality.fail().spot(here!())
         } else {
-            ProgressError::ErrorOverflow.fail().spot(here!())
+            Ok(self.succeeded())
         }
     }
 
     pub fn finalize(self) -> (CommitCollector, Certificate) {
-        let commit_collector = CommitCollector::with_errors(self.errors);
+        let commit_collector = CommitCollector::new(self.view, self.root, self.errors);
         let (_, witness) = self.aggregator.finalize();
 
         (commit_collector, witness)
@@ -363,25 +445,33 @@ impl WitnessCollector {
 }
 
 impl CommitCollector {
-    fn with_errors(errors: usize) -> Self {
+    fn new(view: View, root: Hash, errors: usize) -> Self {
         CommitCollector {
+            view,
+            root,
             shards: Vec::new(),
             errors,
         }
     }
 
+    fn succeeded(&self) -> bool {
+        self.shards.len() >= self.view.quorum()
+    }
+
+    fn failed(&self) -> bool {
+        self.errors >= self.view.plurality()
+    }
+
     async fn run(
         mut self,
-        view: View,
-        root: Hash,
         update_outlet: &mut UpdateOutlet,
-    ) -> Result<BatchCommit, Top<ProgressError>> {
-        while self.shards.len() < view.quorum() && self.errors < view.plurality() {
+    ) -> Result<BatchCommit, Top<CollectorError>> {
+        while !self.succeeded() && !self.failed() {
             // A copy of `update_inlet` is held by `orchestrate`.
             // As a result, `update_outlet.recv()` cannot return `None`.
             match update_outlet.recv().await.unwrap() {
                 (replica, Update::CommitShard(shard)) => {
-                    let keycard = view.members().get(&replica).unwrap().clone();
+                    let keycard = self.view.members().get(&replica).unwrap().clone();
                     self.shards.push((keycard, shard));
                 }
                 (_, Update::Error) => {
@@ -391,10 +481,10 @@ impl CommitCollector {
             }
         }
 
-        if self.shards.len() >= view.quorum() {
-            Ok(BatchCommit::new(view, root, self.shards))
+        if self.succeeded() {
+            Ok(BatchCommit::new(self.view, self.root, self.shards))
         } else {
-            ProgressError::ErrorOverflow.fail().spot(here!())
+            CollectorError::ErrorPlurality.fail().spot(here!())
         }
     }
 }
