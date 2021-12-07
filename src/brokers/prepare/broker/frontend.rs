@@ -70,12 +70,12 @@ impl Broker {
         let keycard = request.keycard().clone();
 
         let (reduction_inlet, reduction_outlet) = oneshot::channel();
-        let (outcome_inlet, outcome_outlet) = oneshot::channel();
+        let (commit_inlet, commit_outlet) = oneshot::channel();
 
         let brokerage = Brokerage {
             request,
             reduction_inlet,
-            outcome_inlet,
+            commit_inlet,
         };
 
         brokerage_sponge.push(brokerage);
@@ -119,14 +119,14 @@ impl Broker {
 
         let _ = reduction_sponge.push((index, reduction_shard));
 
-        let reduction = outcome_outlet
+        let commit = commit_outlet
             .await
             .map_err(ServeError::request_forfeited)
             .map_err(Doom::into_top)
             .spot(here!())?;
 
         connection
-            .send(&reduction)
+            .send(&commit)
             .await
             .pot(ServeError::ConnectionError, here!())?;
 

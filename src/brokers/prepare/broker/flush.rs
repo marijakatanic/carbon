@@ -50,7 +50,7 @@ impl Broker {
 
         // The following implementation does not use `Vec::dedup_*` because,
         // in order to fail a duplicate `Brokerage`, it needs to consume
-        // its `outcome_inlet` (which mutable references don't allow)
+        // its `reduction_inlet` (which mutable references don't allow)
         let mut previous = None;
 
         brokerages

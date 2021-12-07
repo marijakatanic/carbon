@@ -30,7 +30,7 @@ impl Broker {
         let mut individual_signatures = Vec::new();
 
         let mut reduction_inlets = Vec::new();
-        let mut outcome_inlets = Vec::new();
+        let mut commit_inlets = Vec::new();
 
         for Brokerage {
             request:
@@ -40,7 +40,7 @@ impl Broker {
                     signature,
                 },
             reduction_inlet,
-            outcome_inlet,
+            commit_inlet,
         } in brokerages
         {
             assignments.push(assignment);
@@ -48,7 +48,7 @@ impl Broker {
             individual_signatures.push(Some(signature));
 
             reduction_inlets.push(reduction_inlet);
-            outcome_inlets.push(outcome_inlet);
+            commit_inlets.push(commit_inlet);
         }
 
         let prepares = Vector::new(prepares).unwrap();
@@ -90,13 +90,13 @@ impl Broker {
             individual_signatures,
         );
 
-        let outcome =
+        let commit =
             Broker::orchestrate(discovery, view, connector, ping_board, submission, settings)
                 .await
                 .map_err(|_| BrokerFailure::Error);
 
-        for outcome_inlet in outcome_inlets {
-            let _ = outcome_inlet.send(outcome.clone());
+        for commit_inlet in commit_inlets {
+            let _ = commit_inlet.send(commit.clone());
         }
     }
 }
