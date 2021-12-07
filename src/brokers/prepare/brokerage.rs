@@ -19,7 +19,7 @@ pub(in crate::brokers::prepare) struct Brokerage {
 pub(in crate::brokers::prepare) struct UnzippedBrokerages {
     pub assignments: Vec<IdAssignment>,
     pub prepares: Vec<Prepare>,
-    pub individual_signatures: Vec<Option<Signature>>,
+    pub signatures: Vec<Signature>,
 
     pub reduction_inlets: Vec<ReductionInlet>,
     pub commit_inlets: Vec<CommitInlet>,
@@ -29,7 +29,7 @@ impl Brokerage {
     pub fn unzip(brokerages: Vec<Brokerage>) -> UnzippedBrokerages {
         let mut assignments = Vec::new();
         let mut prepares = Vec::new();
-        let mut individual_signatures = Vec::new();
+        let mut signatures = Vec::new();
 
         let mut reduction_inlets = Vec::new();
         let mut commit_inlets = Vec::new();
@@ -48,7 +48,7 @@ impl Brokerage {
 
             assignments.push(assignment);
             prepares.push(prepare);
-            individual_signatures.push(Some(signature));
+            signatures.push(signature);
 
             reduction_inlets.push(reduction_inlet);
             commit_inlets.push(commit_inlet);
@@ -57,7 +57,7 @@ impl Brokerage {
         UnzippedBrokerages {
             assignments,
             prepares,
-            individual_signatures,
+            signatures,
             reduction_inlets,
             commit_inlets,
         }
