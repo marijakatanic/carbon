@@ -107,7 +107,7 @@ impl Broker {
                 .await
                 .map_err(|_| BrokerFailure::Error);
 
-        // Send a copy of `commit` to each `serve` task (note that `commit` is 
+        // Send a copy of `commit` to each `serve` task (note that `commit` is
         // a `Result<BatchCommit, Failure>`)
 
         for commit_inlet in commit_inlets {
