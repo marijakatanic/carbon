@@ -18,9 +18,11 @@ pub(crate) struct Request {
 
 #[derive(Doom)]
 pub(crate) enum RequestError {
-    #[doom(description("Assignment invalid"))]
+    #[doom(description("`IdAssignment`'s `Id` does not match `Prepare`'s `Id`"))]
+    IdsMismatched,
+    #[doom(description("`IdAssignment` invalid"))]
     AssignmentInvalid,
-    #[doom(description("Signature invalid"))]
+    #[doom(description("`Signature` invalid"))]
     SignatureInvalid,
 }
 
@@ -54,6 +56,10 @@ impl Request {
     }
 
     pub fn validate(&self, discovery: &Client) -> Result<(), Top<RequestError>> {
+        if self.assignment.id() != self.prepare.id() {
+            return RequestError::IdsMismatched.fail().spot(here!());
+        }
+
         self.assignment
             .validate(&discovery)
             .pot(RequestError::AssignmentInvalid, here!())?;
