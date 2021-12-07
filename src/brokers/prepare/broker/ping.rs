@@ -1,5 +1,6 @@
 use crate::{
-    brokers::prepare::{Broker, PingBoard},
+    brokers::prepare::Broker,
+    data::PingBoard,
     processing::messages::{PrepareRequest, PrepareResponse},
 };
 

@@ -1,6 +1,6 @@
 use crate::{
-    brokers::prepare::{broker::Brokerage, ping_board::PingBoard, Broker, BrokerFailure},
-    data::Sponge,
+    brokers::prepare::{broker::Brokerage, Broker, BrokerFailure},
+    data::{PingBoard, Sponge},
     discovery::Client,
     view::View,
 };

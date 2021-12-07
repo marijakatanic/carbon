@@ -1,6 +1,7 @@
 use crate::{
-    brokers::prepare::{ping_board::PingBoard, Broker, Submission},
+    brokers::prepare::{Broker, Submission},
     crypto::{Aggregator, Certificate},
+    data::PingBoard,
     discovery::Client,
     prepare::{BatchCommit, BatchCommitShard, WitnessStatement},
     processing::messages::{PrepareRequest, PrepareResponse},
@@ -111,7 +112,8 @@ impl Broker {
                     submission,
                     command_outlet,
                     update_inlet,
-                ).await;
+                )
+                .await;
             });
         }
 

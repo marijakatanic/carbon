@@ -1,11 +1,10 @@
 use crate::{
     brokers::prepare::{
         broker::{Brokerage, Reduction},
-        ping_board::PingBoard,
         submission::Submission,
         Broker, BrokerFailure, Inclusion, Request,
     },
-    data::{Sponge, SpongeSettings},
+    data::{PingBoard, Sponge, SpongeSettings},
     discovery::Client,
     view::View,
 };

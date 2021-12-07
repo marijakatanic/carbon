@@ -3,13 +3,11 @@ mod broker_failure;
 mod broker_settings;
 mod brokerage;
 mod inclusion;
-mod ping_board;
 mod reduction;
 mod request;
 mod submission;
 
 use brokerage::Brokerage;
-use ping_board::PingBoard;
 use reduction::Reduction;
 use submission::Submission;
 

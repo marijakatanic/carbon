@@ -1,7 +1,7 @@
 use crate::{
-    brokers::prepare::{BrokerFailure, BrokerSettings, Brokerage, PingBoard, Reduction},
+    brokers::prepare::{BrokerFailure, BrokerSettings, Brokerage, Reduction},
     crypto::Identify,
-    data::Sponge,
+    data::{PingBoard, Sponge},
     discovery::Client,
     view::View,
 };
