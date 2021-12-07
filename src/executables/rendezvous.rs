@@ -31,6 +31,8 @@ async fn main() {
     logger.format_timestamp_millis();
     logger.init();
 
+    info!("Logger test");
+
     match matches.subcommand() {
         ("run", Some(subm)) => {
             let port = subm
@@ -41,6 +43,8 @@ async fn main() {
             let shard_size = subm.value_of("size").unwrap().parse::<usize>().unwrap();
 
             let address = ("0.0.0.0", port);
+
+            info!("Rendezvous server starting...");
 
             let server = Server::new(
                 address,
