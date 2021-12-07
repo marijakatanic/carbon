@@ -11,7 +11,7 @@ use talk::crypto::{
 
 use zebra::vector::{Proof, Vector};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Inclusion {
     root: Hash,
     proof: Proof,
@@ -19,7 +19,7 @@ pub(crate) struct Inclusion {
 
 #[derive(Doom)]
 pub(crate) enum InclusionError {
-    #[doom(description("Proof invalid"))]
+    #[doom(description("`Proof` invalid"))]
     ProofInvalid,
 }
 
