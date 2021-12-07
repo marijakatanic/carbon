@@ -14,7 +14,10 @@ use doomstack::{here, Doom, ResultExt, Top};
 use std::{collections::HashMap, sync::Arc};
 
 use talk::{
-    crypto::{primitives::multi::Signature as MultiSignature, Identity, KeyCard},
+    crypto::{
+        primitives::{hash::Hash, multi::Signature as MultiSignature},
+        Identity, KeyCard,
+    },
     net::SessionConnector,
     sync::fuse::Fuse,
 };
@@ -41,12 +44,12 @@ enum Update {
     Error,
 }
 
-struct WitnessProgress {
+struct WitnessCollector {
     aggregator: Aggregator<WitnessStatement>,
     errors: usize,
 }
 
-struct CommitProgress {
+struct CommitCollector {
     shards: Vec<(KeyCard, BatchCommitShard)>,
     errors: usize,
 }
@@ -75,6 +78,12 @@ enum SubmitError {
     InvalidCommitShard,
     #[doom(description("Command channel closed"))]
     CommandChannelClosed,
+}
+
+#[derive(Doom)]
+enum ProgressError {
+    #[doom(description("Error overflow"))]
+    ErrorOverflow,
 }
 
 impl Broker {
@@ -129,31 +138,21 @@ impl Broker {
                 .send(Command::SubmitSignatures);
         }
 
-        let statement = WitnessStatement::new(submission.root());
-        let aggregator = Aggregator::new(view.clone(), statement);
-
-        let mut progress = WitnessProgress {
-            aggregator,
-            errors: 0,
-        };
+        let mut witness_collector = WitnessCollector::new(view.clone(), submission.root());
 
         // Wait for plurality to respond, with a timeout
 
         let _ = time::timeout(
             settings.optimistic_witness_timeout,
-            witness_progress(&view, &mut update_outlet, &mut progress),
+            witness_collector.progress(&view, &mut update_outlet),
         )
         .await;
 
-        if progress.errors >= view.plurality() {
-            return OrchestrateError::WitnessCollectionFailed
-                .fail()
-                .spot(here!());
-        }
+        let complete = witness_collector
+            .complete(&view)
+            .pot(OrchestrateError::WitnessCollectionFailed, here!())?;
 
-        // If not enough responded in time, extend request to quorum, wait for shards without timeout
-
-        if progress.aggregator.multiplicity() < view.plurality() {
+        if !complete {
             for replica in &rankings[view.plurality()..view.quorum()] {
                 let _ = command_inlets
                     .get_mut(replica)
@@ -161,16 +160,14 @@ impl Broker {
                     .send(Command::SubmitSignatures);
             }
 
-            witness_progress(&view, &mut update_outlet, &mut progress).await;
+            witness_collector.progress(&view, &mut update_outlet).await;
+
+            witness_collector
+                .complete(&view)
+                .pot(OrchestrateError::WitnessCollectionFailed, here!())?;
         }
 
-        if progress.errors >= view.plurality() {
-            return OrchestrateError::WitnessCollectionFailed
-                .fail()
-                .spot(here!());
-        }
-
-        let (_, witness) = progress.aggregator.finalize();
+        let (commit_collector, witness) = witness_collector.finalize();
 
         // Send witness to all replicas
 
@@ -180,20 +177,10 @@ impl Broker {
 
         // Wait for a quorum of commit shards
 
-        let mut progress = CommitProgress {
-            shards: Vec::new(),
-            errors: progress.errors,
-        };
-
-        commit_progress(&view, &mut update_outlet, &mut progress).await;
-
-        if progress.errors >= view.plurality() {
-            return OrchestrateError::CommitCollectionFailed
-                .fail()
-                .spot(here!());
-        }
-
-        let commit = BatchCommit::new(view, submission.root(), progress.shards);
+        let commit = commit_collector
+            .run(view, submission.root(), &mut update_outlet)
+            .await
+            .pot(OrchestrateError::CommitCollectionFailed, here!())?;
 
         Ok(commit)
     }
@@ -330,46 +317,84 @@ impl Broker {
     }
 }
 
-async fn witness_progress(
-    view: &View,
-    update_outlet: &mut UpdateOutlet,
-    progress: &mut WitnessProgress,
-) {
-    while progress.aggregator.multiplicity() < view.plurality()
-        && progress.errors < view.plurality()
-    {
-        match update_outlet.recv().await.unwrap() {
-            // TODO: Check the `unwrap` above
-            (replica, Update::WitnessShard(shard)) => {
-                let keycard = view.members().get(&replica).unwrap();
-                progress.aggregator.add(&keycard, shard).unwrap();
-            }
-            (_, Update::Error) => {
-                progress.errors += 1;
-            }
-            _ => {
-                panic!("unexpected `Update`");
+impl WitnessCollector {
+    fn new(view: View, root: Hash) -> Self {
+        let statement = WitnessStatement::new(root);
+
+        WitnessCollector {
+            aggregator: Aggregator::new(view, statement),
+            errors: 0,
+        }
+    }
+
+    async fn progress(&mut self, view: &View, update_outlet: &mut UpdateOutlet) {
+        while self.aggregator.multiplicity() < view.plurality() && self.errors < view.plurality() {
+            // A copy of `update_inlet` is held by `orchestrate`.
+            // As a result, `update_outlet.recv()` cannot return `None`.
+            match update_outlet.recv().await.unwrap() {
+                (replica, Update::WitnessShard(shard)) => {
+                    let keycard = view.members().get(&replica).unwrap();
+                    self.aggregator.add(keycard, shard).unwrap();
+                }
+                (_, Update::Error) => {
+                    self.errors += 1;
+                }
+                _ => {
+                    panic!("unexpected `Update`");
+                }
             }
         }
     }
+
+    pub fn complete(&self, view: &View) -> Result<bool, Top<ProgressError>> {
+        if self.errors < view.plurality() {
+            Ok(self.aggregator.multiplicity() >= view.plurality())
+        } else {
+            ProgressError::ErrorOverflow.fail().spot(here!())
+        }
+    }
+
+    pub fn finalize(self) -> (CommitCollector, Certificate) {
+        let commit_collector = CommitCollector::with_errors(self.errors);
+        let (_, witness) = self.aggregator.finalize();
+
+        (commit_collector, witness)
+    }
 }
 
-async fn commit_progress(
-    view: &View,
-    update_outlet: &mut UpdateOutlet,
-    progress: &mut CommitProgress,
-) {
-    while progress.shards.len() < view.quorum() && progress.errors < view.plurality() {
-        match update_outlet.recv().await.unwrap() {
-            // TODO: Check the `unwrap` above
-            (replica, Update::CommitShard(shard)) => {
-                let keycard = view.members().get(&replica).unwrap().clone();
-                progress.shards.push((keycard, shard));
+impl CommitCollector {
+    fn with_errors(errors: usize) -> Self {
+        CommitCollector {
+            shards: Vec::new(),
+            errors,
+        }
+    }
+
+    async fn run(
+        mut self,
+        view: View,
+        root: Hash,
+        update_outlet: &mut UpdateOutlet,
+    ) -> Result<BatchCommit, Top<ProgressError>> {
+        while self.shards.len() < view.quorum() && self.errors < view.plurality() {
+            // A copy of `update_inlet` is held by `orchestrate`.
+            // As a result, `update_outlet.recv()` cannot return `None`.
+            match update_outlet.recv().await.unwrap() {
+                (replica, Update::CommitShard(shard)) => {
+                    let keycard = view.members().get(&replica).unwrap().clone();
+                    self.shards.push((keycard, shard));
+                }
+                (_, Update::Error) => {
+                    self.errors += 1;
+                }
+                (_, Update::WitnessShard(_)) => {}
             }
-            (_, Update::Error) => {
-                progress.errors += 1;
-            }
-            (_, Update::WitnessShard(_)) => {}
+        }
+
+        if self.shards.len() >= view.quorum() {
+            Ok(BatchCommit::new(view, root, self.shards))
+        } else {
+            ProgressError::ErrorOverflow.fail().spot(here!())
         }
     }
 }
