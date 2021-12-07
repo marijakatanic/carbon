@@ -2,8 +2,7 @@ use crate::{
     brokers::prepare::{
         broker::{Brokerage, Reduction},
         broker_settings::BrokerTaskSettings,
-        submission::Submission,
-        Broker, BrokerFailure, Inclusion, Request,
+        Broker, BrokerFailure, Inclusion, Submission, UnzippedBrokerages,
     },
     data::{PingBoard, Sponge, SpongeSettings},
     discovery::Client,
@@ -25,39 +24,40 @@ impl Broker {
         brokerages: Vec<Brokerage>,
         settings: BrokerTaskSettings,
     ) {
-        let mut assignments = Vec::new();
-        let mut prepares = Vec::new();
-        let mut individual_signatures = Vec::new();
+        // Unzip `brokerages` into its components
 
-        let mut reduction_inlets = Vec::new();
-        let mut commit_inlets = Vec::new();
+        let UnzippedBrokerages {
+            assignments,
+            prepares,
+            signatures,
+            reduction_inlets,
+            commit_inlets,
+        } = Brokerage::unzip(brokerages);
 
-        for Brokerage {
-            request:
-                Request {
-                    assignment,
-                    prepare,
-                    signature,
-                },
-            reduction_inlet,
-            commit_inlet,
-        } in brokerages
-        {
-            assignments.push(assignment);
-            prepares.push(prepare);
-            individual_signatures.push(Some(signature));
+        // Initialize `Vec<Option<_>>` of individual signatures
 
-            reduction_inlets.push(reduction_inlet);
-            commit_inlets.push(commit_inlet);
-        }
+        let mut individual_signatures = signatures
+            .into_iter()
+            .map(|signature| Some(signature))
+            .collect::<Vec<_>>();
+
+        // Wrap `prepares` into a `Vector`, generate an `Inclusion`
+        // for each element of `prepares`
 
         let prepares = Vector::new(prepares).unwrap();
         let inclusions = Inclusion::batch(&prepares);
 
-        let reduction_sponge = Arc::new(Sponge::<(usize, MultiSignature)>::new(SpongeSettings {
-            capacity: inclusions.len(),
+        // Initialize reduction sponge
+
+        // The capacity of `reduction_sponge` is expressed by `settings.reduction_threshold`
+        // as a fraction of `inclusions.len()`: `reduction_sponge` flushes as soon as
+        // a `settings.reduction_threshold`-th of the reduction shards are collected.
+        let reduction_sponge = Arc::new(Sponge::new(SpongeSettings {
+            capacity: ((inclusions.len() as f64) * settings.reduction_threshold) as usize,
             timeout: settings.reduction_timeout,
         }));
+
+        // Build vector of `Reduction`s
 
         let reductions = inclusions
             .into_iter()
@@ -70,18 +70,28 @@ impl Broker {
             })
             .collect::<Vec<_>>();
 
+        // Send each element of `reductions` to the appropriate `serve` task
+
         for (reduction, reduction_inlet) in reductions.into_iter().zip(reduction_inlets) {
             let _ = reduction_inlet.send(Ok(reduction));
         }
 
-        let reductions = reduction_sponge.flush().await;
+        // Wait for `reduction_sponge` to flush
 
+        let reduction_shards = reduction_sponge.flush().await;
+
+        // Aggregate reduction signature
+
+        // Each element of `reduction_shards` has been previously verified, and can be
+        // aggregated without any further checks
         let reduction_signature =
-            MultiSignature::aggregate(reductions.into_iter().map(|(index, shard)| {
+            MultiSignature::aggregate(reduction_shards.into_iter().map(|(index, shard)| {
                 individual_signatures[index] = None;
                 shard
             }))
             .unwrap();
+
+        // Prepare `Submission`
 
         let submission = Submission::new(
             assignments,
@@ -90,10 +100,15 @@ impl Broker {
             individual_signatures,
         );
 
+        // Orchestrate submission of `submission`
+
         let commit =
             Broker::orchestrate(discovery, view, connector, ping_board, submission, settings)
                 .await
                 .map_err(|_| BrokerFailure::Error);
+
+        // Send a copy of `commit` to each `serve` task (note that `commit` is 
+        // a `Result<BatchCommit, Failure>`)
 
         for commit_inlet in commit_inlets {
             let _ = commit_inlet.send(commit.clone());
