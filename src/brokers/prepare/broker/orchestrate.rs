@@ -84,6 +84,7 @@ impl Broker {
         connector: Arc<SessionConnector>,
         ping_board: PingBoard,
         submission: Submission,
+        fast_witness_timeout: Duration,
     ) -> Result<BatchCommit, Top<OrchestrateError>> {
         let submission = Arc::new(submission);
 
@@ -139,10 +140,10 @@ impl Broker {
         // Wait for plurality to respond, with a timeout
 
         let _ = time::timeout(
-            Duration::from_secs(1),
+            fast_witness_timeout,
             witness_progress(&view, &mut update_outlet, &mut progress),
         )
-        .await; // TODO: Add settings
+        .await;
 
         if progress.errors >= view.plurality() {
             return OrchestrateError::WitnessCollectionFailed

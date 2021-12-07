@@ -17,6 +17,7 @@ impl Broker {
         connector: Arc<SessionConnector>,
         ping_board: PingBoard,
         reduction_timeout: Option<Duration>,
+        fast_witness_timeout: Duration,
     ) {
         let fuse = Fuse::new();
 
@@ -40,6 +41,7 @@ impl Broker {
                     ping_board,
                     brokerages,
                     reduction_timeout,
+                    fast_witness_timeout,
                 )
                 .await;
             });

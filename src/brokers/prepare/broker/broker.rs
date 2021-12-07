@@ -23,6 +23,7 @@ impl Broker {
         ping_board: PingBoard,
         brokerages: Vec<Brokerage>,
         reduction_timeout: Option<Duration>,
+        fast_witness_timeout: Duration,
     ) {
         let mut assignments = Vec::new();
         let mut prepares = Vec::new();
@@ -89,9 +90,16 @@ impl Broker {
             individual_signatures,
         );
 
-        let outcome = Broker::orchestrate(discovery, view, connector, ping_board, submission)
-            .await
-            .map_err(|_| BrokerFailure::Error);
+        let outcome = Broker::orchestrate(
+            discovery,
+            view,
+            connector,
+            ping_board,
+            submission,
+            fast_witness_timeout,
+        )
+        .await
+        .map_err(|_| BrokerFailure::Error);
 
         for outcome_inlet in outcome_inlets {
             let _ = outcome_inlet.send(outcome.clone());

@@ -70,6 +70,7 @@ impl Broker {
 
         let reduction_timeout = settings.reduction_timeout;
         let ping_interval = settings.ping_interval;
+        let fast_witness_timeout = settings.fast_witness_timeout;
 
         let fuse = Fuse::new();
 
@@ -96,6 +97,7 @@ impl Broker {
                     connector,
                     ping_board,
                     reduction_timeout,
+                    fast_witness_timeout,
                 )
                 .await;
             });
