@@ -1,3 +1,5 @@
+use buckets::Splittable;
+
 use crate::{
     account::Id,
     crypto::{Aggregator, Certificate, Header, Identify},
@@ -110,6 +112,14 @@ impl IdAssignmentAggregator {
             assignment,
             certificate,
         }
+    }
+}
+
+impl Splittable for IdAssignment {
+    type Key = Id;
+
+    fn key(&self) -> Id {
+        self.id()
     }
 }
 
