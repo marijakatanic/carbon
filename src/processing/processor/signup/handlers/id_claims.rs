@@ -11,14 +11,16 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use talk::crypto::{primitives::multi::Signature as MultiSignature, KeyChain};
+use rayon::prelude::*;
+
+use talk::{crypto::KeyChain, sync::voidable::Voidable};
 
 use zebra::database::CollectionTransaction;
 
 pub(in crate::processing::processor::signup) fn id_claims(
     keychain: &KeyChain,
     view: &View,
-    database: &mut Database,
+    database: &Voidable<Database>,
     claims: Vec<IdClaim>,
     settings: &Signup,
 ) -> Result<SignupResponse, Top<ServeSignupError>> {
@@ -31,12 +33,10 @@ pub(in crate::processing::processor::signup) fn id_claims(
         return ServeSignupError::InvalidRequest.fail().spot(here!());
     }
 
-    // Process `claims` into `shards`
+    // Validate `claims` (in parallel)
 
-    let mut transaction = CollectionTransaction::new();
-
-    let shards = claims
-        .into_iter()
+    claims
+        .par_iter()
         .map(|claim| {
             if claim.view() != view.identifier() {
                 return ServeSignupError::ForeignView.fail().spot(here!());
@@ -46,29 +46,46 @@ pub(in crate::processing::processor::signup) fn id_claims(
                 .validate(settings.signup_settings.work_difficulty)
                 .pot(ServeSignupError::InvalidRequest, here!())?;
 
-            let stored = database
-                .signup
-                .claims
-                .entry(claim.id())
-                .or_insert(claim.clone());
-
-            if stored.client() == claim.client() {
-                // If `claim.id()` was already claimed by `claim.client()`, then
-                // `claim.id()` will be inserted twice in `database.signup.claimed`
-                // (which is harmless) and the `IdAssignment` will be repeated
-                let _ = transaction.insert(claim.id());
-                Ok(Ok(IdAssignment::certify(&keychain, &claim)))
-            } else {
-                // `claim.id()` was previously claimed by another client: return
-                // the relevant `IdClaim` as proof of conflict
-                Ok(Err(stored.clone()))
-            }
+            Ok(())
         })
-        .collect::<Result<Vec<Result<MultiSignature, IdClaim>>, Top<ServeSignupError>>>();
+        .collect::<Result<(), Top<ServeSignupError>>>()?;
 
-    // In order to keep `claims` in sync with `claimed`, `transaction`
-    // must be executed before bailing (if `signatures` is `Err`)
-    database.signup.claimed.execute(transaction);
+    // Process `claims` into `shards`
 
-    Ok(SignupResponse::IdAssignmentShards(shards?))
+    let shards = {
+        let mut database = database
+            .lock()
+            .pot(ServeSignupError::DatabaseVoid, here!())?;
+
+        let mut transaction = CollectionTransaction::new();
+
+        let shards = claims
+            .into_iter()
+            .map(|claim| {
+                let stored = database
+                    .signup
+                    .claims
+                    .entry(claim.id())
+                    .or_insert(claim.clone());
+
+                if stored.client() == claim.client() {
+                    // If `claim.id()` was already claimed by `claim.client()`, then
+                    // `claim.id()` will be inserted twice in `database.signup.claimed`
+                    // (which is harmless) and the `IdAssignment` will be repeated
+                    let _ = transaction.insert(claim.id());
+                    Ok(IdAssignment::certify(&keychain, &claim))
+                } else {
+                    // `claim.id()` was previously claimed by another client: return
+                    // the relevant `IdClaim` as proof of conflict
+                    Err(stored.clone())
+                }
+            })
+            .collect::<Vec<_>>();
+
+        database.signup.claimed.execute(transaction);
+
+        shards
+    };
+
+    Ok(SignupResponse::IdAssignmentShards(shards))
 }

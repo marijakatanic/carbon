@@ -65,21 +65,17 @@ impl Processor {
             .pot(ServeSignupError::ConnectionError, here!())?;
 
         let response = {
-            let mut database = database
-                .lock()
-                .pot(ServeSignupError::DatabaseVoid, here!())?;
-
             match request {
                 SignupRequest::IdRequests(requests) => {
-                    handlers::id_requests(&keychain, &view, &mut database, requests, &settings)?
+                    handlers::id_requests(&keychain, &view, database.as_ref(), requests, &settings)?
                 }
 
                 SignupRequest::IdClaims(claims) => {
-                    handlers::id_claims(&keychain, &view, &mut database, claims, &settings)?
+                    handlers::id_claims(&keychain, &view, database.as_ref(), claims, &settings)?
                 }
 
                 SignupRequest::IdAssignments(assignments) => {
-                    handlers::id_assignments(discovery.as_ref(), &mut database, assignments)?
+                    handlers::id_assignments(discovery.as_ref(), database.as_ref(), assignments)?
                 }
             }
         };

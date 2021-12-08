@@ -7,9 +7,13 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
+use rayon::prelude::*;
+
+use talk::sync::voidable::Voidable;
+
 pub(in crate::processing::processor::signup) fn id_assignments(
     discovery: &Client,
-    database: &mut Database,
+    database: &Voidable<Database>,
     assignments: Vec<IdAssignment>,
 ) -> Result<SignupResponse, Top<ServeSignupError>> {
     // Verify that `assignments` is sorted and deduplicated
@@ -21,14 +25,27 @@ pub(in crate::processing::processor::signup) fn id_assignments(
         return ServeSignupError::InvalidRequest.fail().spot(here!());
     }
 
+    // Validate `assignments` (in parallel)
+
+    assignments
+        .par_iter()
+        .map(|assignment| {
+            assignment
+                .validate(discovery)
+                .pot(ServeSignupError::InvalidRequest, here!())
+        })
+        .collect::<Result<(), Top<ServeSignupError>>>()?;
+
     // Process `assignments`
 
-    for assignment in assignments {
-        assignment
-            .validate(discovery)
-            .pot(ServeSignupError::InvalidRequest, here!())?;
+    {
+        let mut database = database
+            .lock()
+            .pot(ServeSignupError::DatabaseVoid, here!())?;
 
-        database.assignments.insert(assignment.id(), assignment);
+        for assignment in assignments {
+            database.assignments.insert(assignment.id(), assignment);
+        }
     }
 
     Ok(SignupResponse::AcknowledgeIdAssignments)
