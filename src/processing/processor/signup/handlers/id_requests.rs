@@ -11,6 +11,7 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
+use log::info;
 use rand::{self, seq::IteratorRandom};
 
 use rayon::prelude::*;
@@ -40,6 +41,8 @@ pub(in crate::processing::processor::signup) fn id_requests(
 
     // Validate `requests` (in parallel)
 
+    info!("Validating requests");
+
     let identity = keychain.keycard().identity();
 
     requests
@@ -60,6 +63,8 @@ pub(in crate::processing::processor::signup) fn id_requests(
             Ok(())
         })
         .collect::<Result<(), Top<ServeSignupError>>>()?;
+
+    info!("Requests validated");
 
     // Process `requests` into `allocations`
 
