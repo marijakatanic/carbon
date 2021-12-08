@@ -7,8 +7,10 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
+use rayon::prelude::*;
+
 use talk::{
-    crypto::{primitives::multi::Signature as MultiSignature, KeyChain},
+    crypto::{primitives::multi::Signature as MultiSignature, KeyCard, KeyChain},
     net::Session,
     sync::voidable::Voidable,
 };
@@ -41,26 +43,31 @@ pub(in crate::processing::processor::prepare) async fn validate_signed(
 
     // `steps` zips together corresponding `KeyCard`s, `Prepare`s and individual
     // `Signature`'s from `keycards` and `batch`
-    let steps = keycards
-        .iter()
-        .zip(batch.prepares().iter().zip(batch.individual_signatures()));
+    let steps = keycards.par_iter().zip(
+        batch
+            .prepares()
+            .par_iter()
+            .zip(batch.individual_signatures()),
+    );
 
-    // The collection of `steps` into `reduction_signers` is expressed iteratively
-    // to improve readability and avoid a useless collection of `Result<Vec<_>, _>`
-    let mut reduction_signers = Vec::new();
+    // Map and collect each element of `steps` into an optional reduction signer
+    let reduction_signers = steps
+        .map(
+            |(keycard, (prepare, individual_signature))| match individual_signature {
+                Some(signature) => {
+                    signature
+                        .verify(&keycard, prepare)
+                        .pot(ServePrepareError::InvalidBatch, here!())?;
 
-    for (keycard, (prepare, individual_signature)) in steps {
-        match individual_signature {
-            Some(signature) => {
-                signature
-                    .verify(&keycard, prepare)
-                    .pot(ServePrepareError::InvalidBatch, here!())?;
-            }
-            None => {
-                reduction_signers.push(keycard);
-            }
-        }
-    }
+                    Ok(None)
+                }
+                None => Ok(Some(keycard)),
+            },
+        )
+        .collect::<Result<Vec<Option<&KeyCard>>, Top<ServePrepareError>>>()?;
+
+    // Select all `Some` `reduction_signers`
+    let reduction_signers = reduction_signers.into_iter().filter_map(|signer| signer);
 
     // Verify `batch`'s reduction statement against `reduction_signers`
 
