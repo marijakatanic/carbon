@@ -86,10 +86,14 @@ impl Processor {
             }
         };
 
+        info!("SignupResponse: {:?}", response);
+
         session
             .send(&response)
             .await
             .pot(ServeSignupError::ConnectionError, here!())?;
+
+        info!("Response sent");
 
         session.end();
 
