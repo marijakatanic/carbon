@@ -1,3 +1,5 @@
+use buckets::Buckets;
+
 use crate::{
     account::Id,
     database::{
@@ -14,9 +16,9 @@ use zebra::database::Table;
 
 pub(crate) struct Prepare {
     pub advertisements: Table<Id, Advertisement>,
-    pub advertised: HashSet<Id>,
-    pub states: HashMap<Id, State>,
-    pub stale: HashSet<Id>,
+    pub advertised: Buckets<HashSet<Id>>,
+    pub states: Buckets<HashMap<Id, State>>,
+    pub stale: Buckets<HashSet<Id>>,
     pub batches: HashMap<Hash, BatchHolder>,
 }
 
@@ -24,9 +26,9 @@ impl Prepare {
     pub fn new(zebras: &Zebras) -> Self {
         Prepare {
             advertisements: zebras.ids_to_prepare_advertisements.empty_table(),
-            advertised: HashSet::new(),
-            states: HashMap::new(),
-            stale: HashSet::new(),
+            advertised: Buckets::new(),
+            states: Buckets::new(),
+            stale: Buckets::new(),
             batches: HashMap::new(),
         }
     }
