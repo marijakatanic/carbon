@@ -45,7 +45,10 @@ async fn main() {
             // let parameters_file = subm.value_of("parameters");
 
             match Replica::new(rendezvous, discovery).await {
-                Ok(_) => info!("Replica terminating successfully"),
+                Ok(_replica) => {
+                    info!("Replica finished successfully. Beginning to process forever...");
+                    std::future::pending::<()>().await;
+                },
                 Err(e) => error!("{}", e),
             }
         }

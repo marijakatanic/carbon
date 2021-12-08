@@ -22,13 +22,15 @@ pub enum ReplicaError {
     Fail,
 }
 
-pub struct Replica {}
+pub struct Replica {
+    _processor: Processor,
+}
 
 impl Replica {
     pub async fn new<A: 'static + Clone + TcpConnect>(
         rendezvous: A,
         discovery: A,
-    ) -> Result<(), Top<ReplicaError>> {
+    ) -> Result<Self, Top<ReplicaError>> {
         // Load default parameters if none are specified.
         // let parameters = match parameter_file {
         //     Some(filename) => Parameters::read(filename)?,
@@ -101,10 +103,8 @@ impl Replica {
 
         info!("Processor initialized. Going to sleep...");
 
-        time::sleep(Duration::from_secs(15)).await;
-
         info!("Woke");
 
-        Ok(())
+        Ok(Self {_processor})
     }
 }
