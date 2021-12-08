@@ -6,6 +6,7 @@ use std::time::Duration;
 pub(crate) struct BrokerSettings {
     pub brokerage_sponge_settings: SpongeSettings,
 
+    pub reduction_threshold: f64,
     pub reduction_timeout: Duration,
     pub optimistic_witness_timeout: Duration,
 
@@ -24,6 +25,7 @@ pub(in crate::brokers::prepare) struct FlushTaskSettings {
 
 #[derive(Debug, Clone)]
 pub(in crate::brokers::prepare) struct BrokerTaskSettings {
+    pub reduction_threshold: f64,
     pub reduction_timeout: Duration,
     pub optimistic_witness_timeout: Duration,
 }
@@ -40,6 +42,7 @@ impl BrokerSettings {
                 brokerage_sponge_settings: self.brokerage_sponge_settings,
             },
             broker: BrokerTaskSettings {
+                reduction_threshold: self.reduction_threshold,
                 reduction_timeout: self.reduction_timeout,
                 optimistic_witness_timeout: self.optimistic_witness_timeout,
             },
@@ -55,6 +58,7 @@ impl Default for BrokerSettings {
         BrokerSettings {
             brokerage_sponge_settings: Default::default(),
 
+            reduction_threshold: 1.,
             reduction_timeout: Duration::from_secs(1),
             optimistic_witness_timeout: Duration::from_secs(1),
 

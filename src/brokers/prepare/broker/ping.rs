@@ -4,7 +4,7 @@ use crate::{
     processing::messages::{PrepareRequest, PrepareResponse},
 };
 
-use doomstack::{here, Doom, ResultExt};
+use doomstack::{here, Doom, ResultExt, Top};
 
 use std::{
     sync::Arc,
@@ -35,7 +35,7 @@ impl Broker {
         loop {
             let start = Instant::now();
 
-            let ping = (async {
+            let ping: Result<Duration, Top<PingError>> = (async {
                 let mut session = connector
                     .connect(replica)
                     .await
@@ -52,12 +52,17 @@ impl Broker {
                     .pot(PingError::ConnectionError, here!())?;
 
                 match response {
-                    PrepareResponse::Pong => Ok(start.elapsed()),
+                    PrepareResponse::Pong => Ok(()),
                     _ => PingError::UnexpectedResponse.fail().spot(here!()),
-                }
+                }?;
+
+                Ok(start.elapsed())
             })
             .await;
 
+            // If pinging was impossible, assign `replica` the highest
+            // possible score (replicas whose pings failed are at the
+            // end of the `PingBoard`)
             let ping = ping.unwrap_or(Duration::MAX);
             board.submit(replica, ping);
 

@@ -20,6 +20,7 @@ lazy_static = { version = "1.4.0" }
 talk = { git = "https://github.com/Distributed-EPFL/talk", features=[ "test_utilities" ] }
 zebra = { git = "https://github.com/Distributed-EPFL/zebra" }
 doomstack = { git = "https://github.com/Distributed-EPFL/doomstack" }
+buckets = { git = "https://github.com/Distributed-EPFL/buckets" }
 
 # Benchmark dependencies
 
@@ -44,4 +45,4 @@ required-features = ["benchmark"]
 [[bin]]
 name = "broker"
 path = "src/executables/broker.rs"
-required-features = ["benchmark"] 
+required-features = ["benchmark"]

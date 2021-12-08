@@ -13,14 +13,19 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use rand::{self, seq::IteratorRandom};
 
+use rayon::prelude::*;
+
 use std::iter;
 
-use talk::crypto::{Identity, KeyChain};
+use talk::{
+    crypto::{Identity, KeyChain},
+    sync::voidable::Voidable,
+};
 
 pub(in crate::processing::processor::signup) fn id_requests(
     keychain: &KeyChain,
     view: &View,
-    database: &mut Database,
+    database: &Voidable<Database>,
     requests: Vec<IdRequest>,
     settings: &Signup,
 ) -> Result<SignupResponse, Top<ServeSignupError>> {
@@ -33,12 +38,12 @@ pub(in crate::processing::processor::signup) fn id_requests(
         return ServeSignupError::InvalidRequest.fail().spot(here!());
     }
 
-    // Process `requests` into `allocations`
+    // Validate `requests` (in parallel)
 
     let identity = keychain.keycard().identity();
 
-    let allocations = requests
-        .into_iter()
+    requests
+        .par_iter()
         .map(|request| {
             if request.view() != view.identifier() {
                 return ServeSignupError::ForeignView.fail().spot(here!());
@@ -52,11 +57,26 @@ pub(in crate::processing::processor::signup) fn id_requests(
                 .validate(settings.signup_settings.work_difficulty)
                 .pot(ServeSignupError::InvalidRequest, here!())?;
 
-            Ok(allocate_id(
-                &keychain, identity, &view, database, request, settings,
-            ))
+            Ok(())
         })
-        .collect::<Result<Vec<_>, Top<ServeSignupError>>>()?;
+        .collect::<Result<(), Top<ServeSignupError>>>()?;
+
+    // Process `requests` into `allocations`
+
+    // Remark: due to the random nature of `allocate_id`, the following
+    // operations cannot be bucketed
+    let allocations = {
+        let mut database = database
+            .lock()
+            .pot(ServeSignupError::DatabaseVoid, here!())?;
+
+        requests
+            .into_iter()
+            .map(|request| {
+                allocate_id(&keychain, identity, &view, &mut database, request, settings)
+            })
+            .collect::<Vec<_>>()
+    };
 
     Ok(SignupResponse::IdAllocations(allocations))
 }

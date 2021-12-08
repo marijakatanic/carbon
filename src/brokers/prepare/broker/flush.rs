@@ -16,27 +16,26 @@ impl Broker {
         discovery: Arc<Client>,
         view: View,
         brokerage_sponge: Arc<Sponge<Brokerage>>,
-        connector: Arc<SessionConnector>,
         ping_board: PingBoard,
+        connector: Arc<SessionConnector>,
         settings: BrokerTaskSettings,
     ) {
         let fuse = Fuse::new();
 
         loop {
+            // Remark: `brokerage_sponge.flush()` always returns a non-empty
+            // `Vec<Brokerage>`. Because `Broker::prepare` only filters `Id`
+            // duplicates, it never produces an empty output on a non-empty input.
             let brokerages = Broker::prepare(brokerage_sponge.flush().await);
-
-            if brokerages.is_empty() {
-                continue;
-            }
 
             let discovery = discovery.clone();
             let view = view.clone();
-            let connector = connector.clone();
             let ping_board = ping_board.clone();
+            let connector = connector.clone();
             let settings = settings.clone();
 
             fuse.spawn(async move {
-                Broker::broker(discovery, view, connector, ping_board, brokerages, settings).await;
+                Broker::broker(discovery, view, ping_board, connector, brokerages, settings).await;
             });
         }
     }
@@ -48,9 +47,11 @@ impl Broker {
 
         // Deduplicate and fail `brokerages` by requestor
 
-        // The following implementation does not use `Vec::dedup_*` because,
-        // in order to fail a duplicate `Brokerage`, it needs to consume
-        // its `outcome_inlet` (which mutable references don't allow)
+        // The following implementation does not use `Vec::dedup_*` because
+        // duplicate `Brokerage`s must be failed explicitly. If an element
+        // of `brokerages` duplicates the previous, its `reduction_inlet` is
+        // consumed to `send` a `BrokerFailure`, to the appropriate `serve`
+        // task, and the element is filtered out of `prepare`'s return.
         let mut previous = None;
 
         brokerages
