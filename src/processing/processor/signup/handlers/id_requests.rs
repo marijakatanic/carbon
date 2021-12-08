@@ -60,8 +60,6 @@ pub(in crate::processing::processor::signup) fn id_requests(
                 .validate(settings.signup_settings.work_difficulty)
                 .pot(ServeSignupError::InvalidRequest, here!())?;
 
-            info!("Validated a single request");
-
             Ok(())
         })
         .collect::<Result<(), Top<ServeSignupError>>>()?;
