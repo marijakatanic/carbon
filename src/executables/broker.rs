@@ -41,7 +41,7 @@ async fn main() {
     match matches.subcommand() {
         ("run", Some(subm)) => {
             let rendezvous = subm.value_of("rendezvous").unwrap().to_string();
-            let full = subm.value_of("full").is_some();
+            let full = subm.value_of("full").unwrap().to_string() == String::from("true");
             // let parameters_file = subm.value_of("parameters");
 
             if full {
