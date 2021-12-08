@@ -77,7 +77,7 @@ impl FastSignupBroker {
         info!("Starting signup...");
 
         let _assignments =
-            FastSignupBroker::flush(20, 50_000, view, connector, signup_settings).await;
+            FastSignupBroker::flush(1, 10, view, connector, signup_settings).await;
 
         info!("Signup complete!");
     }
