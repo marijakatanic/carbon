@@ -14,10 +14,10 @@ mod crypto;
 mod data;
 
 #[allow(dead_code)]
-mod database;
+pub mod database;
 
 #[allow(dead_code)]
-mod discovery;
+pub mod discovery;
 
 #[allow(dead_code)]
 mod lattice;
@@ -26,7 +26,7 @@ mod lattice;
 mod prepare;
 
 #[allow(dead_code)]
-mod processing;
+pub mod processing;
 
 #[allow(dead_code)]
 mod signup;
@@ -40,4 +40,4 @@ mod view_generator;
 #[allow(dead_code)]
 mod churn;
 
-mod executables;
+pub mod external;

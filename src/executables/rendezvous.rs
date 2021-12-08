@@ -51,7 +51,8 @@ async fn main() {
                 ServerSettings {
                     shard_sizes: vec![shard_size],
                 },
-            ).await;
+            )
+            .await;
 
             match server {
                 Ok(_server) => {

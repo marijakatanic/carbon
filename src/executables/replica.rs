@@ -1,15 +1,10 @@
 use clap::{crate_name, crate_version, App, AppSettings, SubCommand};
+
+use carbon::external::Replica;
+
 use env_logger::Env;
+
 use log::{error, info};
-use tokio::net::ToSocketAddrs;
-
-use doomstack::{here, Doom, ResultExt, Top};
-
-#[derive(Doom)]
-pub(crate) enum ReplicaError {
-    #[doom(description("Fail"))]
-    Fail,
-}
 
 #[tokio::main]
 async fn main() {
@@ -19,12 +14,14 @@ async fn main() {
         .args_from_usage("-v... 'Sets the level of verbosity'")
         .subcommand(
             SubCommand::with_name("run")
-                .about("Runs a single node")
+                .about("Runs a single replica")
                 .args_from_usage(
                     "--rendezvous=<STRING> 'The ip address of the server to rendezvous at'",
                 )
                 .args_from_usage("--discovery=<STRING> 'The ip address of the discovery server'")
-                .args_from_usage("--parameters=[FILE] 'The file containing the node parameters'"),
+                .args_from_usage(
+                    "--parameters=[FILE] 'The file containing the replica parameters'",
+                ),
         )
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .get_matches();
@@ -43,8 +40,9 @@ async fn main() {
 
     match matches.subcommand() {
         ("run", Some(subm)) => {
-            let rendezvous = subm.value_of("rendezvous").unwrap();
-            let discovery = subm.value_of("discovery").unwrap();
+            let rendezvous = subm.value_of("rendezvous").unwrap().to_string();
+            let discovery = subm.value_of("discovery").unwrap().to_string();
+            // let parameters_file = subm.value_of("parameters");
 
             match Replica::new(rendezvous, discovery).await {
                 Ok(_) => info!("Replica terminating successfully"),
@@ -52,16 +50,5 @@ async fn main() {
             }
         }
         _ => unreachable!(),
-    }
-}
-
-struct Replica {}
-
-impl Replica {
-    pub async fn new<A: ToSocketAddrs>(
-        rendezvous: A,
-        discovery: A,
-    ) -> Result<(), Top<ReplicaError>> {
-        Ok(())
     }
 }
