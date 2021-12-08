@@ -45,6 +45,7 @@ async fn main() {
             // let parameters_file = subm.value_of("parameters");
 
             if full {
+                info!("Creating full broker");
                 match FullBroker::new(rendezvous).await {
                     Ok(_broker) => {
                         info!("Full broker done");
@@ -53,6 +54,7 @@ async fn main() {
                     Err(e) => error!("{}", e),
                 }
             } else {
+                info!("Creating fast broker");
                 match FastBroker::new(rendezvous).await {
                     Ok(_broker) => {
                         info!("Fast broker done");

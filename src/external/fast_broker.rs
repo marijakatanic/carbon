@@ -32,6 +32,8 @@ impl FastBroker {
 
         let connector = Connector::new(rendezvous.clone(), keychain.clone(), Default::default());
 
+        info!("Getting shard");
+
         let client = RendezvousClient::new(rendezvous, Default::default());
         let shard = loop {
             match client.get_shard(0).await {
