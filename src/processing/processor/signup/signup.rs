@@ -11,6 +11,7 @@ use crate::{
 };
 
 use doomstack::{here, ResultExt, Top};
+use log::{error, info};
 
 use std::sync::Arc;
 
@@ -43,10 +44,15 @@ impl Processor {
             let database = database.clone();
             let settings = settings.clone();
 
+            info!("Serving sign up...");
+
             fuse.spawn(async move {
-                let _ =
+                if let Err(e) =
                     Processor::serve_signup(keychain, discovery, view, database, session, settings)
-                        .await;
+                        .await
+                {
+                    error!("Error serving signup: {:?}", e);
+                }
             });
         }
     }
