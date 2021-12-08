@@ -40,10 +40,13 @@ impl Replica {
 
         info!("Identity {:?} generated", keycard.identity());
 
-        info!("Creating listener and connector...");
+        info!("Creating listener...");
 
         let listener =
             Listener::new(rendezvous.clone(), keychain.clone(), Default::default()).await;
+
+        info!("Creating connector...");
+
         let connector = Connector::new(rendezvous.clone(), keychain.clone(), Default::default());
 
         info!("Publishing KeyCard... {:?}", keycard);
