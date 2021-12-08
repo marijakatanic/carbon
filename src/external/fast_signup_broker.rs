@@ -12,6 +12,8 @@ use futures::stream::{FuturesUnordered, StreamExt};
 
 use log::info;
 
+use rayon::prelude::*;
+
 use std::sync::Arc;
 
 use talk::{
@@ -91,23 +93,24 @@ impl FastSignupBroker {
 
         info!("Generating sigs...");
 
-        let mut keychains = Vec::new();
-        let mut requests = Vec::new();
-        for i in 0..batches {
-            let mut batch_key_chains = Vec::new();
-            let mut batch_requests = Vec::new();
-            for _ in 0..batch_size {
-                let keychain = KeyChain::random();
-                let request = IdRequest::new(&keychain, &view, allocator.clone(), 0);
+        let (keychains, requests): (Vec<Vec<KeyChain>>, Vec<Vec<IdRequest>>) = (0..batches)
+            .into_par_iter()
+            .map(|i| {
+                let mut batch_key_chains = Vec::new();
+                let mut batch_requests = Vec::new();
+                for _ in 0..batch_size {
+                    let keychain = KeyChain::random();
+                    let request = IdRequest::new(&keychain, &view, allocator.clone(), 0);
 
-                batch_key_chains.push(keychain);
-                batch_requests.push(request)
-            }
-            keychains.push(batch_key_chains);
-            requests.push(batch_requests);
+                    batch_key_chains.push(keychain);
+                    batch_requests.push(request)
+                }
 
-            info!("Generated sigs for batch {}/{}", i+1, batches);
-        }
+                info!("Generated sigs for batch {}/{}", i + 1, batches);
+
+                (batch_key_chains, batch_requests)
+            })
+            .unzip();
 
         info!("Finished generating signatures...");
 

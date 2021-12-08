@@ -105,6 +105,6 @@ impl Replica {
 
         info!("Woke");
 
-        Ok(Self {_processor})
+        Ok(Self { _processor })
     }
 }

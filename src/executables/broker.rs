@@ -50,7 +50,7 @@ async fn main() {
                     Ok(_broker) => {
                         info!("Full broker done");
                         std::future::pending::<()>().await;
-                    },
+                    }
                     Err(e) => error!("{}", e),
                 }
             } else {
