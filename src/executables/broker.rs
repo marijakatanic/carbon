@@ -4,7 +4,7 @@ use clap::{crate_name, crate_version, App, AppSettings, SubCommand};
 
 use env_logger::Env;
 
-use log::error;
+use log::{error, info};
 
 #[tokio::main]
 async fn main() {
@@ -36,6 +36,8 @@ async fn main() {
     logger.format_timestamp_millis();
     logger.init();
 
+    info!("Starting broker");
+
     match matches.subcommand() {
         ("run", Some(subm)) => {
             let rendezvous = subm.value_of("rendezvous").unwrap().to_string();
@@ -44,12 +46,18 @@ async fn main() {
 
             if full {
                 match FullBroker::new(rendezvous).await {
-                    Ok(_broker) => std::future::pending::<()>().await,
+                    Ok(_broker) => {
+                        info!("Full broker done");
+                        std::future::pending::<()>().await;
+                    },
                     Err(e) => error!("{}", e),
                 }
             } else {
                 match FastBroker::new(rendezvous).await {
-                    Ok(_broker) => std::future::pending::<()>().await,
+                    Ok(_broker) => {
+                        info!("Fast broker done");
+                        std::future::pending::<()>().await;
+                    }
                     Err(e) => error!("{}", e),
                 }
             }
