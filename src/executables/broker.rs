@@ -1,10 +1,10 @@
-use carbon::external::FullBroker;
+use carbon::external::{FastBroker, FullBroker};
 
 use clap::{crate_name, crate_version, App, AppSettings, SubCommand};
 
 use env_logger::Env;
 
-use log::{error};
+use log::error;
 
 #[tokio::main]
 async fn main() {
@@ -48,6 +48,10 @@ async fn main() {
                     Err(e) => error!("{}", e),
                 }
             } else {
+                match FastBroker::new(rendezvous).await {
+                    Ok(_broker) => std::future::pending::<()>().await,
+                    Err(e) => error!("{}", e),
+                }
             }
         }
         _ => unreachable!(),
