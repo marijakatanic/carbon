@@ -47,6 +47,8 @@ impl Processor {
             info!("Serving sign up...");
 
             fuse.spawn(async move {
+                info!("Inside serve_signup");
+
                 if let Err(e) =
                     Processor::serve_signup(keychain, discovery, view, database, session, settings)
                         .await
