@@ -193,8 +193,8 @@ impl FastSignupBroker {
                 .await;
                 return assignments;
             }
-            Err(_) => {
-                panic!("Assignments not OK");
+            Err(e) => {
+                panic!("Assignments not OK: {:?}", e);
             }
         }
     }
