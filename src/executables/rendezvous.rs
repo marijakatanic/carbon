@@ -31,8 +31,6 @@ async fn main() {
     logger.format_timestamp_millis();
     logger.init();
 
-    info!("Logger test");
-
     match matches.subcommand() {
         ("run", Some(subm)) => {
             let port = subm
