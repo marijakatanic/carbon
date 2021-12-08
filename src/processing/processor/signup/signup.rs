@@ -72,17 +72,22 @@ impl Processor {
             .await
             .pot(ServeSignupError::ConnectionError, here!())?;
 
+        info!("Received request");
+
         let response = {
             match request {
                 SignupRequest::IdRequests(requests) => {
+                    info!("Received id requests");
                     handlers::id_requests(&keychain, &view, database.as_ref(), requests, &settings)?
                 }
 
                 SignupRequest::IdClaims(claims) => {
+                    info!("Received id claims");
                     handlers::id_claims(&keychain, &view, database.as_ref(), claims, &settings)?
                 }
 
                 SignupRequest::IdAssignments(assignments) => {
+                    info!("Received id assignments");
                     handlers::id_assignments(discovery.as_ref(), database.as_ref(), assignments)?
                 }
             }
