@@ -1,12 +1,15 @@
-use crate::{account::Operation, discovery::Client, prepare::BatchCommit};
+use crate::{discovery::Client, prepare::BatchCommit};
 
 use doomstack::{here, Doom, ResultExt, Top};
 
 use zebra::vector::Proof;
 
+use super::Payload;
+
 pub(crate) struct Commit {
     batch: BatchCommit,
     inclusion: Proof,
+    payload: Payload,
 }
 
 #[derive(Doom)]
@@ -18,21 +21,23 @@ pub(crate) enum CommitError {
 }
 
 impl Commit {
-    pub fn new(batch: BatchCommit, inclusion: Proof) -> Self {
-        Commit { batch, inclusion }
+    pub fn new(batch: BatchCommit, inclusion: Proof, payload: Payload) -> Self {
+        Commit {
+            batch,
+            inclusion,
+            payload,
+        }
     }
 
-    pub fn validate(
-        &self,
-        discovery: &Client,
-        operation: &Operation,
-    ) -> Result<(), Top<CommitError>> {
+    pub fn validate(&self, discovery: &Client) -> Result<(), Top<CommitError>> {
         self.batch
             .validate(discovery)
             .pot(CommitError::BatchCommitInvalid, here!())?;
 
+        let prepare = self.payload.prepare();
+
         self.inclusion
-            .verify(self.batch.root(), operation)
+            .verify(self.batch.root(), &prepare)
             .pot(CommitError::InclusionInvalid, here!())?;
 
         Ok(())
