@@ -89,7 +89,7 @@ impl Replica {
 
         info!("Initializing processor...");
 
-        let processor = Processor::new(
+        let _processor = Processor::new(
             keychain,
             discovery,
             genesis,

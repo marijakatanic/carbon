@@ -39,3 +39,8 @@ required-features = ["benchmark"]
 name = "rendezvous"
 path = "src/executables/rendezvous.rs"
 required-features = ["benchmark"] 
+
+[[bin]]
+name = "broker"
+path = "src/executables/broker.rs"
+required-features = ["benchmark"] 
