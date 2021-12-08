@@ -1,11 +1,9 @@
 use crate::{
-    commit::{CommitProof, CommitProofError},
+    commit::{CommitProof, CommitProofError, Payload},
     discovery::Client,
 };
 
 use doomstack::Top;
-
-use super::Payload;
 
 pub(crate) struct Commit {
     proof: CommitProof,
