@@ -93,7 +93,7 @@ impl FastSignupBroker {
 
         let mut keychains = Vec::new();
         let mut requests = Vec::new();
-        for _ in 0..batches {
+        for i in 0..batches {
             let mut batch_key_chains = Vec::new();
             let mut batch_requests = Vec::new();
             for _ in 0..batch_size {
@@ -105,6 +105,8 @@ impl FastSignupBroker {
             }
             keychains.push(batch_key_chains);
             requests.push(batch_requests);
+
+            info!("Generated sigs for batch {}/{}", i+1, batches);
         }
 
         info!("Finished generating signatures...");
