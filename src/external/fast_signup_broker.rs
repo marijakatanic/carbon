@@ -89,6 +89,8 @@ impl FastSignupBroker {
     ) -> Vec<(KeyChain, IdAssignment)> {
         let allocator = view.members().iter().next().unwrap().0.clone();
 
+        info!("Generating sigs...");
+
         let mut keychains = Vec::new();
         let mut requests = Vec::new();
         for _ in 0..batches {
@@ -105,6 +107,8 @@ impl FastSignupBroker {
             requests.push(batch_requests);
         }
 
+        info!("Finished generating signatures...");
+
         // generate sigs
 
         let fuse = Fuse::new();
@@ -114,6 +118,8 @@ impl FastSignupBroker {
             let view = view.clone();
             let connector = connector.clone();
             let signup_settings = signup_settings.clone();
+
+            info!("Signing up batch...");
 
             let handle = fuse.spawn(async move {
                 FastSignupBroker::broker(
@@ -129,10 +135,14 @@ impl FastSignupBroker {
             handles.push(handle);
         }
 
+        info!("Waiting for batch sign up...");
+
         let mut id_assignments = Vec::new();
         for handle in handles {
             id_assignments.push(handle.await.unwrap().unwrap());
         }
+
+        info!("Internal sign up complete");
 
         let assignments = keychains
             .into_iter()
