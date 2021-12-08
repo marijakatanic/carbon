@@ -93,7 +93,7 @@ impl Processor {
             }
         };
 
-        info!("SignupResponse: {:?}", response);
+        info!("Got signup response");
 
         session
             .send(&response)
