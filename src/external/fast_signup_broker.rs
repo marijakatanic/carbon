@@ -95,15 +95,12 @@ impl FastSignupBroker {
         let (keychains, requests): (Vec<Vec<KeyChain>>, Vec<Vec<IdRequest>>) = (0..batches)
             .into_par_iter()
             .map(|i| {
-                let mut batch_key_chains = Vec::new();
-                let mut batch_requests = Vec::new();
-                for _ in 0..batch_size {
+                let (batch_key_chains, batch_requests) = (0..batch_size).map(|_| {
                     let keychain = KeyChain::random();
                     let request = IdRequest::new(&keychain, &view, allocator.clone(), 0);
 
-                    batch_key_chains.push(keychain);
-                    batch_requests.push(request)
-                }
+                    (keychain, request)
+                }).unzip();
 
                 info!("Generated sigs for batch {}/{}", i + 1, batches);
 
@@ -111,9 +108,20 @@ impl FastSignupBroker {
             })
             .unzip();
 
-        info!("Finished generating signatures...");
+        let mut joint = keychains
+            .into_iter()
+            .flatten()
+            .zip(requests.into_iter().flatten())
+            .collect::<Vec<_>>();
 
-        // generate sigs
+        joint.par_sort_by_key(|(keychain, _)| keychain.keycard().identity());
+
+        let (keychains, requests): (Vec<Vec<KeyChain>>, Vec<Vec<IdRequest>>) = joint
+            .chunks(50000)
+            .map(|v| Vec::<(KeyChain, IdRequest)>::from(v).into_iter().unzip())
+            .unzip();
+
+        info!("Finished generating signatures...");
 
         let fuse = Fuse::new();
 
