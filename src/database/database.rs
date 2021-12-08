@@ -1,3 +1,5 @@
+use buckets::Buckets;
+
 use crate::{
     account::Id,
     database::{Prepare, Signup, Zebras},
@@ -7,7 +9,7 @@ use crate::{
 use std::collections::HashMap;
 
 pub(crate) struct Database {
-    pub assignments: HashMap<Id, IdAssignment>,
+    pub assignments: Buckets<HashMap<Id, IdAssignment>>,
     pub signup: Signup,
     pub prepare: Prepare,
     pub families: Zebras,
@@ -18,7 +20,7 @@ impl Database {
         let zebras = Zebras::new();
 
         Database {
-            assignments: HashMap::new(),
+            assignments: Buckets::new(),
             signup: Signup::new(&zebras),
             prepare: Prepare::new(&zebras),
             families: zebras,

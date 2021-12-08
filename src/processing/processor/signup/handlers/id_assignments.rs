@@ -1,3 +1,5 @@
+use buckets::Split;
+
 use crate::{
     database::Database,
     discovery::Client,
@@ -38,14 +40,18 @@ pub(in crate::processing::processor::signup) fn id_assignments(
 
     // Process `assignments`
 
+    let assignments = assignments.into_iter().collect::<Split<_>>();
+
     {
         let mut database = database
             .lock()
             .pot(ServeSignupError::DatabaseVoid, here!())?;
 
-        for assignment in assignments {
-            database.assignments.insert(assignment.id(), assignment);
-        }
+        database
+            .assignments
+            .apply(assignments, |assignments, assignment| {
+                assignments.insert(assignment.id(), assignment)
+            });
     }
 
     Ok(SignupResponse::AcknowledgeIdAssignments)

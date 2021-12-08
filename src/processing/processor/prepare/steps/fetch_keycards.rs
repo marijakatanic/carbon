@@ -1,7 +1,9 @@
+use buckets::Split;
+
 use crate::{
     database::Database,
     discovery::Client,
-    prepare::SignedBatch,
+    prepare::{Prepare, SignedBatch},
     processing::{
         messages::{PrepareRequest, PrepareResponse},
         processor::prepare::errors::ServePrepareError,
@@ -9,6 +11,8 @@ use crate::{
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
+
+use rayon::prelude::*;
 
 use talk::{crypto::KeyCard, net::Session, sync::voidable::Voidable};
 
@@ -21,25 +25,26 @@ pub(in crate::processing::processor::prepare) async fn fetch_keycards(
     // For each element of `batch.prepares()`, retrieve from `database`,
     // if available, the `KeyCard` corresponding to the relevant `Id`
 
+    let ids = Split::with_key(batch.prepares().iter().map(Prepare::id), |id| *id);
+
     let database_keycards = {
-        let database = database
+        let mut database = database
             .lock()
             .pot(ServePrepareError::DatabaseVoid, here!())?;
 
-        // Map each `prepare` in `batch.prepares()` into:
-        //  - `Ok(keycard)`, if some `keycard` is available for `prepare.id()`
+        // Map each `id` in `ids` into:
+        //  - `Ok(keycard)`, if some `keycard` is available for `id`
         //    in `database.assignments`
-        //  - `Err(prepare.id())` otherwise, signifying that an `IdAssignment`
-        //    for `prepare.id()` must be obtained before `batch` can be validated
-        batch
-            .prepares()
-            .iter()
-            .map(|prepare| match database.assignments.get(&prepare.id()) {
+        //  - `Err(id)` otherwise, signifying that an `IdAssignment`
+        //    for `id` must be obtained before `batch` can be validated
+        database
+            .assignments
+            .apply(ids, |assignments, id| match assignments.get(&id) {
                 Some(assignment) => Ok(assignment.keycard().clone()),
-                None => Err(prepare.id()),
+                None => Err(id),
             })
-            .collect::<Vec<_>>()
-    };
+    }
+    .join();
 
     // Extract all unknown `Id`s from `database_keycards`'s `Err` elements
 
@@ -77,7 +82,7 @@ pub(in crate::processing::processor::prepare) async fn fetch_keycards(
         .await
         .pot(ServePrepareError::ConnectionError, here!())?;
 
-    let id_assignments = match request {
+    let assignments = match request {
         PrepareRequest::Assignments(id_assignments) => id_assignments,
         _ => {
             return ServePrepareError::UnexpectedRequest.fail().spot(here!());
@@ -87,35 +92,35 @@ pub(in crate::processing::processor::prepare) async fn fetch_keycards(
     // Validate `id_assignments` against `unknown_ids`
 
     // This check is necessary to ensure that the subsequent `zip` will
-    // iterate fully over both `unknown_ids` and `id_assignments`
-    if id_assignments.len() != unknown_ids.len() {
+    // iterate fully over both `unknown_ids` and `assignments`
+    if assignments.len() != unknown_ids.len() {
         return ServePrepareError::MalformedIdAssignments
             .fail()
             .spot(here!());
     }
 
-    // Check that each element `id_assignments` is valid and relevant to the
-    // corresponding element of `unknown_ids`. Because the following collects
-    // an iterator of `Result<(), Top<ServePrepareError>>` into a single
-    // `Result<(), Top<ServePrepareError>>`, this check has no memory footprint.
+    // Check that each element `assignments` is valid and relevant to the
+    // corresponding element of `unknown_ids`
     unknown_ids
-        .iter()
-        .zip(id_assignments.iter())
-        .map(|(id, id_assignment)| {
-            if id_assignment.id() != *id {
+        .par_iter()
+        .zip(assignments.par_iter())
+        .map(|(id, assignment)| {
+            if assignment.id() != *id {
                 ServePrepareError::MismatchedIdAssignment
                     .fail()
                     .spot(here!())
             } else {
-                id_assignment
+                assignment
                     .validate(discovery)
                     .pot(ServePrepareError::InvalidIdAssignment, here!())
             }
         })
         .collect::<Result<_, _>>()?;
 
-    // Store `id_assignments` in `database`, retain only the `KeyCard`s
+    // Store `assignments` in `database`, retain only the `KeyCard`s
     // necessary to fill the gaps in `database_keycards`
+
+    let assignments = assignments.into_iter().collect::<Split<_>>();
 
     let mut missing_keycards = {
         let mut database = database
@@ -125,19 +130,15 @@ pub(in crate::processing::processor::prepare) async fn fetch_keycards(
         // The following collects all `KeyCard`s in a `Vec` to avoid
         // lingering references to `database` (which needs to be
         // unlocked in a timely fashion)
-        id_assignments
-            .into_iter()
-            .map(|id_assignment| {
-                let keycard = id_assignment.keycard().clone();
-
-                database
-                    .assignments
-                    .insert(id_assignment.id(), id_assignment);
-
+        database
+            .assignments
+            .apply(assignments, |assignments, assignment| {
+                let keycard = assignment.keycard().clone();
+                assignments.insert(assignment.id(), assignment);
                 keycard
             })
-            .collect::<Vec<_>>()
     }
+    .join()
     .into_iter(); // Elements will be extracted in order from `missing_keycards`
 
     // Use `missing_keycards` to fill the gaps in `database_keycards`
