@@ -5,6 +5,6 @@ pub(crate) struct SignupSettings {
 
 impl Default for SignupSettings {
     fn default() -> Self {
-        SignupSettings { work_difficulty: 8 }
+        SignupSettings { work_difficulty: 0 }
     }
 }
