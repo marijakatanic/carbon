@@ -36,7 +36,6 @@ pub trait Export: Serialize + DeserializeOwned {
 #[derive(Serialize, Deserialize, Default)]
 pub struct Parameters {
     pub broker: BrokerParameters,
-    pub replica: ReplicaParameters,
 }
 
 impl Export for Parameters {}
@@ -46,10 +45,19 @@ pub struct ReplicaParameters {}
 
 impl Export for ReplicaParameters {}
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize)]
 pub struct BrokerParameters {
     pub signup_batch_number: usize,
     pub signup_batch_size: usize,
 }
 
 impl Export for BrokerParameters {}
+
+impl Default for BrokerParameters {
+    fn default() -> Self {
+        Self {
+            signup_batch_number: 10,
+            signup_batch_size: 5_000,
+        }
+    }
+}

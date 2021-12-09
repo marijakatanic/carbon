@@ -129,27 +129,29 @@ impl FastSignupBroker {
             .map(|v| Vec::<(KeyChain, IdRequest)>::from(v).into_iter().unzip())
             .unzip();
 
-        info!("Finished generating signatures...");
-
         let fuse = Fuse::new();
 
         let mut handles = vec![];
-        for request in requests {
+        for (i, request) in requests.into_iter().enumerate() {
             let view = view.clone();
             let connector = connector.clone();
             let signup_settings = signup_settings.clone();
 
-            info!("Signing up batch...");
-
             let handle = fuse.spawn(async move {
-                FastSignupBroker::broker(
+                info!("Signing up batch {}", i);
+
+                let assignments = FastSignupBroker::broker(
                     view,
                     allocator.clone(),
                     connector,
                     request,
                     signup_settings,
                 )
-                .await
+                .await;
+
+                info!("Completed signing up batch {}", i);
+
+                assignments
             });
 
             handles.push(handle);
