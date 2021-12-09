@@ -42,7 +42,7 @@ async fn main() {
         ("run", Some(subm)) => {
             let rendezvous = subm.value_of("rendezvous").unwrap().to_string();
             let full = subm.value_of("full").unwrap().to_string() == String::from("true");
-            // let parameters_file = subm.value_of("parameters");
+            let parameters_file = subm.value_of("parameters");
 
             if full {
                 info!("Creating full broker");
@@ -55,7 +55,7 @@ async fn main() {
                 }
             } else {
                 info!("Creating fast broker");
-                match FastBroker::new(rendezvous).await {
+                match FastBroker::new(rendezvous, parameters_file).await {
                     Ok(_broker) => {
                         info!("Fast broker done");
                         std::future::pending::<()>().await;

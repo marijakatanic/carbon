@@ -64,8 +64,13 @@ enum SubmitError {
 }
 
 impl FastSignupBroker {
-    pub async fn signup<C>(view: View, connector: C, settings: BrokerSettings)
-    where
+    pub async fn signup<C>(
+        view: View,
+        connector: C,
+        batches: usize,
+        batch_size: usize,
+        settings: BrokerSettings,
+    ) where
         C: Connector,
     {
         let dispatcher = ConnectDispatcher::new(connector);
@@ -77,7 +82,7 @@ impl FastSignupBroker {
         info!("Starting signup...");
 
         let _assignments =
-            FastSignupBroker::flush(10, 5000, view, connector, signup_settings).await;
+            FastSignupBroker::flush(batches, batch_size, view, connector, signup_settings).await;
 
         info!("Signup complete!");
     }

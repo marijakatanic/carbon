@@ -1,8 +1,12 @@
 use crate::{
-    database::Database, discovery::Client as DiscoveryClient, processing::Processor, view::View,
+    database::Database,
+    discovery::Client as DiscoveryClient,
+    external::parameters::{Export, Parameters},
+    processing::Processor,
+    view::View,
 };
 
-use doomstack::{Doom, Top};
+use doomstack::{here, Doom, ResultExt, Top};
 
 use log::{error, info};
 
@@ -30,12 +34,13 @@ impl Replica {
     pub async fn new<A: 'static + Clone + TcpConnect>(
         rendezvous: A,
         discovery: A,
+        parameters_file: Option<&str>,
     ) -> Result<Self, Top<ReplicaError>> {
         // Load default parameters if none are specified.
-        // let parameters = match parameter_file {
-        //     Some(filename) => Parameters::read(filename)?,
-        //     None => Parameters::default(),
-        // };
+        let _parameters = match parameters_file {
+            Some(filename) => Parameters::read(filename).pot(ReplicaError::Fail, here!())?,
+            None => Parameters::default(),
+        };
 
         let keychain = KeyChain::random();
         let keycard = keychain.keycard();

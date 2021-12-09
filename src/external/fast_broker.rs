@@ -1,6 +1,12 @@
-use crate::{external::fast_signup_broker::FastSignupBroker, view::View};
+use crate::{
+    external::{
+        fast_signup_broker::FastSignupBroker,
+        parameters::{BrokerParameters, Export, Parameters},
+    },
+    view::View,
+};
 
-use doomstack::{Doom, Top};
+use doomstack::{here, Doom, ResultExt, Top};
 
 use log::{error, info};
 
@@ -19,7 +25,7 @@ use tokio::time;
 pub struct FastBroker {}
 
 #[derive(Doom)]
-pub enum FullBrokerError {
+pub enum FastBrokerError {
     #[doom(description("Fail"))]
     Fail,
 }
@@ -27,7 +33,21 @@ pub enum FullBrokerError {
 impl FastBroker {
     pub async fn new<A: 'static + TcpConnect + Clone>(
         rendezvous: A,
-    ) -> Result<Self, Top<FullBrokerError>> {
+        parameters_file: Option<&str>,
+    ) -> Result<Self, Top<FastBrokerError>> {
+        // Load default parameters if none are specified.
+        let BrokerParameters {
+            signup_batch_number,
+            signup_batch_size,
+        } = match parameters_file {
+            Some(filename) => {
+                Parameters::read(filename)
+                    .pot(FastBrokerError::Fail, here!())?
+                    .broker
+            }
+            None => Parameters::default().broker,
+        };
+
         let keychain = KeyChain::random();
 
         let connector = Connector::new(rendezvous.clone(), keychain.clone(), Default::default());
@@ -45,7 +65,7 @@ impl FastBroker {
                     }
                     _ => {
                         error!("Error obtaining first shard view");
-                        return FullBrokerError::Fail.fail();
+                        return FastBrokerError::Fail.fail();
                     }
                 },
             }
@@ -61,7 +81,14 @@ impl FastBroker {
 
         let view = View::genesis(shard);
 
-        FastSignupBroker::signup(view, connector, Default::default()).await;
+        FastSignupBroker::signup(
+            view,
+            connector,
+            signup_batch_number,
+            signup_batch_size,
+            Default::default(),
+        )
+        .await;
 
         Ok(FastBroker {})
     }

@@ -42,9 +42,9 @@ async fn main() {
         ("run", Some(subm)) => {
             let rendezvous = subm.value_of("rendezvous").unwrap().to_string();
             let discovery = subm.value_of("discovery").unwrap().to_string();
-            // let parameters_file = subm.value_of("parameters");
+            let parameters_file = subm.value_of("parameters");
 
-            match Replica::new(rendezvous, discovery).await {
+            match Replica::new(rendezvous, discovery, parameters_file).await {
                 Ok(_replica) => {
                     info!("Replica finished successfully. Beginning to process forever...");
                     std::future::pending::<()>().await;

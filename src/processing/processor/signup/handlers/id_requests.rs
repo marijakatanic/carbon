@@ -78,14 +78,18 @@ pub(in crate::processing::processor::signup) fn id_requests(
         requests
             .into_iter()
             .map(|request| {
-                (allocate_id(identity, &view, &mut database, &request, settings), request)
+                (
+                    allocate_id(identity, &view, &mut database, &request, settings),
+                    request,
+                )
             })
             .collect::<Vec<_>>()
     };
 
-    let allocations = allocations.into_par_iter().map(|(id, request)| {
-        IdAllocation::new(&keychain, &request, id)
-    }).collect();
+    let allocations = allocations
+        .into_par_iter()
+        .map(|(id, request)| IdAllocation::new(&keychain, &request, id))
+        .collect();
 
     Ok(SignupResponse::IdAllocations(allocations))
 }
