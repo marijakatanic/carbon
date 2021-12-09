@@ -10,7 +10,7 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use futures::stream::{FuturesUnordered, StreamExt};
 
-use log::info;
+use log::{info, error};
 
 use rayon::prelude::*;
 
@@ -341,7 +341,10 @@ impl FastSignupBroker {
 
             let shards = match result {
                 Ok(shards) => shards,
-                Err(_) => continue,
+                Err(e) => {
+                    error!("{:?}", e);
+                    continue;
+                }
             };
 
             // Apply `shards` to `slots`
