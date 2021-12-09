@@ -495,10 +495,12 @@ impl FastSignupBroker {
             .await
             .pot(SubmitError::ConnectionError, here!())?;
 
+        let size = bincode::serialize(&request).unwrap().len();
+
         match request {
-            &SignupRequest::IdAssignments(_) => info!("Sent id assignments message"),
-            &SignupRequest::IdClaims(_) => info!("Sent id claims message"),
-            &SignupRequest::IdRequests(_) => info!("Sent id requests message"),
+            &SignupRequest::IdAssignments(_) => info!("Sent id assignments message. Size: {}", size),
+            &SignupRequest::IdClaims(_) => info!("Sent id claims message. Size: {}", size),
+            &SignupRequest::IdRequests(_) => info!("Sent id requests message. Size: {}", size),
         }
 
         let response = session
@@ -506,10 +508,12 @@ impl FastSignupBroker {
             .await
             .pot(SubmitError::ConnectionError, here!())?;
 
+        let size = bincode::serialize(&response).unwrap().len();
+
         match request {
-            &SignupRequest::IdAssignments(_) => info!("Received id assignments response"),
-            &SignupRequest::IdClaims(_) => info!("Received id claims message"),
-            &SignupRequest::IdRequests(_) => info!("Received id requests response"),
+            &SignupRequest::IdAssignments(_) => info!("Received id assignments response. Size: {}", size),
+            &SignupRequest::IdClaims(_) => info!("Received id claims message. Size: {}", size),
+            &SignupRequest::IdRequests(_) => info!("Received id requests response. Size: {}", size),
         }
 
         session.end();
