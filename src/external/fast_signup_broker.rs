@@ -505,22 +505,10 @@ impl FastSignupBroker {
             &SignupRequest::IdRequests(_) => info!("Sent id requests message. Size: {}", size),
         }
 
-        let fuse = Fuse::new();
-
-        let response = fuse
-            .spawn(async move {
-                let result = session
-                    .receive::<SignupResponse>()
-                    .await
-                    .pot(SubmitError::ConnectionError, here!());
-
-                session.end();
-
-                result
-            })
+        let response = session
+            .receive::<SignupResponse>()
             .await
-            .unwrap()
-            .unwrap()?;
+            .pot(SubmitError::ConnectionError, here!())?;
 
         let size = bincode::serialize(&response).unwrap().len();
 
@@ -531,6 +519,8 @@ impl FastSignupBroker {
             &SignupRequest::IdClaims(_) => info!("Received id claims message. Size: {}", size),
             &SignupRequest::IdRequests(_) => info!("Received id requests response. Size: {}", size),
         }
+
+        session.end();
 
         Ok(response)
     }
