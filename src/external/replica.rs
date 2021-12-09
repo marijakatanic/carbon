@@ -37,10 +37,14 @@ impl Replica {
         parameters_file: Option<&str>,
     ) -> Result<Self, Top<ReplicaError>> {
         // Load default parameters if none are specified.
-        let _parameters = match parameters_file {
+        let parameters = match parameters_file {
             Some(filename) => Parameters::read(filename).pot(ReplicaError::Fail, here!())?,
             None => Parameters::default(),
         };
+
+        info!("NODE CONFIGURATION");
+        info!("Broker signup batch number {}", parameters.broker.signup_batch_number);
+        info!("Broker signup batch size {}", parameters.broker.signup_batch_size);
 
         let keychain = KeyChain::random();
         let keycard = keychain.keycard();
