@@ -4,6 +4,8 @@ mod id;
 mod operation;
 mod state;
 
+pub(crate) mod operations;
+
 pub(crate) use correct_state::CorrectState;
 pub(crate) use entry::Entry;
 pub(crate) use id::Id;
