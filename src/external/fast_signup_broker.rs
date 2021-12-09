@@ -350,7 +350,6 @@ impl FastSignupBroker {
         let mut multiplicity = 0;
 
         while let Some((assigner, result)) = unordered.next().await {
-            info!("Got response to claims");
             // Extract unvalidated `shards` from `result`
 
             let shards = match result {
@@ -432,6 +431,8 @@ impl FastSignupBroker {
 
             // At least each aggregator in `slots` has a quorum of signatures: finalize and return
             if multiplicity >= view.quorum() {
+                info!("Got all responses");
+
                 let assignments = slots
                     .into_iter()
                     .map(|slot| {
@@ -440,6 +441,8 @@ impl FastSignupBroker {
                         slot.map(|aggregator| aggregator.finalize())
                     })
                     .collect::<Vec<_>>();
+
+                info!("Finished processing");
 
                 return Ok(assignments);
             }
