@@ -12,7 +12,6 @@ pub(crate) enum Operation {
         slot: u64,
     },
     Deposit {},
-    Collect {},
     Support {},
     Abandon {},
 }
