@@ -73,6 +73,21 @@ where
         Ok(())
     }
 
+    pub fn check(
+        &self,
+        keycard: &KeyCard,
+        signature: &MultiSignature,
+    ) -> Result<(), Top<MultiError>> {
+        #[cfg(debug_assertions)]
+        {
+            if !self.view.members().contains_key(&keycard.identity()) {
+                panic!("Called `Aggregator::add` with foreign `KeyCard`");
+            }
+        }
+
+        signature.verify([keycard], &self.statement)
+    }
+
     pub fn multiplicity(&self) -> usize {
         self.components.len()
     }

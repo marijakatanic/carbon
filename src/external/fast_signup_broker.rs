@@ -369,6 +369,22 @@ impl FastSignupBroker {
                     return SubmitError::MalformedResponse.fail().spot(here!());
                 }
 
+                // Check that the signatures are ok, in parallel
+                if !shards
+                    .par_iter()
+                    .zip(slots.par_iter())
+                    .filter_map(|(shard, slot)| {
+                        if shard.is_ok() && slot.is_ok() {
+                            Some((shard.as_ref().unwrap(), slot.as_ref().unwrap()))
+                        } else {
+                            None
+                        }
+                    })
+                    .all(|(signature, slot)| slot.check(&assigner, signature).is_ok())
+                {
+                    return SubmitError::InvalidShard.fail().spot(here!());
+                }
+
                 // `progress` zips together corresponding elements of `claims`, `shards`, and
                 // `slots`, selecting only those `slots` that still contain an `aggregator`
                 let progress = claims
