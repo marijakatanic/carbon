@@ -187,7 +187,7 @@ impl FastSignupBroker {
         match FastSignupBroker::submit(
             &view,
             allocator,
-            connector.clone(),
+            connector.as_ref(),
             requests,
             &signup_settings,
         )
@@ -221,11 +221,11 @@ impl FastSignupBroker {
     async fn submit(
         view: &View,
         allocator: Identity,
-        connector: Arc<SessionConnector>,
+        connector: &SessionConnector,
         requests: Vec<IdRequest>,
         signup_settings: &SignupSettings,
     ) -> Result<Vec<Result<IdAssignment, Collision>>, Top<SubmitError>> {
-        let claims = FastSignupBroker::submit_requests(allocator, connector.as_ref(), requests).await?;
+        let claims = FastSignupBroker::submit_requests(allocator, connector, requests).await?;
 
         let assignments =
             FastSignupBroker::submit_claims(view, connector, claims, signup_settings).await?;
@@ -283,14 +283,14 @@ impl FastSignupBroker {
 
     async fn submit_claims(
         view: &View,
-        connector: Arc<SessionConnector>,
+        connector: &SessionConnector,
         claims: Vec<IdClaim>,
         signup_settings: &SignupSettings,
     ) -> Result<Vec<Result<IdAssignment, Collision>>, Top<SubmitError>> {
         // Build `SignupRequest::IdClaims`
         info!("Submitting claims...");
 
-        let request = Arc::new(SignupRequest::IdClaims(claims.clone()));
+        let request = SignupRequest::IdClaims(claims.clone());
 
         // Concurrently submit `request` to all members of `view`
 
@@ -305,25 +305,15 @@ impl FastSignupBroker {
                 // result, the keycard of the relevant assigner
                 let assigner_keycard = assigner_keycard.clone();
 
-                let request = request.clone();
-
-                let connector = connector.clone();
+                let request = &request;
 
                 async move {
                     let result = async {
                         // Submit `request` to `assigner_identity`
 
-                        let fuse = Fuse::new();
-                        
-
-                        let response = fuse
-                            .spawn(async move {
-                                FastSignupBroker::request(assigner_identity, connector.as_ref(), request.as_ref())
-                                    .await
-                            })
-                            .await
-                            .unwrap()
-                            .unwrap()?;
+                        let response =
+                            FastSignupBroker::request(assigner_identity, connector, request)
+                                .await?;
 
                         // Extract unvalidated `shards` from `response`
 

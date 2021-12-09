@@ -49,10 +49,9 @@ impl Processor {
             let semaphore = semaphore.clone();
 
             fuse.spawn(async move {
-                if let Err(e) = Processor::serve_signup(
-                    keychain, discovery, view, database, session, semaphore, settings,
-                )
-                .await
+                if let Err(e) =
+                    Processor::serve_signup(keychain, discovery, view, database, session, semaphore, settings)
+                        .await
                 {
                     error!("Error serving signup: {:?}", e);
                 }
@@ -80,17 +79,8 @@ impl Processor {
                     info!("Received id requests");
                     let start = Instant::now();
                     let _permit = semaphore.acquire().await.unwrap();
-                    let answer = handlers::id_requests(
-                        &keychain,
-                        &view,
-                        database.as_ref(),
-                        requests,
-                        &settings,
-                    )?;
-                    info!(
-                        "Processed id requests in {} ms.",
-                        start.elapsed().as_millis()
-                    );
+                    let answer = handlers::id_requests(&keychain, &view, database.as_ref(), requests, &settings)?;
+                    info!("Processed id requests in {} ms.", start.elapsed().as_millis());
                     answer
                 }
 
@@ -98,13 +88,7 @@ impl Processor {
                     info!("Received id claims");
                     let start = Instant::now();
                     let _permit = semaphore.acquire().await.unwrap();
-                    let answer = handlers::id_claims(
-                        &keychain,
-                        &view,
-                        database.as_ref(),
-                        claims,
-                        &settings,
-                    )?;
+                    let answer = handlers::id_claims(&keychain, &view, database.as_ref(), claims, &settings)?;
                     info!("Processed id claims in {} ms.", start.elapsed().as_millis());
                     answer
                 }
@@ -113,15 +97,8 @@ impl Processor {
                     info!("Received id assignments");
                     let start = Instant::now();
                     let _permit = semaphore.acquire().await.unwrap();
-                    let answer = handlers::id_assignments(
-                        discovery.as_ref(),
-                        database.as_ref(),
-                        assignments,
-                    )?;
-                    info!(
-                        "Processed id assignments in {} ms.",
-                        start.elapsed().as_millis()
-                    );
+                    let answer = handlers::id_assignments(discovery.as_ref(), database.as_ref(), assignments)?;
+                    info!("Processed id assignments in {} ms.", start.elapsed().as_millis());
                     answer
                 }
             }
