@@ -1,4 +1,4 @@
-use crate::account::Id;
+use crate::{account::Id, commit::BatchCompletionShard};
 
 use serde::{Deserialize, Serialize};
 
@@ -9,4 +9,5 @@ pub(crate) enum CommitResponse {
     Pong,
     MissingProofs(Vec<Id>),
     WitnessShard(MultiSignature),
+    CompletionShard(BatchCompletionShard),
 }
