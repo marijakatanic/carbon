@@ -157,14 +157,10 @@ impl FastSignupBroker {
             handles.push(handle);
         }
 
-        info!("Waiting for batch sign up...");
-
         let mut id_assignments = Vec::new();
         for handle in handles {
             id_assignments.push(handle.await.unwrap().unwrap());
         }
-
-        info!("Internal sign up complete");
 
         let assignments = keychains
             .into_iter()
