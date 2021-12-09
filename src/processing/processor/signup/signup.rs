@@ -44,11 +44,7 @@ impl Processor {
             let database = database.clone();
             let settings = settings.clone();
 
-            info!("Serving sign up...");
-
             fuse.spawn(async move {
-                info!("Inside serve_signup");
-
                 if let Err(e) =
                     Processor::serve_signup(keychain, discovery, view, database, session, settings)
                         .await
@@ -72,8 +68,6 @@ impl Processor {
             .await
             .pot(ServeSignupError::ConnectionError, here!())?;
 
-        info!("Received request");
-
         let response = {
             match request {
                 SignupRequest::IdRequests(requests) => {
@@ -92,8 +86,6 @@ impl Processor {
                 }
             }
         };
-
-        info!("Got signup response");
 
         session
             .send(&response)
