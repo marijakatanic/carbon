@@ -9,6 +9,7 @@ use crate::{
 pub(crate) enum CommitRequest {
     Ping,
     Batch(Vec<Payload>),
+    WitnessRequest,
     CommitProofs(Vec<CommitProof>),
     Witness(Certificate),
 }
