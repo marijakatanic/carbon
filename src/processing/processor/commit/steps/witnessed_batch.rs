@@ -29,22 +29,24 @@ pub(in crate::processing::processor::commit) async fn witnessed_batch(
         .await
         .pot(ServeCommitError::ConnectionError, here!())?;
 
-    let batch = match request {
-        CommitRequest::Witness(witness) => {
-            Ok(WitnessedBatch::new(view.identifier(), payloads, witness))
-        }
+    let witness = match request {
+        CommitRequest::Witness(witness) => Ok(witness),
         CommitRequest::WitnessRequest => {
-            let _witness_shard =
+            let witness_shard =
                 steps::validate_batch(keychain, discovery, database, session, &payloads).await?;
 
-            todo!()
+            let witness = steps::trade_witnesses(session, witness_shard).await?;
+
+            Ok(witness)
         }
         _ => ServeCommitError::UnexpectedRequest.fail().spot(here!()),
     }?;
+
+    let batch = WitnessedBatch::new(view.identifier(), payloads, witness);
 
     batch
         .validate(discovery)
         .pot(ServeCommitError::InvalidBatch, here!())?;
 
-    todo!()
+    Ok(batch)
 }
