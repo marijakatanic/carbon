@@ -35,8 +35,7 @@ pub(in crate::processing::processor::commit) async fn witnessed_batch(
         }
         CommitRequest::WitnessRequest => {
             let _witness_shard =
-                steps::validate_batch(keychain, discovery, database, session, payloads.items())
-                    .await?;
+                steps::validate_batch(keychain, discovery, database, session, &payloads).await?;
 
             todo!()
         }
