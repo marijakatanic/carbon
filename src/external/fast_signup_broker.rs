@@ -266,7 +266,7 @@ impl FastSignupBroker {
 
         // Zip `requests` and `allocations` into `claims`
         let claims = requests
-            .into_iter()
+            .into_par_iter()
             .zip(allocations)
             .map(|(request, allocation)| {
                 // Each `allocation` must be valid against the corresponding `request`
@@ -500,41 +500,15 @@ impl FastSignupBroker {
             .await
             .pot(SubmitError::ConnectionFailed, here!())?;
 
-        match request {
-            &SignupRequest::IdAssignments(_) => info!("Sending id assignments message"),
-            &SignupRequest::IdClaims(_) => info!("Sending id claims message"),
-            &SignupRequest::IdRequests(_) => info!("Sending id requests message"),
-        }
-
         session
             .send(&request)
             .await
             .pot(SubmitError::ConnectionError, here!())?;
 
-        let size = bincode::serialize(&request).unwrap().len();
-
-        match request {
-            &SignupRequest::IdAssignments(_) => {
-                info!("Sent id assignments message. Size: {}", size)
-            }
-            &SignupRequest::IdClaims(_) => info!("Sent id claims message. Size: {}", size),
-            &SignupRequest::IdRequests(_) => info!("Sent id requests message. Size: {}", size),
-        }
-
         let response = session
             .receive::<SignupResponse>()
             .await
             .pot(SubmitError::ConnectionError, here!())?;
-
-        let size = bincode::serialize(&response).unwrap().len();
-
-        match request {
-            &SignupRequest::IdAssignments(_) => {
-                info!("Received id assignments response. Size: {}", size)
-            }
-            &SignupRequest::IdClaims(_) => info!("Received id claims message. Size: {}", size),
-            &SignupRequest::IdRequests(_) => info!("Received id requests response. Size: {}", size),
-        }
 
         session.end();
 
