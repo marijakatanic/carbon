@@ -10,13 +10,15 @@ use doomstack::Top;
 
 use talk::{crypto::KeyChain, net::Session, sync::voidable::Voidable};
 
+use zebra::vector::Vector;
+
 pub(in crate::processing::processor::commit) async fn batch(
     keychain: &KeyChain,
     discovery: &Client,
     view: &View,
     database: &Voidable<Database>,
     mut session: Session,
-    payloads: Vec<Payload>,
+    payloads: Vector<Payload>,
 ) -> Result<(), Top<ServeCommitError>> {
     // Obtain a `WitnessedBatch`
 

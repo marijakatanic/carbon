@@ -6,4 +6,6 @@ pub(in crate::processing::processor::commit) enum ServeCommitError {
     ConnectionError,
     #[doom(description("Unexpected request"))]
     UnexpectedRequest,
+    #[doom(description("Invalid batch"))]
+    InvalidBatch,
 }
