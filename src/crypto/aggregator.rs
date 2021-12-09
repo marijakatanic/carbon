@@ -55,6 +55,24 @@ where
         Ok(())
     }
 
+    pub fn add_unchecked(
+        &mut self,
+        keycard: &KeyCard,
+        signature: MultiSignature,
+    ) -> Result<(), Top<MultiError>> {
+        #[cfg(debug_assertions)]
+        {
+            if !self.view.members().contains_key(&keycard.identity()) {
+                panic!("Called `Aggregator::add` with foreign `KeyCard`");
+            }
+        }
+
+        let identity = keycard.identity();
+        self.components.insert(identity, signature);
+
+        Ok(())
+    }
+
     pub fn multiplicity(&self) -> usize {
         self.components.len()
     }

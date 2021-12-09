@@ -386,7 +386,7 @@ impl FastSignupBroker {
                             // this fails if `signature` is invalid
                             slot.as_mut()
                                 .unwrap()
-                                .add(&assigner, signature)
+                                .add_unchecked(&assigner, signature)
                                 .pot(SubmitError::InvalidShard, here!())?;
                         }
                         Err(collided_claim) => {
