@@ -6,10 +6,6 @@ use talk::crypto::primitives::hash::{self, Hash};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) enum Operation {
-    Mint {
-        amount: u64,
-        // TODO: Add proof
-    },
     Withdraw {
         amount: u64,
         recipient: Id,

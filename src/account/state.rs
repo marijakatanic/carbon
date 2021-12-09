@@ -66,10 +66,6 @@ impl State {
                 }
 
                 match payload.operation() {
-                    Operation::Mint { amount } => {
-                        *balance += amount;
-                        Ok(())
-                    }
                     Operation::Withdraw { amount, .. } => {
                         if *balance >= *amount {
                             *balance -= *amount;
