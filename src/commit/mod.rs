@@ -1,7 +1,11 @@
+mod batch_completion_statement;
 mod commit;
 mod commit_proof;
 mod payload;
 mod witness_statement;
+
+#[allow(unused_imports)]
+pub(crate) use batch_completion_statement::BatchCompletionStatement;
 
 #[allow(unused_imports)]
 pub(crate) use commit::Commit;
