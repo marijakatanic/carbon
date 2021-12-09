@@ -79,17 +79,6 @@ impl FastSignupBroker {
 
         let signup_settings = settings.signup_settings;
 
-        // Warm up connections
-
-        let _ = FastSignupBroker::flush(
-            batches,
-            100,
-            view.clone(),
-            connector.clone(),
-            signup_settings.clone(),
-        )
-        .await;
-
         info!("Starting signup...");
 
         let _assignments =
