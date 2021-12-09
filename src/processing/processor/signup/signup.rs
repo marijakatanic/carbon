@@ -87,6 +87,8 @@ impl Processor {
             }
         };
 
+        info!("Sending response");
+
         session
             .send(&response)
             .await

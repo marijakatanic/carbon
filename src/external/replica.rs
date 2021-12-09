@@ -43,8 +43,14 @@ impl Replica {
         };
 
         info!("NODE CONFIGURATION");
-        info!("Broker signup batch number {}", parameters.broker.signup_batch_number);
-        info!("Broker signup batch size {}", parameters.broker.signup_batch_size);
+        info!(
+            "Broker signup batch number {}",
+            parameters.broker.signup_batch_number
+        );
+        info!(
+            "Broker signup batch size {}",
+            parameters.broker.signup_batch_size
+        );
 
         let keychain = KeyChain::random();
         let keycard = keychain.keycard();

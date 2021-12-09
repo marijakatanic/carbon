@@ -484,15 +484,33 @@ impl FastSignupBroker {
             .await
             .pot(SubmitError::ConnectionFailed, here!())?;
 
+        match request {
+            &SignupRequest::IdAssignments(_) => info!("Sending id assignments message"),
+            &SignupRequest::IdClaims(_) => info!("Sending id claims message"),
+            &SignupRequest::IdRequests(_) => info!("Sending id requests message"),
+        }
+
         session
             .send(&request)
             .await
             .pot(SubmitError::ConnectionError, here!())?;
 
+        match request {
+            &SignupRequest::IdAssignments(_) => info!("Sent id assignments message"),
+            &SignupRequest::IdClaims(_) => info!("Sent id claims message"),
+            &SignupRequest::IdRequests(_) => info!("Sent id requests message"),
+        }
+
         let response = session
             .receive::<SignupResponse>()
             .await
             .pot(SubmitError::ConnectionError, here!())?;
+
+        match request {
+            &SignupRequest::IdAssignments(_) => info!("Received id assignments response"),
+            &SignupRequest::IdClaims(_) => info!("Received id claims message"),
+            &SignupRequest::IdRequests(_) => info!("Received id requests response"),
+        }
 
         session.end();
 
