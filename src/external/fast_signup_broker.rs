@@ -79,13 +79,19 @@ impl FastSignupBroker {
 
         let signup_settings = settings.signup_settings;
 
-        // info!("Starting signup...");
+        // Warm up connections
 
-        let _assignments =
-            FastSignupBroker::flush(batches, batch_size, view.clone(), connector.clone(), signup_settings.clone()).await;
-        
+        let _ = FastSignupBroker::flush(
+            batches,
+            100,
+            view.clone(),
+            connector.clone(),
+            signup_settings.clone(),
+        )
+        .await;
+
         info!("Starting signup...");
-        
+
         let _assignments =
             FastSignupBroker::flush(batches, batch_size, view, connector, signup_settings).await;
 
@@ -503,7 +509,9 @@ impl FastSignupBroker {
         let size = bincode::serialize(&request).unwrap().len();
 
         match request {
-            &SignupRequest::IdAssignments(_) => info!("Sent id assignments message. Size: {}", size),
+            &SignupRequest::IdAssignments(_) => {
+                info!("Sent id assignments message. Size: {}", size)
+            }
             &SignupRequest::IdClaims(_) => info!("Sent id claims message. Size: {}", size),
             &SignupRequest::IdRequests(_) => info!("Sent id requests message. Size: {}", size),
         }
@@ -516,7 +524,9 @@ impl FastSignupBroker {
         let size = bincode::serialize(&response).unwrap().len();
 
         match request {
-            &SignupRequest::IdAssignments(_) => info!("Received id assignments response. Size: {}", size),
+            &SignupRequest::IdAssignments(_) => {
+                info!("Received id assignments response. Size: {}", size)
+            }
             &SignupRequest::IdClaims(_) => info!("Received id claims message. Size: {}", size),
             &SignupRequest::IdRequests(_) => info!("Received id requests response. Size: {}", size),
         }
