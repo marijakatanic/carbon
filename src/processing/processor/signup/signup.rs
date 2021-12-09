@@ -12,6 +12,7 @@ use crate::{
 
 use doomstack::{here, ResultExt, Top};
 use log::{error, info};
+use tokio::sync::Semaphore;
 
 use std::{sync::Arc, time::Instant};
 
@@ -35,6 +36,8 @@ impl Processor {
         let mut listener = SessionListener::new(listener);
         let fuse = Fuse::new();
 
+        let semaphore = Arc::new(Semaphore::new(1));
+
         loop {
             let (_, session) = listener.accept().await;
 
@@ -43,10 +46,11 @@ impl Processor {
             let view = view.clone();
             let database = database.clone();
             let settings = settings.clone();
+            let semaphore = semaphore.clone();
 
             fuse.spawn(async move {
                 if let Err(e) =
-                    Processor::serve_signup(keychain, discovery, view, database, session, settings)
+                    Processor::serve_signup(keychain, discovery, view, database, session, semaphore, settings)
                         .await
                 {
                     error!("Error serving signup: {:?}", e);
@@ -61,6 +65,7 @@ impl Processor {
         view: View,
         database: Arc<Voidable<Database>>,
         mut session: Session,
+        semaphore: Arc<Semaphore>,
         settings: Signup,
     ) -> Result<(), Top<ServeSignupError>> {
         let request = session
@@ -68,7 +73,11 @@ impl Processor {
             .await
             .pot(ServeSignupError::ConnectionError, here!())?;
 
+        
+
         let response = {
+            let _permit = semaphore.acquire().await.unwrap();
+
             match request {
                 SignupRequest::IdRequests(requests) => {
                     info!("Received id requests");
