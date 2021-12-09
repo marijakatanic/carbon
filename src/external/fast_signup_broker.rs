@@ -350,6 +350,7 @@ impl FastSignupBroker {
         let mut multiplicity = 0;
 
         while let Some((assigner, result)) = unordered.next().await {
+            info!("Got response to claims");
             // Extract unvalidated `shards` from `result`
 
             let shards = match result {
