@@ -1,11 +1,15 @@
 use crate::{
     database::Database,
     discovery::Client,
-    processing::{processor::commit::errors::ServeCommitError, Processor},
+    processing::{
+        messages::CommitRequest,
+        processor::commit::{errors::ServeCommitError, handlers},
+        Processor,
+    },
     view::View,
 };
 
-use doomstack::Top;
+use doomstack::{here, ResultExt, Top};
 
 use std::sync::Arc;
 
@@ -47,8 +51,16 @@ impl Processor {
         _discovery: Arc<Client>,
         _view: View,
         _database: Arc<Voidable<Database>>,
-        _session: Session,
+        mut session: Session,
     ) -> Result<(), Top<ServeCommitError>> {
-        todo!()
+        let request = session
+            .receive::<CommitRequest>()
+            .await
+            .pot(ServeCommitError::ConnectionError, here!())?;
+
+        match request {
+            CommitRequest::Ping => handlers::ping(session).await,
+            _ => todo!(),
+        }
     }
 }
