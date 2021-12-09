@@ -117,7 +117,7 @@ impl FastSignupBroker {
         joint.par_sort_by_key(|(keychain, _)| keychain.keycard().identity());
 
         let (keychains, requests): (Vec<Vec<KeyChain>>, Vec<Vec<IdRequest>>) = joint
-            .chunks(50000)
+            .chunks(batch_size)
             .map(|v| Vec::<(KeyChain, IdRequest)>::from(v).into_iter().unzip())
             .unzip();
 
