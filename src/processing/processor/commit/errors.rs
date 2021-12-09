@@ -4,4 +4,6 @@ use doomstack::Doom;
 pub(in crate::processing::processor::commit) enum ServeCommitError {
     #[doom(description("Connection error"))]
     ConnectionError,
+    #[doom(description("Unexpected request"))]
+    UnexpectedRequest,
 }

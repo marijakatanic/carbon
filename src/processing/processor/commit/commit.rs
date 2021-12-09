@@ -9,7 +9,7 @@ use crate::{
     view::View,
 };
 
-use doomstack::{here, ResultExt, Top};
+use doomstack::{here, Doom, ResultExt, Top};
 
 use std::sync::Arc;
 
@@ -47,10 +47,10 @@ impl Processor {
     }
 
     async fn serve_commit(
-        _keychain: KeyChain,
-        _discovery: Arc<Client>,
-        _view: View,
-        _database: Arc<Voidable<Database>>,
+        keychain: KeyChain,
+        discovery: Arc<Client>,
+        view: View,
+        database: Arc<Voidable<Database>>,
         mut session: Session,
     ) -> Result<(), Top<ServeCommitError>> {
         let request = session
@@ -60,7 +60,18 @@ impl Processor {
 
         match request {
             CommitRequest::Ping => handlers::ping(session).await,
-            _ => todo!(),
+            CommitRequest::Batch(payloads) => {
+                handlers::batch(
+                    &keychain,
+                    discovery.as_ref(),
+                    &view,
+                    database.as_ref(),
+                    session,
+                    payloads,
+                )
+                .await
+            }
+            _ => ServeCommitError::UnexpectedRequest.fail().spot(here!()),
         }
     }
 }
