@@ -1,5 +1,6 @@
 mod correct_state;
 mod entry;
+mod errors;
 mod id;
 mod operation;
 mod state;
@@ -8,6 +9,7 @@ pub(crate) mod operations;
 
 pub(crate) use correct_state::CorrectState;
 pub(crate) use entry::Entry;
+pub(crate) use errors::OperationError;
 pub(crate) use id::Id;
 pub(crate) use operation::Operation;
 
