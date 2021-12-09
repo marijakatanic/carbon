@@ -78,29 +78,32 @@ pub(in crate::processing::processor::signup) fn id_requests(
         requests
             .into_iter()
             .map(|request| {
-                allocate_id(&keychain, identity, &view, &mut database, request, settings)
+                (allocate_id(identity, &view, &mut database, &request, settings), request)
             })
             .collect::<Vec<_>>()
     };
+
+    let allocations = allocations.into_par_iter().map(|(id, request)| {
+        IdAllocation::new(&keychain, &request, id)
+    }).collect();
 
     Ok(SignupResponse::IdAllocations(allocations))
 }
 
 fn allocate_id(
-    keychain: &KeyChain,
     identity: Identity,
     view: &View,
     database: &mut Database,
-    request: IdRequest,
+    request: &IdRequest,
     settings: &Signup,
-) -> IdAllocation {
+) -> u64 {
     if let Some(id) = database
         .signup
         .allocations
         .get(&request.client().identity())
     {
         // `request` was previously served, repeat previous `IdAllocation`
-        return IdAllocation::new(&keychain, &request, *id);
+        return *id;
     }
 
     let full_range = view.allocation_range(identity);
@@ -156,5 +159,5 @@ fn allocate_id(
         .allocations
         .insert(request.client().identity(), id);
 
-    IdAllocation::new(&keychain, &request, id)
+    id
 }
