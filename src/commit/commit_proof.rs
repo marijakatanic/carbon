@@ -2,8 +2,11 @@ use crate::{commit::Payload, discovery::Client, prepare::BatchCommit};
 
 use doomstack::{here, Doom, ResultExt, Top};
 
+use serde::{Deserialize, Serialize};
+
 use zebra::vector::Proof;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct CommitProof {
     batch: BatchCommit,
     inclusion: Proof,

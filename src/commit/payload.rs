@@ -4,6 +4,9 @@ use crate::{
     prepare::Prepare,
 };
 
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Payload {
     id: Id,
     height: u64,

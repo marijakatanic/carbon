@@ -5,6 +5,9 @@ use crate::{
 
 use doomstack::Top;
 
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Commit {
     proof: CommitProof,
     payload: Payload,
