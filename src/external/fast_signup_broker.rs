@@ -96,8 +96,6 @@ impl FastSignupBroker {
     ) -> Vec<(KeyChain, IdAssignment)> {
         let allocator = view.members().iter().next().unwrap().0.clone();
 
-        info!("Generating sigs...");
-
         let (keychains, requests): (Vec<Vec<KeyChain>>, Vec<Vec<IdRequest>>) = (0..batches)
             .into_par_iter()
             .map(|i| {
