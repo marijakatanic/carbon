@@ -13,7 +13,7 @@ use crate::{
 use doomstack::{here, ResultExt, Top};
 use log::{error, info};
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use talk::{
     crypto::KeyChain,
@@ -72,17 +72,26 @@ impl Processor {
             match request {
                 SignupRequest::IdRequests(requests) => {
                     info!("Received id requests");
-                    handlers::id_requests(&keychain, &view, database.as_ref(), requests, &settings)?
+                    let start = Instant::now();
+                    let answer = handlers::id_requests(&keychain, &view, database.as_ref(), requests, &settings)?;
+                    info!("Processed id requests in {} ms.", start.elapsed().as_millis());
+                    answer
                 }
 
                 SignupRequest::IdClaims(claims) => {
                     info!("Received id claims");
-                    handlers::id_claims(&keychain, &view, database.as_ref(), claims, &settings)?
+                    let start = Instant::now();
+                    let answer = handlers::id_claims(&keychain, &view, database.as_ref(), claims, &settings)?;
+                    info!("Processed id claims in {} ms.", start.elapsed().as_millis());
+                    answer
                 }
 
                 SignupRequest::IdAssignments(assignments) => {
                     info!("Received id assignments");
-                    handlers::id_assignments(discovery.as_ref(), database.as_ref(), assignments)?
+                    let start = Instant::now();
+                    let answer = handlers::id_assignments(discovery.as_ref(), database.as_ref(), assignments)?;
+                    info!("Processed id assignments in {} ms.", start.elapsed().as_millis());
+                    answer
                 }
             }
         };
