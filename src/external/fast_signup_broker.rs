@@ -434,7 +434,7 @@ impl FastSignupBroker {
                 info!("Got all responses");
 
                 let assignments = slots
-                    .into_iter()
+                    .into_par_iter()
                     .map(|slot| {
                         // If `slot` contains an `aggregator`, finalize `aggregator`;
                         // otherwise, preserve the `Collision`
