@@ -2,7 +2,9 @@ use crate::{
     database::Database,
     discovery::Client,
     processing::{
-        messages::PrepareRequest, processor::prepare::errors::ServePrepareError, Processor,
+        messages::PrepareRequest,
+        processor::prepare::{errors::ServePrepareError, handlers},
+        Processor,
     },
     view::View,
 };
@@ -16,8 +18,6 @@ use talk::{
     net::{Listener, Session, SessionListener},
     sync::{fuse::Fuse, voidable::Voidable},
 };
-
-use super::handlers;
 
 impl Processor {
     pub(in crate::processing) async fn run_prepare<L>(
