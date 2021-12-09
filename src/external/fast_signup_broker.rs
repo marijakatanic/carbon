@@ -412,6 +412,8 @@ impl FastSignupBroker {
             // to happen very rarely (i.e., upon accountable replica misbehaviour).
             if result.is_ok() {
                 multiplicity += 1;
+            } else {
+                error!("{:?}", result);
             }
 
             // At least each aggregator in `slots` has a quorum of signatures: finalize and return
