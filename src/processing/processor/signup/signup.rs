@@ -73,15 +73,12 @@ impl Processor {
             .await
             .pot(ServeSignupError::ConnectionError, here!())?;
 
-        
-
         let response = {
-            let _permit = semaphore.acquire().await.unwrap();
-
             match request {
                 SignupRequest::IdRequests(requests) => {
                     info!("Received id requests");
                     let start = Instant::now();
+                    let _permit = semaphore.acquire().await.unwrap();
                     let answer = handlers::id_requests(&keychain, &view, database.as_ref(), requests, &settings)?;
                     info!("Processed id requests in {} ms.", start.elapsed().as_millis());
                     answer
@@ -90,6 +87,7 @@ impl Processor {
                 SignupRequest::IdClaims(claims) => {
                     info!("Received id claims");
                     let start = Instant::now();
+                    let _permit = semaphore.acquire().await.unwrap();
                     let answer = handlers::id_claims(&keychain, &view, database.as_ref(), claims, &settings)?;
                     info!("Processed id claims in {} ms.", start.elapsed().as_millis());
                     answer
@@ -98,6 +96,7 @@ impl Processor {
                 SignupRequest::IdAssignments(assignments) => {
                     info!("Received id assignments");
                     let start = Instant::now();
+                    let _permit = semaphore.acquire().await.unwrap();
                     let answer = handlers::id_assignments(discovery.as_ref(), database.as_ref(), assignments)?;
                     info!("Processed id assignments in {} ms.", start.elapsed().as_millis());
                     answer
