@@ -195,12 +195,20 @@ impl FastSignupBroker {
             Ok(assignments) => {
                 let assignments: Vec<IdAssignment> =
                     assignments.into_iter().filter_map(Result::ok).collect();
-                FastSignupBroker::publish_assignments(
-                    &view,
-                    connector.as_ref(),
-                    assignments.clone(),
-                )
-                .await;
+
+                {
+                    let assignments = assignments.clone();
+
+                    tokio::spawn(async move {
+                        FastSignupBroker::publish_assignments(
+                            &view,
+                            connector.as_ref(),
+                            assignments,
+                        )
+                        .await;
+                    });
+                }
+
                 return assignments;
             }
             Err(e) => {
@@ -217,6 +225,7 @@ impl FastSignupBroker {
         signup_settings: &SignupSettings,
     ) -> Result<Vec<Result<IdAssignment, Collision>>, Top<SubmitError>> {
         let claims = FastSignupBroker::submit_requests(allocator, connector, requests).await?;
+
         let assignments =
             FastSignupBroker::submit_claims(view, connector, claims, signup_settings).await?;
 
@@ -278,6 +287,7 @@ impl FastSignupBroker {
         signup_settings: &SignupSettings,
     ) -> Result<Vec<Result<IdAssignment, Collision>>, Top<SubmitError>> {
         // Build `SignupRequest::IdClaims`
+        info!("Submitting claims...");
 
         let request = SignupRequest::IdClaims(claims.clone());
 
@@ -446,6 +456,8 @@ impl FastSignupBroker {
         connector: &SessionConnector,
         assignments: Vec<IdAssignment>,
     ) {
+        info!("Publishing assignments...");
+
         let request = SignupRequest::IdAssignments(assignments);
 
         let unordered = view
