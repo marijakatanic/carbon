@@ -9,7 +9,7 @@ pub(crate) enum State {
         deposits: Deposits,
         motions: BTreeSet<Hash>,
     },
-    Corrupted,
+    Corrupted(u64),
 }
 
 pub(crate) struct Deposits {
