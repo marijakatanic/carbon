@@ -505,12 +505,22 @@ impl FastSignupBroker {
             .await
             .pot(SubmitError::ConnectionError, here!())?;
 
-        let response = session
-            .receive::<SignupResponse>()
-            .await
-            .pot(SubmitError::ConnectionError, here!())?;
+        let fuse = Fuse::new();
 
-        session.end();
+        let response = fuse
+            .spawn(async move {
+                let result = session
+                    .receive::<SignupResponse>()
+                    .await
+                    .pot(SubmitError::ConnectionError, here!());
+
+                session.end();
+
+                result
+            })
+            .await
+            .unwrap()
+            .unwrap()?;
 
         Ok(response)
     }
