@@ -10,7 +10,7 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use futures::stream::{FuturesUnordered, StreamExt};
 
-use log::{info, error};
+use log::{error, info};
 
 use rayon::prelude::*;
 
@@ -76,7 +76,8 @@ impl FastSignupBroker {
 
         info!("Starting signup...");
 
-        let _assignments = FastSignupBroker::flush(10, 5000, view, connector, signup_settings).await;
+        let _assignments =
+            FastSignupBroker::flush(10, 5000, view, connector, signup_settings).await;
 
         info!("Signup complete!");
     }
@@ -95,12 +96,14 @@ impl FastSignupBroker {
         let (keychains, requests): (Vec<Vec<KeyChain>>, Vec<Vec<IdRequest>>) = (0..batches)
             .into_par_iter()
             .map(|i| {
-                let (batch_key_chains, batch_requests) = (0..batch_size).map(|_| {
-                    let keychain = KeyChain::random();
-                    let request = IdRequest::new(&keychain, &view, allocator.clone(), 0);
+                let (batch_key_chains, batch_requests) = (0..batch_size)
+                    .map(|_| {
+                        let keychain = KeyChain::random();
+                        let request = IdRequest::new(&keychain, &view, allocator.clone(), 0);
 
-                    (keychain, request)
-                }).unzip();
+                        (keychain, request)
+                    })
+                    .unzip();
 
                 info!("Generated sigs for batch {}/{}", i + 1, batches);
 

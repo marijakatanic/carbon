@@ -73,7 +73,7 @@ pub(in crate::processing::processor::signup) fn id_claims(
                     // `claim.id()` will be inserted twice in `database.signup.claimed`
                     // (which is harmless) and the `IdAssignment` will be repeated
                     let _ = transaction.insert(claim.id());
-                    Ok(IdAssignment::certify(&keychain, &claim))
+                    Ok(claim)
                 } else {
                     // `claim.id()` was previously claimed by another client: return
                     // the relevant `IdClaim` as proof of conflict
@@ -86,6 +86,11 @@ pub(in crate::processing::processor::signup) fn id_claims(
 
         shards
     };
+
+    let shards = shards
+        .into_par_iter()
+        .map(|result| result.map(|claim| IdAssignment::certify(&keychain, &claim)))
+        .collect();
 
     Ok(SignupResponse::IdAssignmentShards(shards))
 }
