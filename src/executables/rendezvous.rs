@@ -14,7 +14,8 @@ async fn main() {
             SubCommand::with_name("run")
                 .about("Runs a single rendezvous server")
                 .args_from_usage("--port=[INT] 'The port in which to run")
-                .args_from_usage("--size=[INT] 'The number of members in the system"),
+                .args_from_usage("--size=[INT] 'The number of members in the system")
+                .args_from_usage("--brokers=[INT] 'The number of brokers in the system")
         )
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .get_matches();
@@ -39,6 +40,7 @@ async fn main() {
                 .parse::<u16>()
                 .unwrap();
             let shard_size = subm.value_of("size").unwrap().parse::<usize>().unwrap();
+            let broker_shard_size = subm.value_of("brokers").unwrap().parse::<usize>().unwrap();
 
             let address = ("0.0.0.0", port);
 
@@ -47,7 +49,7 @@ async fn main() {
             let server = Server::new(
                 address,
                 ServerSettings {
-                    shard_sizes: vec![shard_size],
+                    shard_sizes: vec![shard_size, broker_shard_size],
                 },
             )
             .await;

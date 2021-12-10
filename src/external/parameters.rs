@@ -49,6 +49,9 @@ impl Export for ReplicaParameters {}
 pub struct BrokerParameters {
     pub signup_batch_number: usize,
     pub signup_batch_size: usize,
+    pub prepare_batch_size: usize,
+    pub prepare_batch_number: usize,
+    pub prepare_single_sign_percentage: usize,
 }
 
 impl Export for BrokerParameters {}
@@ -58,6 +61,9 @@ impl Default for BrokerParameters {
         Self {
             signup_batch_number: 10,
             signup_batch_size: 5_000,
+            prepare_batch_size: 50_000,
+            prepare_batch_number: 1,
+            prepare_single_sign_percentage: 0,
         }
     }
 }

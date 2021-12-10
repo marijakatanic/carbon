@@ -22,7 +22,6 @@ zebra = { git = "https://github.com/Distributed-EPFL/zebra", branch="benchmark" 
 doomstack = { git = "https://github.com/Distributed-EPFL/doomstack" }
 buckets = { git = "https://github.com/Distributed-EPFL/buckets" }
 
-
 # Benchmark dependencies
 
 bincode = { version = "1.3.3" }

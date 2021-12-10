@@ -70,7 +70,8 @@ impl FastSignupBroker {
         batches: usize,
         batch_size: usize,
         settings: BrokerSettings,
-    ) where
+    ) -> Vec<(KeyChain, IdAssignment)>
+    where
         C: Connector,
     {
         let dispatcher = ConnectDispatcher::new(connector);
@@ -81,10 +82,12 @@ impl FastSignupBroker {
 
         info!("Starting signup...");
 
-        let _assignments =
+        let assignments =
             FastSignupBroker::flush(batches, batch_size, view, connector, signup_settings).await;
 
         info!("Signup complete!");
+
+        assignments
     }
 
     async fn flush(

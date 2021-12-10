@@ -1,4 +1,6 @@
 use crate::{
+    brokers::prepare::FastBroker as FastPrepareBroker,
+    discovery::Client,
     external::{
         fast_signup_broker::FastSignupBroker,
         parameters::{BrokerParameters, Export, Parameters},
@@ -10,7 +12,7 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use log::{error, info};
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use talk::{
     crypto::KeyChain,
@@ -39,6 +41,9 @@ impl FastBroker {
         let BrokerParameters {
             signup_batch_number,
             signup_batch_size,
+            prepare_batch_size,
+            prepare_batch_number,
+            prepare_single_sign_percentage,
         } = match parameters_file {
             Some(filename) => {
                 Parameters::read(filename)
@@ -53,11 +58,9 @@ impl FastBroker {
 
         let keychain = KeyChain::random();
 
-        let connector = Connector::new(rendezvous.clone(), keychain.clone(), Default::default());
-
         info!("Getting shard");
 
-        let client = RendezvousClient::new(rendezvous, Default::default());
+        let client = RendezvousClient::new(rendezvous.clone(), Default::default());
         let shard = loop {
             match client.get_shard(0).await {
                 Ok(shard) => break shard,
@@ -82,16 +85,46 @@ impl FastBroker {
                 .collect::<Vec<_>>()
         );
 
-        let view = View::genesis(shard);
+        let genesis = View::genesis(shard);
 
-        FastSignupBroker::signup(
-            view,
+        let connector = Connector::new(rendezvous.clone(), keychain.clone(), Default::default());
+
+        let clients = FastSignupBroker::signup(
+            genesis.clone(),
             connector,
             signup_batch_number,
             signup_batch_size,
             Default::default(),
         )
         .await;
+
+        // let discovery = Arc::new(Client::new(
+        //     genesis.clone(),
+        //     rendezvous.clone(),
+        //     Default::default(),
+        // ));
+        // let connector = Connector::new(rendezvous, keychain.clone(), Default::default());
+
+        // let FastPrepareBroker {
+        //     mut commit_outlet, ..
+        // } = FastPrepareBroker::new(
+        //     prepare_batch_size,
+        //     prepare_batch_number,
+        //     prepare_single_sign_percentage,
+        //     clients,
+        //     discovery,
+        //     genesis.clone(),
+        //     connector,
+        //     Default::default(),
+        // )
+        // .unwrap();
+
+        // for _ in 0..prepare_batch_number {
+        //     let _commit = commit_outlet.recv().await.unwrap();
+        //     // Do something
+        // }
+
+        // info!("Prepare complete!");
 
         Ok(FastBroker {})
     }
