@@ -49,9 +49,9 @@ impl Processor {
                 {
                     error!("Error serving prepare: {:?}", e);
                 }
-            });
 
-            info!("Finished serving prepare!");
+                info!("Finished serving prepare!");
+            });
         }
     }
 
