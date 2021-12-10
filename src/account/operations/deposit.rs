@@ -33,4 +33,8 @@ impl Deposit {
     pub fn collect(&self) -> bool {
         self.collect
     }
+
+    pub fn dependency(&self) -> Option<Entry> {
+        Some(self.withdraw)
+    }
 }

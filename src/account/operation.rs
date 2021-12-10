@@ -36,6 +36,15 @@ impl Operation {
     pub fn abandon(motion: Hash) -> Self {
         Operation::Abandon(Abandon::new(motion))
     }
+
+    pub fn dependency(&self) -> Option<Entry> {
+        match self {
+            Operation::Withdraw(withdraw) => withdraw.dependency(),
+            Operation::Deposit(deposit) => deposit.dependency(),
+            Operation::Support(support) => support.dependency(),
+            Operation::Abandon(abandon) => abandon.dependency(),
+        }
+    }
 }
 
 impl Identify for Operation {

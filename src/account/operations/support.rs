@@ -1,3 +1,5 @@
+use crate::account::Entry;
+
 use serde::{Deserialize, Serialize};
 
 use talk::crypto::primitives::hash::Hash;
@@ -14,5 +16,9 @@ impl Support {
 
     pub fn motion(&self) -> Hash {
         self.motion
+    }
+
+    pub fn dependency(&self) -> Option<Entry> {
+        None
     }
 }

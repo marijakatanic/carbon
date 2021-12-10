@@ -1,4 +1,4 @@
-use crate::account::Id;
+use crate::account::{Entry, Id};
 
 use serde::{Deserialize, Serialize};
 
@@ -28,5 +28,9 @@ impl Withdraw {
 
     pub fn amount(&self) -> u64 {
         self.amount
+    }
+
+    pub fn dependency(&self) -> Option<Entry> {
+        None
     }
 }
