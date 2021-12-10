@@ -11,4 +11,8 @@ impl Support {
     pub fn new(motion: Hash) -> Self {
         Support { motion }
     }
+
+    pub fn motion(&self) -> Hash {
+        self.motion
+    }
 }

@@ -11,4 +11,8 @@ impl Abandon {
     pub fn new(motion: Hash) -> Self {
         Abandon { motion }
     }
+
+    pub fn motion(&self) -> Hash {
+        self.motion
+    }
 }

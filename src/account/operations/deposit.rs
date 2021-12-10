@@ -21,4 +21,16 @@ impl Deposit {
             collect,
         }
     }
+
+    pub fn withdraw(&self) -> Entry {
+        self.withdraw
+    }
+
+    pub fn exclusion(&self) -> &Option<Set<Entry>> {
+        &self.exclusion
+    }
+
+    pub fn collect(&self) -> bool {
+        self.collect
+    }
 }
