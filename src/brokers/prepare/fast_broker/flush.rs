@@ -118,7 +118,7 @@ impl FastBroker {
             .par_iter()
             .enumerate()
             .filter_map(|(i, (keychain, _))| {
-                if i > num_individual {
+                if i >= num_individual {
                     Some(keychain)
                 } else {
                     None
