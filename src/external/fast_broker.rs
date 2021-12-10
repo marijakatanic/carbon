@@ -98,6 +98,28 @@ impl FastBroker {
         )
         .await;
 
+        info!("Syncing with other brokers...");
+
+        client.publish_card(keychain.keycard().clone(), Some(1)).await.unwrap();
+
+        let _shard = loop {
+            match client.get_shard(1).await {
+                Ok(shard) => break shard,
+                Err(e) => match e.top() {
+                    RendezvousClientError::ShardIncomplete => {
+                        info!("Shard still incomplete, sleeping...");
+                        time::sleep(Duration::from_millis(500)).await
+                    }
+                    _ => {
+                        error!("Error obtaining first shard view");
+                        return FastBrokerError::Fail.fail();
+                    }
+                },
+            }
+        };
+
+        info!("Synced with other brokers. Initiating prepare phase...");
+
         // let discovery = Arc::new(Client::new(
         //     genesis.clone(),
         //     rendezvous.clone(),
