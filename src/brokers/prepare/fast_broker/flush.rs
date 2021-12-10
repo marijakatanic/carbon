@@ -79,6 +79,8 @@ impl FastBroker {
                 inlet.send(commit).unwrap();
             }
         }
+
+        info!("Exiting flush");
     }
 
     fn prepare(
