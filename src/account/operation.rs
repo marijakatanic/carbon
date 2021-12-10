@@ -1,6 +1,6 @@
 use crate::{
     account::{
-        operations::{Deposit, Withdraw},
+        operations::{Abandon, Deposit, Support, Withdraw},
         Entry, Id,
     },
     crypto::Identify,
@@ -16,6 +16,8 @@ use zebra::map::Set;
 pub(crate) enum Operation {
     Withdraw(Withdraw),
     Deposit(Deposit),
+    Support(Support),
+    Abandon(Abandon),
 }
 
 impl Operation {
@@ -25,6 +27,14 @@ impl Operation {
 
     pub fn deposit(withdraw: Entry, deposits: Option<&Set<Entry>>, collect: bool) -> Self {
         Operation::Deposit(Deposit::new(withdraw, deposits, collect))
+    }
+
+    pub fn support(motion: Hash) -> Self {
+        Operation::Support(Support::new(motion))
+    }
+
+    pub fn abandon(motion: Hash) -> Self {
+        Operation::Abandon(Abandon::new(motion))
     }
 }
 
