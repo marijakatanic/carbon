@@ -57,7 +57,10 @@ impl FastBroker {
         info!("Signup batch size: {}", signup_batch_size);
         info!("Prepare batch number: {}", prepare_batch_number);
         info!("Prepare batch size: {}", prepare_batch_size);
-        info!("Prepare single sign percentage: {}", prepare_single_sign_percentage);
+        info!(
+            "Prepare single sign percentage: {}",
+            prepare_single_sign_percentage
+        );
 
         let keychain = KeyChain::random();
 
@@ -103,7 +106,10 @@ impl FastBroker {
 
         info!("Syncing with other brokers...");
 
-        client.publish_card(keychain.keycard().clone(), Some(1)).await.unwrap();
+        client
+            .publish_card(keychain.keycard().clone(), Some(1))
+            .await
+            .unwrap();
 
         let _shard = loop {
             match client.get_shard(1).await {

@@ -55,11 +55,7 @@ where
         Ok(())
     }
 
-    pub fn add_unchecked(
-        &mut self,
-        keycard: &KeyCard,
-        signature: MultiSignature,
-    ) {
+    pub fn add_unchecked(&mut self, keycard: &KeyCard, signature: MultiSignature) {
         #[cfg(debug_assertions)]
         {
             if !self.view.members().contains_key(&keycard.identity()) {

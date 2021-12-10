@@ -403,9 +403,7 @@ impl FastSignupBroker {
                         Ok(signature) => {
                             // Try to aggregate `signature` to `slot`'s inner aggregator:
                             // this fails if `signature` is invalid
-                            slot.as_mut()
-                                .unwrap()
-                                .add_unchecked(&assigner, signature)
+                            slot.as_mut().unwrap().add_unchecked(&assigner, signature)
                         }
                         Err(collided_claim) => {
                             // Validate `collided_claim`

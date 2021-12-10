@@ -91,11 +91,7 @@ impl IdAssignmentAggregator {
         self.0.add(keycard, signature)
     }
 
-    pub fn add_unchecked(
-        &mut self,
-        keycard: &KeyCard,
-        signature: MultiSignature,
-    ) {
+    pub fn add_unchecked(&mut self, keycard: &KeyCard, signature: MultiSignature) {
         self.0.add_unchecked(keycard, signature)
     }
 

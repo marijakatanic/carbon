@@ -10,6 +10,7 @@ use crate::{
 
 use std::sync::Arc;
 
+use log::error;
 use talk::net::SessionConnector;
 
 impl FastBroker {
@@ -22,8 +23,14 @@ impl FastBroker {
         settings: BrokerTaskSettings,
     ) -> Result<BatchCommit, BrokerFailure> {
         // Orchestrate submission of `submission`
-        Broker::orchestrate(discovery, view, ping_board, connector, submission, settings)
+        match Broker::orchestrate(discovery, view, ping_board, connector, submission, settings)
             .await
-            .map_err(|_| BrokerFailure::Error)
+        {
+            Err(e) => {
+                error!("Orchestrate failed. {:?}", e);
+                Err(BrokerFailure::Error)
+            }
+            Ok(c) => Ok(c),
+        }
     }
 }
