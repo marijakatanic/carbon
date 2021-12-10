@@ -1,6 +1,6 @@
 use crate::account::{
     operations::{Abandon, Deposit, Support, Withdraw},
-    Operation, OperationError,
+    Id, Operation, OperationError,
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
@@ -9,7 +9,10 @@ use std::collections::HashSet;
 
 use talk::crypto::primitives::hash::Hash;
 
+use zebra::map::Set;
+
 pub(crate) struct CorrectState {
+    id: Id,
     balance: u64,
     deposits: Deposits,
     motions: HashSet<Hash>,
@@ -21,8 +24,9 @@ pub(crate) struct Deposits {
 }
 
 impl CorrectState {
-    pub fn new() -> Self {
+    pub fn new(id: Id) -> Self {
         CorrectState {
+            id,
             balance: 0,
             deposits: Deposits {
                 slot: 0,
@@ -60,7 +64,52 @@ impl CorrectState {
         deposit: &Deposit,
         dependency: &Operation,
     ) -> Result<(), Top<OperationError>> {
-        todo!()
+        let withdraw = match dependency {
+            Operation::Withdraw(withdraw) => withdraw,
+            _ => {
+                return OperationError::UnexpectedDependency.fail().spot(here!());
+            }
+        };
+
+        if withdraw.beneficiary() != self.id || withdraw.slot() != self.deposits.slot {
+            return OperationError::IllegitimateDeposit.fail().spot(here!());
+        }
+
+        let deposits = match (self.deposits.root, deposit.exclusion()) {
+            (Some(root), Some(exclusion)) => {
+                let mut deposits = Set::root_stub(root);
+
+                deposits
+                    .import(exclusion.clone())
+                    .pot(OperationError::ExclusionInvalid, here!())?;
+
+                if deposits
+                    .contains(&deposit.withdraw())
+                    .pot(OperationError::ExclusionInvalid, here!())?
+                {
+                    return OperationError::DoubleDeposit.fail().spot(here!());
+                }
+
+                Some(deposits)
+            }
+            (None, None) => None,
+            _ => {
+                return OperationError::ExclusionInvalid.fail().spot(here!());
+            }
+        };
+
+        self.balance += withdraw.amount();
+
+        if deposit.collect() {
+            self.deposits.slot += 1;
+            self.deposits.root = None;
+        } else {
+            let mut deposits = deposits.unwrap_or(Set::new());
+            deposits.insert(deposit.withdraw()).unwrap();
+            self.deposits.root = Some(deposits.commit());
+        }
+
+        Ok(())
     }
 
     fn apply_support(&mut self, support: &Support) -> Result<(), Top<OperationError>> {
