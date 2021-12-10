@@ -137,7 +137,7 @@ impl CorrectState {
         Ok(())
     }
 
-    pub fn corrupt(self) -> CorruptedState {
+    pub fn corrupted(&self) -> CorruptedState {
         CorruptedState::new(self.id)
     }
 }
