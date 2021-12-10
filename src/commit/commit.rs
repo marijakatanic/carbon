@@ -1,45 +1,26 @@
-use crate::{discovery::Client, prepare::BatchCommit};
+use crate::{
+    commit::{CommitProof, CommitProofError, Payload},
+    discovery::Client,
+};
 
-use doomstack::{here, Doom, ResultExt, Top};
+use doomstack::Top;
 
-use zebra::vector::Proof;
+use serde::{Deserialize, Serialize};
 
-use super::Payload;
-
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Commit {
-    batch: BatchCommit,
-    inclusion: Proof,
+    proof: CommitProof,
     payload: Payload,
 }
 
-#[derive(Doom)]
-pub(crate) enum CommitError {
-    #[doom(description("Batch commit invalid"))]
-    BatchCommitInvalid,
-    #[doom(description("Inclusion proof invalid"))]
-    InclusionInvalid,
-}
-
 impl Commit {
-    pub fn new(batch: BatchCommit, inclusion: Proof, payload: Payload) -> Self {
-        Commit {
-            batch,
-            inclusion,
-            payload,
-        }
+    pub fn new(proof: CommitProof, payload: Payload) -> Self {
+        Commit { proof, payload }
     }
 
-    pub fn validate(&self, discovery: &Client) -> Result<(), Top<CommitError>> {
-        self.batch
-            .validate(discovery)
-            .pot(CommitError::BatchCommitInvalid, here!())?;
-
+    pub fn validate(&self, discovery: &Client) -> Result<(), Top<CommitProofError>> {
         let prepare = self.payload.prepare();
 
-        self.inclusion
-            .verify(self.batch.root(), &prepare)
-            .pot(CommitError::InclusionInvalid, here!())?;
-
-        Ok(())
+        self.proof.validate(&discovery, &prepare)
     }
 }

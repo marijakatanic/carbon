@@ -2,8 +2,8 @@ use crate::{
     database::Database,
     discovery::Client,
     processing::{
-        messages::PrepareRequest,
-        processor::prepare::{errors::ServePrepareError, handlers},
+        messages::CommitRequest,
+        processor::commit::{errors::ServeCommitError, handlers},
         Processor,
     },
     view::View,
@@ -20,7 +20,7 @@ use talk::{
 };
 
 impl Processor {
-    pub(in crate::processing) async fn run_prepare<L>(
+    pub(in crate::processing) async fn run_commit<L>(
         keychain: KeyChain,
         discovery: Arc<Client>,
         view: View,
@@ -41,41 +41,37 @@ impl Processor {
             let database = database.clone();
 
             fuse.spawn(async move {
-                let _ =
-                    Processor::serve_prepare(keychain, discovery, view, database, session).await;
+                let _ = Processor::serve_commit(keychain, discovery, view, database, session).await;
             });
         }
     }
 
-    async fn serve_prepare(
+    async fn serve_commit(
         keychain: KeyChain,
         discovery: Arc<Client>,
         view: View,
         database: Arc<Voidable<Database>>,
         mut session: Session,
-    ) -> Result<(), Top<ServePrepareError>> {
+    ) -> Result<(), Top<ServeCommitError>> {
         let request = session
-            .receive::<PrepareRequest>()
+            .receive::<CommitRequest>()
             .await
-            .pot(ServePrepareError::ConnectionError, here!())?;
+            .pot(ServeCommitError::ConnectionError, here!())?;
 
         match request {
-            PrepareRequest::Ping => handlers::ping(session).await,
-            PrepareRequest::Batch(prepares) => {
+            CommitRequest::Ping => handlers::ping(session).await,
+            CommitRequest::Batch(payloads) => {
                 handlers::batch(
                     &keychain,
                     discovery.as_ref(),
                     &view,
                     database.as_ref(),
                     session,
-                    prepares,
+                    payloads,
                 )
                 .await
             }
-            PrepareRequest::Commit(commit) => {
-                handlers::commit(discovery.as_ref(), database.as_ref(), session, commit).await
-            }
-            _ => ServePrepareError::UnexpectedRequest.fail().spot(here!()),
+            _ => ServeCommitError::UnexpectedRequest.fail().spot(here!()),
         }
     }
 }

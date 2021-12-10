@@ -1,18 +1,8 @@
-use std::collections::BTreeSet;
-
-use talk::crypto::primitives::hash::Hash;
+use crate::account::CorrectState;
 
 pub(crate) enum State {
-    Correct {
-        height: u64,
-        balance: u64,
-        deposits: Deposits,
-        motions: BTreeSet<Hash>,
-    },
-    Corrupted,
+    Correct(CorrectState),
+    Corrupted(u64),
 }
 
-pub(crate) struct Deposits {
-    slot: u64,
-    root: Hash,
-}
+impl State {}

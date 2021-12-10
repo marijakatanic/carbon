@@ -1,5 +1,5 @@
 use crate::{
-    account::operations::{Abandon, Collect, Deposit, Mint, Support, Withdraw},
+    account::{operations::Withdraw, Id},
     crypto::Identify,
 };
 
@@ -9,12 +9,13 @@ use talk::crypto::primitives::hash::{self, Hash};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) enum Operation {
-    Mint(Mint),
     Withdraw(Withdraw),
-    Deposit(Deposit),
-    Collect(Collect),
-    Support(Support),
-    Abandon(Abandon),
+}
+
+impl Operation {
+    pub fn withdraw(beneficiary: Id, slot: u64, amount: u64) -> Self {
+        Operation::Withdraw(Withdraw::new(beneficiary, slot, amount))
+    }
 }
 
 impl Identify for Operation {

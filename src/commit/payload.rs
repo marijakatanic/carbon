@@ -1,9 +1,12 @@
 use crate::{
-    account::{Id, Operation},
+    account::{Entry, Id, Operation},
     crypto::Identify,
     prepare::Prepare,
 };
 
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Payload {
     id: Id,
     height: u64,
@@ -21,6 +24,13 @@ impl Payload {
 
     pub fn operation(&self) -> &Operation {
         &self.operation
+    }
+
+    pub fn entry(&self) -> Entry {
+        Entry {
+            id: self.id,
+            height: self.height,
+        }
     }
 
     pub fn prepare(&self) -> Prepare {

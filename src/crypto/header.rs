@@ -21,4 +21,7 @@ pub(crate) enum Header {
     PrepareWitness = 10,
 
     Commit = 11,
+    CommitWitness = 12,
+
+    Completion = 13,
 }

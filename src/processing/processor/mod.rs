@@ -76,6 +76,20 @@ impl Processor {
             });
         }
 
+        {
+            let keychain = keychain.clone();
+            let discovery = discovery.clone();
+            let view = view.clone();
+            let database = database.clone();
+
+            let commit_context = format!("{:?}::processor::commit", view.identifier());
+            let commit_listener = listen_dispatcher.register(commit_context);
+
+            fuse.spawn(async move {
+                Processor::run_commit(keychain, discovery, view, database, commit_listener).await;
+            });
+        }
+
         Processor {
             database,
             _fuse: fuse,
@@ -87,5 +101,6 @@ impl Processor {
     }
 }
 
+mod commit;
 mod prepare;
 mod signup;

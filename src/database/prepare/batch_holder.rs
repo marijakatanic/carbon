@@ -27,6 +27,10 @@ impl BatchHolder {
         self.batch.extract(index)
     }
 
+    pub fn committed(&self) -> bool {
+        self.commit.is_some()
+    }
+
     pub fn commit(&mut self, commit: BatchCommit) {
         self.commit = Some(commit);
     }

@@ -135,7 +135,7 @@ impl Splittable for IdAssignment {
     type Key = Id;
 
     fn key(&self) -> Id {
-        self.id()
+        self.assignment.id
     }
 }
 

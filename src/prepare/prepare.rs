@@ -1,3 +1,5 @@
+use buckets::Splittable;
+
 use crate::{account::Id, crypto::Header};
 
 use serde::{Deserialize, Serialize};
@@ -30,6 +32,14 @@ impl Prepare {
 
     pub fn commitment(&self) -> Hash {
         self.commitment
+    }
+}
+
+impl Splittable for Prepare {
+    type Key = Id;
+
+    fn key(&self) -> Id {
+        self.id
     }
 }
 
