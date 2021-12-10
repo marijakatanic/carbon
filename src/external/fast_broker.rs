@@ -130,9 +130,7 @@ impl FastBroker {
         ));
         let connector = Connector::new(rendezvous, keychain.clone(), Default::default());
 
-        let FastPrepareBroker {
-            mut commit_outlet, ..
-        } = FastPrepareBroker::new(
+        let mut fast_prepare_broker = FastPrepareBroker::new(
             prepare_batch_size,
             prepare_batch_number,
             prepare_single_sign_percentage,
@@ -145,7 +143,7 @@ impl FastBroker {
         .unwrap();
 
         for _ in 0..prepare_batch_number {
-            let _commit = commit_outlet.recv().await.unwrap();
+            let _commit = fast_prepare_broker.commit_outlet.recv().await.unwrap();
             // Do something
         }
 
