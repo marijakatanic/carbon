@@ -1,8 +1,8 @@
-use crate::account::CorrectState;
+use crate::account::{CorrectState, CorruptedState};
 
 pub(crate) enum State {
     Correct(CorrectState),
-    Corrupted,
+    Corrupted(CorruptedState),
 }
 
 impl State {}

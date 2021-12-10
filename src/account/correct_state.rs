@@ -1,6 +1,6 @@
 use crate::account::{
     operations::{Abandon, Deposit, Support, Withdraw},
-    AccountSettings, Id, Operation, OperationError,
+    AccountSettings, CorruptedState, Id, Operation, OperationError,
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
@@ -135,5 +135,9 @@ impl CorrectState {
         }
 
         Ok(())
+    }
+
+    pub fn corrupt(self) -> CorruptedState {
+        CorruptedState::new(self.id)
     }
 }
