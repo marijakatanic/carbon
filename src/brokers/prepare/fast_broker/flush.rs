@@ -53,8 +53,8 @@ impl FastBroker {
 
         info!("Pre-computing submissions...");
 
-        let submissions = (0..batch_number)
-            .map(|number| FastBroker::prepare(single_sign_percentage, number as u64, &clients));
+        let submissions: Vec<Submission> = (0..batch_number)
+            .map(|number| FastBroker::prepare(single_sign_percentage, number as u64, &clients)).collect();
 
         info!("All submissions pre-computed!");
 
