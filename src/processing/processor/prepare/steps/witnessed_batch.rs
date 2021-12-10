@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use crate::{
     crypto::Identify,
     database::Database,
@@ -12,6 +14,7 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
+use log::info;
 use talk::{crypto::KeyChain, net::Session, sync::voidable::Voidable};
 use zebra::vector::Vector;
 
@@ -45,9 +48,11 @@ pub(in crate::processing::processor::prepare) async fn witnessed_batch(
             // Use signatures to obtain a `SignedBatch`
             let batch = SignedBatch::new(prepares, reduction_signature, individual_signatures);
 
+            let start = Instant::now();
             // Validate `batch` to obtain a witness shard
             let witness_shard =
                 steps::validate_signed(keychain, discovery, database, session, &batch).await?;
+            info!("Validated batch in {} ms", start.elapsed().as_millis());
 
             // Trade `witness_shard` for a full witness (which aggregates the witness shards
             // of a plurality of replicas in `view`)
@@ -62,10 +67,11 @@ pub(in crate::processing::processor::prepare) async fn witnessed_batch(
     }?;
 
     // Validate and return `batch` (this checks the correctness of the `witness`es acquired above)
-
+    let start = Instant::now();
     batch
         .validate(discovery)
         .pot(ServePrepareError::InvalidBatch, here!())?;
+    info!("Validated witness in {} ms", start.elapsed().as_millis());
 
     Ok(batch)
 }
