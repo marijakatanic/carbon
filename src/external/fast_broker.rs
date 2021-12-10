@@ -41,8 +41,8 @@ impl FastBroker {
         let BrokerParameters {
             signup_batch_number,
             signup_batch_size,
-            prepare_batch_size,
             prepare_batch_number,
+            prepare_batch_size,
             prepare_single_sign_percentage,
         } = match parameters_file {
             Some(filename) => {
@@ -142,9 +142,13 @@ impl FastBroker {
         )
         .unwrap();
 
-        for _ in 0..prepare_batch_number {
-            let _commit = fast_prepare_broker.commit_outlet.recv().await.unwrap();
-            // Do something
+        for i in 0..prepare_batch_number {
+            let commit = fast_prepare_broker.commit_outlet.recv().await.unwrap();
+            if let Err(e) = commit {
+                error!("Error brokering submission: {:?}", e);
+            } else {
+                info!("Committed prepare batch {}", i);
+            }
         }
 
         info!("Prepare complete!");

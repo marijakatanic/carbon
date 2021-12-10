@@ -72,12 +72,7 @@ impl FastBroker {
                 FastBroker::broker(discovery, view, ping_board, connector, submission, settings)
                     .await;
 
-            if let Err(e) = commit {
-                error!("Error brokering submission: {:?}", e);
-            } else {
-                info!("Committed prepare batch {}", i);
-                inlet.send(commit).unwrap();
-            }
+            inlet.send(commit).unwrap();
         }
 
         info!("Exiting flush");

@@ -22,12 +22,8 @@ impl FastBroker {
         settings: BrokerTaskSettings,
     ) -> Result<BatchCommit, BrokerFailure> {
         // Orchestrate submission of `submission`
-
-        let commit =
-            Broker::orchestrate(discovery, view, ping_board, connector, submission, settings)
-                .await
-                .map_err(|_| BrokerFailure::Error);
-
-        commit
+        Broker::orchestrate(discovery, view, ping_board, connector, submission, settings)
+            .await
+            .map_err(|_| BrokerFailure::Error)
     }
 }
