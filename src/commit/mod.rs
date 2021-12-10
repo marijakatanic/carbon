@@ -1,3 +1,4 @@
+mod batch_completion;
 mod batch_completion_shard;
 mod batch_completion_statement;
 mod commit;
@@ -8,23 +9,16 @@ mod witness_statement;
 mod witnessed_batch;
 
 #[allow(unused_imports)]
-pub(crate) use batch_completion_shard::BatchCompletionShard;
+pub(crate) use batch_completion::BatchCompletion;
 
-#[allow(unused_imports)]
+pub(crate) use batch_completion_shard::BatchCompletionShard;
 pub(crate) use batch_completion_statement::BatchCompletionStatement;
 
 #[allow(unused_imports)]
 pub(crate) use commit::Commit;
 
 pub(crate) use commit_proof::{CommitProof, CommitProofError};
-
-#[allow(unused_imports)]
 pub(crate) use extract::Extract;
-
 pub(crate) use payload::Payload;
-
-#[allow(unused_imports)]
 pub(crate) use witness_statement::WitnessStatement;
-
-#[allow(unused_imports)]
 pub(crate) use witnessed_batch::WitnessedBatch;
