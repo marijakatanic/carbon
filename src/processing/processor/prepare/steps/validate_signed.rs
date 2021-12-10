@@ -68,7 +68,10 @@ pub(in crate::processing::processor::prepare) async fn validate_signed(
         .collect::<Result<Vec<Option<&KeyCard>>, Top<ServePrepareError>>>()?;
 
     // Select all `Some` `reduction_signers`
-    let reduction_signers = reduction_signers.into_iter().filter_map(|signer| signer).collect::<Vec<_>>();
+    let reduction_signers = reduction_signers
+        .into_iter()
+        .filter_map(|signer| signer)
+        .collect::<Vec<_>>();
 
     info!("Number of signers: {}", reduction_signers.len());
 

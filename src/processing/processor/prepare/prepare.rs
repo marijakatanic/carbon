@@ -12,7 +12,7 @@ use crate::{
 use doomstack::{here, Doom, ResultExt, Top};
 use log::{error, info};
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use talk::{
     crypto::KeyChain,
@@ -70,7 +70,8 @@ impl Processor {
         match request {
             PrepareRequest::Ping => handlers::ping(session).await,
             PrepareRequest::Batch(prepares) => {
-                handlers::batch(
+                let start = Instant::now();
+                let result = handlers::batch(
                     &keychain,
                     discovery.as_ref(),
                     &view,
@@ -78,10 +79,22 @@ impl Processor {
                     session,
                     prepares,
                 )
-                .await
+                .await;
+                info!(
+                    "Processed prepare batch in {} ms",
+                    start.elapsed().as_millis()
+                );
+                result
             }
             PrepareRequest::Commit(commit) => {
-                handlers::commit(discovery.as_ref(), database.as_ref(), session, commit).await
+                let start = Instant::now();
+                let commit =
+                    handlers::commit(discovery.as_ref(), database.as_ref(), session, commit).await;
+                info!(
+                    "Processed prepare claims in {} ms",
+                    start.elapsed().as_millis()
+                );
+                commit
             }
             _ => ServePrepareError::UnexpectedRequest.fail().spot(here!()),
         }

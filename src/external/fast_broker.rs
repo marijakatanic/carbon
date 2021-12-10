@@ -128,9 +128,9 @@ impl FastBroker {
         };
 
         info!("Synced with other brokers. Making sure IdAssignments are published...");
-        
+
         time::sleep(Duration::from_secs(5)).await;
-        
+
         info!("Initiating prepare phase...");
 
         let discovery = Arc::new(Client::new(
