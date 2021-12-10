@@ -1,6 +1,6 @@
 use crate::account::{
     operations::{Abandon, Deposit, Support, Withdraw},
-    Id, Operation, OperationError,
+    AccountSettings, Id, Operation, OperationError,
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
@@ -40,11 +40,12 @@ impl CorrectState {
         &mut self,
         operation: &Operation,
         dependency: Option<&Operation>,
+        settings: &AccountSettings,
     ) -> Result<(), Top<OperationError>> {
         match operation {
             Operation::Withdraw(withdraw) => self.apply_withdraw(withdraw),
             Operation::Deposit(deposit) => self.apply_deposit(deposit, dependency.unwrap()),
-            Operation::Support(support) => self.apply_support(support),
+            Operation::Support(support) => self.apply_support(support, settings),
             Operation::Abandon(abandon) => self.apply_abandon(abandon),
         }
     }
@@ -112,11 +113,27 @@ impl CorrectState {
         Ok(())
     }
 
-    fn apply_support(&mut self, support: &Support) -> Result<(), Top<OperationError>> {
-        todo!()
+    fn apply_support(
+        &mut self,
+        support: &Support,
+        settings: &AccountSettings,
+    ) -> Result<(), Top<OperationError>> {
+        if self.motions.len() >= settings.supports_capacity {
+            return OperationError::MotionsOverflow.fail().spot(here!());
+        }
+
+        if !self.motions.insert(support.motion()) {
+            return OperationError::DoubleSupport.fail().spot(here!());
+        }
+
+        Ok(())
     }
 
     fn apply_abandon(&mut self, abandon: &Abandon) -> Result<(), Top<OperationError>> {
-        todo!()
+        if !self.motions.remove(&abandon.motion()) {
+            return OperationError::UnexpectedAbandon.fail().spot(here!());
+        }
+
+        Ok(())
     }
 }

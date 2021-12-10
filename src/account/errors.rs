@@ -12,4 +12,10 @@ pub(crate) enum OperationError {
     ExclusionInvalid,
     #[doom(description("Double deposit"))]
     DoubleDeposit,
+    #[doom(description("Motions overflow"))]
+    MotionsOverflow,
+    #[doom(description("Double support"))]
+    DoubleSupport,
+    #[doom(description("Unexpected abandon"))]
+    UnexpectedAbandon,
 }
