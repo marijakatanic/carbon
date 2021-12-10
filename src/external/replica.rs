@@ -51,6 +51,18 @@ impl Replica {
             "Broker signup batch size {}",
             parameters.broker.signup_batch_size
         );
+        info!(
+            "Broker prepare batch number {}",
+            parameters.broker.prepare_batch_number
+        );
+        info!(
+            "Broker prepare batch size {}",
+            parameters.broker.prepare_batch_size
+        );
+        info!(
+            "Broker prepare single sign percentage {}",
+            parameters.broker.prepare_single_sign_percentage
+        );
 
         let keychain = KeyChain::random();
         let keycard = keychain.keycard();
