@@ -1,3 +1,10 @@
+use crate::account::{
+    operations::{Abandon, Deposit, Support, Withdraw},
+    Operation, OperationError,
+};
+
+use doomstack::{here, Doom, ResultExt, Top};
+
 use std::collections::HashSet;
 
 use talk::crypto::primitives::hash::Hash;
@@ -23,5 +30,38 @@ impl CorrectState {
             },
             motions: HashSet::new(),
         }
+    }
+
+    pub fn apply(
+        &mut self,
+        operation: &Operation,
+        dependency: Option<&Operation>,
+    ) -> Result<(), Top<OperationError>> {
+        match operation {
+            Operation::Withdraw(withdraw) => self.apply_withdraw(withdraw),
+            Operation::Deposit(deposit) => self.apply_deposit(deposit, dependency.unwrap()),
+            Operation::Support(support) => self.apply_support(support),
+            Operation::Abandon(abandon) => self.apply_abandon(abandon),
+        }
+    }
+
+    fn apply_withdraw(&mut self, withdraw: &Withdraw) -> Result<(), Top<OperationError>> {
+        todo!()
+    }
+
+    fn apply_deposit(
+        &mut self,
+        deposit: &Deposit,
+        dependency: &Operation,
+    ) -> Result<(), Top<OperationError>> {
+        todo!()
+    }
+
+    fn apply_support(&mut self, support: &Support) -> Result<(), Top<OperationError>> {
+        todo!()
+    }
+
+    fn apply_abandon(&mut self, abandon: &Abandon) -> Result<(), Top<OperationError>> {
+        todo!()
     }
 }
