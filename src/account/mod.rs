@@ -1,4 +1,5 @@
 mod account;
+mod account_settings;
 mod correct_state;
 mod entry;
 mod errors;
@@ -9,6 +10,7 @@ mod state;
 pub(crate) mod operations;
 
 pub(crate) use account::Account;
+pub(crate) use account_settings::AccountSettings;
 pub(crate) use correct_state::CorrectState;
 pub(crate) use entry::Entry;
 pub(crate) use errors::OperationError;
