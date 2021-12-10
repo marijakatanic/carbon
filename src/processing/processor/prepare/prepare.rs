@@ -10,7 +10,7 @@ use crate::{
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
-use log::error;
+use log::{error, info};
 
 use std::sync::Arc;
 
@@ -41,6 +41,8 @@ impl Processor {
             let view = view.clone();
             let database = database.clone();
 
+            info!("Serving prepare!");
+
             fuse.spawn(async move {
                 if let Err(e) =
                     Processor::serve_prepare(keychain, discovery, view, database, session).await
@@ -48,6 +50,8 @@ impl Processor {
                     error!("Error serving prepare: {:?}", e);
                 }
             });
+
+            info!("Finished serving prepare!");
         }
     }
 
