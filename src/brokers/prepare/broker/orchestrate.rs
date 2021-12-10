@@ -416,7 +416,7 @@ impl WitnessCollector {
             match update_outlet.recv().await.unwrap() {
                 (replica, Update::WitnessShard(shard)) => {
                     let keycard = self.view.members().get(&replica).unwrap();
-                    self.aggregator.add(keycard, shard).unwrap();
+                    self.aggregator.add_unchecked(keycard, shard);
                 }
                 (_, Update::Error) => {
                     self.errors += 1;

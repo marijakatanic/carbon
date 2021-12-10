@@ -95,7 +95,7 @@ impl IdAssignmentAggregator {
         &mut self,
         keycard: &KeyCard,
         signature: MultiSignature,
-    ) -> Result<(), Top<MultiError>> {
+    ) {
         self.0.add_unchecked(keycard, signature)
     }
 

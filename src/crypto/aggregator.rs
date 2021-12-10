@@ -59,7 +59,7 @@ where
         &mut self,
         keycard: &KeyCard,
         signature: MultiSignature,
-    ) -> Result<(), Top<MultiError>> {
+    ) {
         #[cfg(debug_assertions)]
         {
             if !self.view.members().contains_key(&keycard.identity()) {
@@ -69,8 +69,6 @@ where
 
         let identity = keycard.identity();
         self.components.insert(identity, signature);
-
-        Ok(())
     }
 
     pub fn check(
