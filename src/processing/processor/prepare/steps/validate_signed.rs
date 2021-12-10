@@ -7,6 +7,7 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
+use log::info;
 use rayon::prelude::*;
 
 use talk::{
@@ -67,9 +68,12 @@ pub(in crate::processing::processor::prepare) async fn validate_signed(
         .collect::<Result<Vec<Option<&KeyCard>>, Top<ServePrepareError>>>()?;
 
     // Select all `Some` `reduction_signers`
-    let reduction_signers = reduction_signers.into_iter().filter_map(|signer| signer);
+    let reduction_signers = reduction_signers.into_iter().filter_map(|signer| signer).collect::<Vec<_>>();
+
+    info!("Number of signers: {}", reduction_signers.len());
 
     // Verify `batch`'s reduction statement against `reduction_signers`
+    info!("Batch root: {:?}", batch.root());
 
     let reduction_statement = ReductionStatement::new(batch.root());
 

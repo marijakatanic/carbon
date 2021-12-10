@@ -86,7 +86,7 @@ impl FastBroker {
         let operation = hash::hash(&0).unwrap();
         let num_individual = single_sign_percentage * clients.len() / 100;
 
-        info!("Number of individual signature: {}", num_individual);
+        info!("Number of individual signatures: {}", num_individual);
 
         let assignments = clients
             .iter()
@@ -112,6 +112,8 @@ impl FastBroker {
         let prepares = Vector::new(prepares).unwrap();
         let root = prepares.root();
 
+        info!("Batch root: {:?}", root);
+
         let multi_sigs: Vec<MultiSignature> = clients
             .par_iter()
             .enumerate()
@@ -124,6 +126,8 @@ impl FastBroker {
             })
             .map(|keychain| keychain.multisign(&ReductionStatement::new(root)).unwrap())
             .collect();
+
+        info!("Number of multisignatures: {}", multi_sigs.len());
 
         let reduction_signature = MultiSignature::aggregate(multi_sigs).unwrap();
 
