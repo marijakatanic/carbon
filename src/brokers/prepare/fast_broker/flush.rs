@@ -86,6 +86,8 @@ impl FastBroker {
         let operation = hash::hash(&0).unwrap();
         let num_individual = single_sign_percentage * clients.len() / 100;
 
+        info!("Number of individual signature: {}", num_individual);
+
         let assignments = clients
             .iter()
             .map(|(_, id_assignment)| id_assignment)
