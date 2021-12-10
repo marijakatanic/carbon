@@ -41,8 +41,6 @@ pub(in crate::processing::processor::prepare) async fn validate_signed(
 
     let keycards = steps::fetch_keycards(discovery, database, session, batch).await?;
 
-    let start = Instant::now();
-
     // Check all individual signatures in `batch` while collecting signers to
     // `batch`'s reduction statement
 
@@ -84,17 +82,18 @@ pub(in crate::processing::processor::prepare) async fn validate_signed(
 
     let reduction_statement = ReductionStatement::new(batch.root());
 
+    let start = Instant::now();
+
     batch
         .reduction_signature()
         .verify(reduction_signers, &reduction_statement)
         .pot(ServePrepareError::InvalidBatch, here!())?;
 
+    info!("Validated batch in {} ms", start.elapsed().as_millis());
     // `batch` is valid, generate and return witness shard
 
     let witness_statement = WitnessStatement::new(batch.root());
     let witness_shard = keychain.multisign(&witness_statement).unwrap();
-    
-    info!("Validated batch in {} ms", start.elapsed().as_millis());
 
     Ok(witness_shard)
 }
