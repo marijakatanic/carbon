@@ -4,5 +4,3 @@ pub(crate) enum State {
     Correct(CorrectState),
     Corrupted(CorruptedState),
 }
-
-impl State {}
