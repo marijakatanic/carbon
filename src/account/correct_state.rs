@@ -46,7 +46,13 @@ impl CorrectState {
     }
 
     fn apply_withdraw(&mut self, withdraw: &Withdraw) -> Result<(), Top<OperationError>> {
-        todo!()
+        if self.balance < withdraw.amount() {
+            return OperationError::Overdraft.fail().spot(here!());
+        }
+
+        self.balance -= withdraw.amount();
+
+        Ok(())
     }
 
     fn apply_deposit(
