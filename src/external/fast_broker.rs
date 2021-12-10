@@ -123,33 +123,33 @@ impl FastBroker {
 
         info!("Synced with other brokers. Initiating prepare phase...");
 
-        // let discovery = Arc::new(Client::new(
-        //     genesis.clone(),
-        //     rendezvous.clone(),
-        //     Default::default(),
-        // ));
-        // let connector = Connector::new(rendezvous, keychain.clone(), Default::default());
+        let discovery = Arc::new(Client::new(
+            genesis.clone(),
+            rendezvous.clone(),
+            Default::default(),
+        ));
+        let connector = Connector::new(rendezvous, keychain.clone(), Default::default());
 
-        // let FastPrepareBroker {
-        //     mut commit_outlet, ..
-        // } = FastPrepareBroker::new(
-        //     prepare_batch_size,
-        //     prepare_batch_number,
-        //     prepare_single_sign_percentage,
-        //     clients,
-        //     discovery,
-        //     genesis.clone(),
-        //     connector,
-        //     Default::default(),
-        // )
-        // .unwrap();
+        let FastPrepareBroker {
+            mut commit_outlet, ..
+        } = FastPrepareBroker::new(
+            prepare_batch_size,
+            prepare_batch_number,
+            prepare_single_sign_percentage,
+            clients,
+            discovery,
+            genesis.clone(),
+            connector,
+            Default::default(),
+        )
+        .unwrap();
 
-        // for _ in 0..prepare_batch_number {
-        //     let _commit = commit_outlet.recv().await.unwrap();
-        //     // Do something
-        // }
+        for _ in 0..prepare_batch_number {
+            let _commit = commit_outlet.recv().await.unwrap();
+            // Do something
+        }
 
-        // info!("Prepare complete!");
+        info!("Prepare complete!");
 
         Ok(FastBroker {})
     }
