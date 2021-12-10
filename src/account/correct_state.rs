@@ -24,10 +24,10 @@ pub(crate) struct Deposits {
 }
 
 impl CorrectState {
-    pub fn new(id: Id) -> Self {
+    pub fn new(id: Id, settings: &AccountSettings) -> Self {
         CorrectState {
             id,
-            balance: 0,
+            balance: settings.initial_balance,
             deposits: Deposits {
                 slot: 0,
                 root: None,
