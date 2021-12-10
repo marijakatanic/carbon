@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use crate::{
     database::Database,
     discovery::Client,
@@ -38,6 +40,8 @@ pub(in crate::processing::processor::prepare) async fn validate_signed(
     // `IdAssignment`s (store in `database` all newly discovered `IdAssignments`).
 
     let keycards = steps::fetch_keycards(discovery, database, session, batch).await?;
+
+    let start = Instant::now();
 
     // Check all individual signatures in `batch` while collecting signers to
     // `batch`'s reduction statement
@@ -89,6 +93,8 @@ pub(in crate::processing::processor::prepare) async fn validate_signed(
 
     let witness_statement = WitnessStatement::new(batch.root());
     let witness_shard = keychain.multisign(&witness_statement).unwrap();
+    
+    info!("Validated batch in {} ms", start.elapsed().as_millis());
 
     Ok(witness_shard)
 }

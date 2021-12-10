@@ -48,11 +48,9 @@ pub(in crate::processing::processor::prepare) async fn witnessed_batch(
             // Use signatures to obtain a `SignedBatch`
             let batch = SignedBatch::new(prepares, reduction_signature, individual_signatures);
 
-            let start = Instant::now();
             // Validate `batch` to obtain a witness shard
             let witness_shard =
                 steps::validate_signed(keychain, discovery, database, session, &batch).await?;
-            info!("Validated batch in {} ms", start.elapsed().as_millis());
 
             // Trade `witness_shard` for a full witness (which aggregates the witness shards
             // of a plurality of replicas in `view`)
