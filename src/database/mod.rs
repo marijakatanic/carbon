@@ -1,8 +1,8 @@
-mod commit;
 mod database;
 mod signup;
 mod zebras;
 
+pub(crate) mod commit;
 pub(crate) mod prepare;
 
 pub(crate) use commit::Commit;
