@@ -98,7 +98,7 @@ pub(in crate::processing::processor::commit) async fn validate_batch(
             .collect::<Vec<_>>();
 
         session
-            .send(&CommitResponse::MissingProofs(missing_proofs))
+            .send(&CommitResponse::MissingCommitProofs(missing_proofs))
             .await
             .pot(ServeCommitError::ConnectionError, here!())?;
 
