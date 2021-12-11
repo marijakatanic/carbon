@@ -7,6 +7,7 @@ mod errors;
 mod id;
 mod operation;
 mod state;
+mod state_summary;
 
 pub(crate) mod operations;
 
@@ -21,3 +22,4 @@ pub(crate) use errors::OperationError;
 pub(crate) use id::Id;
 pub(crate) use operation::Operation;
 pub(crate) use state::State;
+pub(crate) use state_summary::StateSummary;

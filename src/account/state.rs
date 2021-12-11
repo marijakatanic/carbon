@@ -1,4 +1,7 @@
-use crate::account::{CorrectState, CorruptedState};
+use crate::{
+    account::{CorrectState, CorruptedState, StateSummary},
+    crypto::Identify,
+};
 
 use serde::Serialize;
 
@@ -20,6 +23,13 @@ impl State {
         match self {
             State::Corrupted(_) => true,
             _ => false,
+        }
+    }
+
+    pub fn summarize(&self) -> StateSummary {
+        match self {
+            State::Correct(state) => StateSummary::Correct(state.identifier()),
+            State::Corrupted(_) => StateSummary::Corrupted,
         }
     }
 
