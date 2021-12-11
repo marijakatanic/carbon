@@ -8,7 +8,7 @@ use crate::{
         Database,
     },
     discovery::Client,
-    processing::processor::commit::errors::ServeCommitError,
+    processing::{messages::CommitResponse, processor::commit::errors::ServeCommitError},
 };
 
 use doomstack::{here, ResultExt, Top};
@@ -28,7 +28,7 @@ pub(in crate::processing::processor::commit) async fn fetch_dependencies(
     _keychain: &KeyChain,
     _discovery: &Client,
     database: &Voidable<Database>,
-    _session: &mut Session,
+    session: &mut Session,
     batch: &WitnessedBatch,
 ) -> Result<MultiSignature, Top<ServeCommitError>> {
     let dependencies = batch
@@ -80,6 +80,11 @@ pub(in crate::processing::processor::commit) async fn fetch_dependencies(
         .iter()
         .filter_map(|dependency| dependency.as_ref().err().cloned())
         .collect::<Vec<_>>();
+
+    session
+        .send(&CommitResponse::MissingDependencies(missing_ids))
+        .await
+        .pot(ServeCommitError::ConnectionError, here!())?;
 
     todo!()
 }

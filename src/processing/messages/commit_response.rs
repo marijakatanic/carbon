@@ -9,5 +9,6 @@ pub(crate) enum CommitResponse {
     Pong,
     MissingCommitProofs(Vec<Id>),
     WitnessShard(MultiSignature),
+    MissingDependencies(Vec<Id>),
     CompletionShard(BatchCompletionShard),
 }
