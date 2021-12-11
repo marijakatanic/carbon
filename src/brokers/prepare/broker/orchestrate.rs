@@ -10,8 +10,9 @@ use crate::{
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
+use log::{info, error};
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 
 use talk::{
     crypto::{
@@ -266,6 +267,8 @@ impl Broker {
                         // If `response` is `UnknownIds`, then `replica` misses some `IdAssignment`s,
                         // required to validate the submitted signatures
                         PrepareResponse::UnknownIds(unknown_ids) => {
+                            error!("Replica has unknown ids!");
+
                             // Gather the necessary `IdAssignments`. Assignments are requested
                             // by `Id`, prompting a binary search on `submission.assignments()`
                             // (which was sorted by `Id` by `Broker::prepare`)
@@ -364,6 +367,7 @@ impl Broker {
             }?;
 
             // Validate and return `shard`
+            let start = Instant::now();
 
             shard
                 .validate(
@@ -374,6 +378,8 @@ impl Broker {
                     &replica,
                 )
                 .pot(SubmitError::InvalidCommitShard, here!())?;
+
+            info!("Shard validation took {} ms", start.elapsed().as_millis());
 
             Ok(shard)
         }
