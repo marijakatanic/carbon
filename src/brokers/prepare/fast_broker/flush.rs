@@ -71,16 +71,16 @@ impl FastBroker {
 
             info!("Submitting prepare batch {}", i);
 
-            let commit = tokio::spawn(async move{
+            let commit = tokio::spawn(async move {
                 FastBroker::broker(discovery, view, ping_board, connector, submission, settings)
                     .await
             });
 
             handles.push(commit);
         }
-        
+
         for handle in handles {
-            let commit  = handle.await.unwrap();
+            let commit = handle.await.unwrap();
             inlet.send(commit).unwrap();
         }
 

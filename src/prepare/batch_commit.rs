@@ -8,7 +8,7 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use log::error;
+use log::info;
 use serde::{Deserialize, Serialize};
 
 use std::collections::{BTreeSet, HashMap};
@@ -50,7 +50,7 @@ impl BatchCommit {
 
         for (committer, shard) in shards {
             let aggregator = aggregators.entry(shard.exceptions()).or_insert_with(|| {
-                error!("Shard has {} exceptions!", shard.exceptions().len());
+                info!("Shard has {} exceptions!", shard.exceptions().len());
 
                 let statement =
                     BatchCommitStatement::new(view.identifier(), root, shard.exceptions());

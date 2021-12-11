@@ -66,9 +66,11 @@ pub(in crate::processing::processor::prepare) async fn witnessed_batch(
 
     // Validate and return `batch` (this checks the correctness of the `witness`es acquired above)
     let start = Instant::now();
+
     batch
         .validate(discovery)
         .pot(ServePrepareError::InvalidBatch, here!())?;
+
     info!("Validated witness in {} ms", start.elapsed().as_millis());
 
     Ok(batch)
