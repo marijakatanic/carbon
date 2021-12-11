@@ -38,7 +38,7 @@ pub(in crate::processing::processor::commit) async fn fetch_dependencies(
         .flatten()
         .collect::<Split<_>>();
 
-    {
+    let database_dependencies = {
         let mut database = database
             .lock()
             .pot(ServeCommitError::DatabaseVoid, here!())?;
@@ -54,7 +54,7 @@ pub(in crate::processing::processor::commit) async fn fetch_dependencies(
 
         let (payloads, batches) = fields(&mut database);
 
-        let _operations = buckets::apply_attached(
+        buckets::apply_attached(
             payloads,
             batches,
             dependencies,
@@ -64,18 +64,22 @@ pub(in crate::processing::processor::commit) async fn fetch_dependencies(
                         let holder = batches.get(&handle.batch).unwrap();
 
                         if holder.completed() {
-                            return Some(
-                                holder.batch().payloads()[handle.index].operation().clone(),
-                            );
+                            return Ok(holder.batch().payloads()[handle.index].operation().clone());
                         }
                     }
                     None => {}
                 }
 
-                None
+                Err(dependency.id)
             },
-        );
+        )
     }
+    .join();
+
+    let missing_ids = database_dependencies
+        .iter()
+        .filter_map(|dependency| dependency.as_ref().err().cloned())
+        .collect::<Vec<_>>();
 
     todo!()
 }
