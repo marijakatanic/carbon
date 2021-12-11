@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use zebra::vector::Vector;
 
 use crate::{
-    commit::{CommitProof, Payload},
+    commit::{CommitProof, Completion, Payload},
     crypto::Certificate,
 };
 
@@ -14,4 +14,5 @@ pub(crate) enum CommitRequest {
     WitnessRequest,
     CommitProofs(Vec<CommitProof>),
     Witness(Certificate),
+    Dependencies(Vec<Completion>),
 }
