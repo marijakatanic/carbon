@@ -1,5 +1,6 @@
 mod account;
 mod account_settings;
+mod account_summary;
 mod correct_state;
 mod corrupted_state;
 mod entry;
@@ -15,6 +16,7 @@ pub(crate) mod operations;
 pub(crate) use account::Account;
 
 pub(crate) use account_settings::AccountSettings;
+pub(crate) use account_summary::AccountSummary;
 pub(crate) use correct_state::CorrectState;
 pub(crate) use corrupted_state::CorruptedState;
 pub(crate) use entry::Entry;

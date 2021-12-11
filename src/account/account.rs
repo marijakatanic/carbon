@@ -1,5 +1,5 @@
 use crate::{
-    account::{AccountSettings, CorrectState, Id, Operation, State},
+    account::{AccountSettings, AccountSummary, CorrectState, Id, Operation, State},
     commit::Payload,
 };
 
@@ -16,6 +16,13 @@ impl Account {
         Account {
             height: 0,
             state: State::Correct(CorrectState::new(id, settings)),
+        }
+    }
+
+    pub fn summarize(&self) -> AccountSummary {
+        AccountSummary {
+            height: self.height,
+            state: self.state.summarize(),
         }
     }
 
