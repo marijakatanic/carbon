@@ -15,6 +15,10 @@ impl BatchHolder {
         }
     }
 
+    pub fn batch(&self) -> &WitnessedBatch {
+        &self.batch
+    }
+
     pub fn applied(&self) -> bool {
         self.applied
     }
