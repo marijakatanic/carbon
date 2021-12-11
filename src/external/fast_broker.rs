@@ -129,7 +129,7 @@ impl FastBroker {
 
         info!("Synced with other brokers. Making sure IdAssignments are published...");
 
-        time::sleep(Duration::from_secs(5)).await;
+        time::sleep(Duration::from_secs(20)).await;
 
         info!("Initiating prepare phase...");
 
