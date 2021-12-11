@@ -33,6 +33,10 @@ impl Payload {
         }
     }
 
+    pub fn dependency(&self) -> Option<Entry> {
+        self.operation.dependency()
+    }
+
     pub fn prepare(&self) -> Prepare {
         Prepare::new(self.id, self.height, self.operation.identifier())
     }
