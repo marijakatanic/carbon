@@ -57,13 +57,18 @@ pub(in crate::processing::processor::commit) async fn apply_batch(
         return ServeCommitError::BatchInapplicable.fail().spot(here!());
     }
 
-    let split = Split::with_key(
+    let applications = Split::with_key(
         batch
             .payloads()
             .iter()
             .cloned()
             .zip(dependencies.iter().cloned()),
         |(payload, _)| payload.id(),
+    );
+
+    let entries = Split::with_key(
+        batch.payloads().iter().map(Payload::entry).enumerate(),
+        |(_, entry)| entry.id,
     );
 
     let exceptions = {
@@ -73,7 +78,7 @@ pub(in crate::processing::processor::commit) async fn apply_batch(
 
         let exceptions = buckets::apply_sparse(
             &mut database.accounts,
-            split,
+            applications,
             |accounts, (payload, dependency)| {
                 if accounts.get_mut(&payload.id()).unwrap().apply(
                     &payload,
@@ -87,6 +92,30 @@ pub(in crate::processing::processor::commit) async fn apply_batch(
                 }
             },
         );
+
+        let root = batch.root();
+
+        database
+            .commit
+            .batches
+            .insert(root, BatchHolder::new(batch));
+
+        buckets::apply_attached(
+            &mut database.commit.payloads,
+            &root,
+            entries,
+            |payloads, root, (index, entry)| {
+                payloads.insert(
+                    entry,
+                    PayloadHandle {
+                        batch: *root,
+                        index,
+                    },
+                );
+            },
+        );
+
+        exceptions
     };
 
     todo!()
