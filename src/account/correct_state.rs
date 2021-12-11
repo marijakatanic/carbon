@@ -1,16 +1,22 @@
-use crate::account::{
-    operations::{Abandon, Deposit, Support, Withdraw},
-    AccountSettings, CorruptedState, Id, Operation, OperationError,
+use crate::{
+    account::{
+        operations::{Abandon, Deposit, Support, Withdraw},
+        AccountSettings, CorruptedState, Id, Operation, OperationError,
+    },
+    crypto::Identify,
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
 
+use serde::Serialize;
+
 use std::collections::BTreeSet;
 
-use talk::crypto::primitives::hash::Hash;
+use talk::crypto::primitives::hash::{self, Hash};
 
 use zebra::map::Set;
 
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct CorrectState {
     id: Id,
     balance: u64,
@@ -18,6 +24,7 @@ pub(crate) struct CorrectState {
     motions: BTreeSet<Hash>,
 }
 
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct Deposits {
     slot: u64,
     root: Option<Hash>,
@@ -139,5 +146,17 @@ impl CorrectState {
 
     pub fn corrupted(&self) -> CorruptedState {
         CorruptedState::new(self.id)
+    }
+}
+
+impl Identify for CorrectState {
+    fn identifier(&self) -> Hash {
+        (&self.balance, &self.deposits, &self.motions).identifier()
+    }
+}
+
+impl Identify for Deposits {
+    fn identifier(&self) -> Hash {
+        hash::hash(&self).unwrap()
     }
 }

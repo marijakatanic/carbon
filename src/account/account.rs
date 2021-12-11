@@ -3,6 +3,9 @@ use crate::{
     commit::Payload,
 };
 
+use serde::Serialize;
+
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct Account {
     height: u64,
     state: State,

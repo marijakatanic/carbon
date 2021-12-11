@@ -1,5 +1,8 @@
 use crate::account::{CorrectState, CorruptedState};
 
+use serde::Serialize;
+
+#[derive(Debug, Clone, Serialize)]
 pub(crate) enum State {
     Correct(CorrectState),
     Corrupted(CorruptedState),
