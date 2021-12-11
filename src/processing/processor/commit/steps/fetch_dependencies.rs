@@ -4,7 +4,6 @@ use crate::{
     account::{Entry, Operation},
     commit::WitnessedBatch,
     database::{
-        self,
         commit::{BatchHolder, PayloadHandle},
         Database,
     },
@@ -21,17 +20,9 @@ use rayon::prelude::*;
 
 use std::collections::HashMap;
 
-use talk::{
-    crypto::{
-        primitives::{hash::Hash, multi::Signature as MultiSignature},
-        KeyChain,
-    },
-    net::Session,
-    sync::voidable::Voidable,
-};
+use talk::{crypto::primitives::hash::Hash, net::Session, sync::voidable::Voidable};
 
 pub(in crate::processing::processor::commit) async fn fetch_dependencies(
-    _keychain: &KeyChain,
     discovery: &Client,
     database: &Voidable<Database>,
     session: &mut Session,
