@@ -18,4 +18,6 @@ pub(in crate::processing::processor::commit) enum ServeCommitError {
     MismatchedDependency,
     #[doom(description("Invalid dependency"))]
     InvalidDependency,
+    #[doom(description("Batch inapplicable"))]
+    BatchInapplicable,
 }
