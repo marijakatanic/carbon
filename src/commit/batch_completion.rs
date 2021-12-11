@@ -8,10 +8,13 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
+use serde::{Deserialize, Serialize};
+
 use std::collections::{BTreeSet, HashMap};
 
 use talk::crypto::{primitives::hash::Hash, KeyCard};
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct BatchCompletion {
     view: Hash,
     root: Hash,

@@ -6,6 +6,9 @@ use crate::{
 
 use doomstack::Top;
 
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Completion {
     proof: CompletionProof,
     payload: Payload,

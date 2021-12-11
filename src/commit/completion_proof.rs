@@ -5,8 +5,11 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
+use serde::{Deserialize, Serialize};
+
 use zebra::vector::Proof;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct CompletionProof {
     batch: BatchCompletion,
     inclusion: Proof,
