@@ -2,7 +2,7 @@ use buckets::Buckets;
 
 use crate::{
     account::Id,
-    database::{Prepare, Signup, Zebras},
+    database::{Commit, Prepare, Signup, Zebras},
     signup::IdAssignment,
 };
 
@@ -12,6 +12,7 @@ pub(crate) struct Database {
     pub assignments: Buckets<HashMap<Id, IdAssignment>>,
     pub signup: Signup,
     pub prepare: Prepare,
+    pub commit: Commit,
     pub families: Zebras,
 }
 
@@ -23,6 +24,7 @@ impl Database {
             assignments: Buckets::new(),
             signup: Signup::new(&zebras),
             prepare: Prepare::new(&zebras),
+            commit: Commit::new(),
             families: zebras,
         }
     }

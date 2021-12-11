@@ -11,3 +11,12 @@ pub(crate) struct Commit {
     pub batches: HashMap<Hash, BatchHolder>,
     pub payloads: HashMap<Entry, PayloadHandle>,
 }
+
+impl Commit {
+    pub fn new() -> Self {
+        Commit {
+            batches: HashMap::new(),
+            payloads: HashMap::new(),
+        }
+    }
+}
