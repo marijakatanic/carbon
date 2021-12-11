@@ -1,4 +1,9 @@
-use crate::{account::Id, commit::BatchCompletionStatement, crypto::Identify, view::View};
+use crate::{
+    account::{Entry, Id},
+    commit::BatchCompletionStatement,
+    crypto::Identify,
+    view::View,
+};
 
 use doomstack::{here, Doom, ResultExt, Top};
 
@@ -10,8 +15,6 @@ use talk::crypto::{
     primitives::{hash::Hash, multi::Signature as MultiSignature},
     KeyCard, KeyChain,
 };
-
-use super::Payload;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct BatchCompletionShard {
@@ -55,12 +58,12 @@ impl BatchCompletionShard {
         &self,
         view: &View,
         root: Hash,
-        payloads: &[Payload],
+        entries: &[Entry],
         completer: &KeyCard,
     ) -> Result<(), Top<BatchCompletionShardError>> {
         for id in self.exceptions.iter() {
-            payloads
-                .binary_search_by_key(id, |payload| payload.id())
+            entries
+                .binary_search_by_key(id, |entry| entry.id)
                 .map_err(|_| BatchCompletionShardError::ForeignException.into_top())
                 .spot(here!())?;
         }
