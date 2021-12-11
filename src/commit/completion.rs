@@ -1,5 +1,5 @@
 use crate::{
-    account::{Entry, Operation},
+    account::{Entry, Id, Operation},
     commit::{CompletionProof, CompletionProofError, Payload},
     discovery::Client,
 };
@@ -25,6 +25,14 @@ impl Completion {
 
     pub fn entry(&self) -> Entry {
         self.payload.entry()
+    }
+
+    pub fn id(&self) -> Id {
+        self.payload.id()
+    }
+
+    pub fn height(&self) -> u64 {
+        self.payload.height()
     }
 
     pub fn operation(&self) -> &Operation {
