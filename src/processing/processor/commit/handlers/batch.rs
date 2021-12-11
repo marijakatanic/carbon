@@ -22,8 +22,10 @@ pub(in crate::processing::processor::commit) async fn batch(
 ) -> Result<(), Top<ServeCommitError>> {
     // Obtain a `WitnessedBatch`
 
-    let _batch =
+    let batch =
         steps::witnessed_batch(keychain, discovery, view, database, &mut session, payloads).await?;
+
+    let dependencies = steps::fetch_dependencies(discovery, database, &mut session, &batch).await?;
 
     todo!()
 }
