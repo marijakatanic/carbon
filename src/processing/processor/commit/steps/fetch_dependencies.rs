@@ -1,17 +1,23 @@
 use buckets::{Buckets, Split};
 
 use crate::{
-    account::Entry,
+    account::{Entry, Operation},
     commit::WitnessedBatch,
     database::{
+        self,
         commit::{BatchHolder, PayloadHandle},
         Database,
     },
     discovery::Client,
-    processing::{messages::CommitResponse, processor::commit::errors::ServeCommitError},
+    processing::{
+        messages::{CommitRequest, CommitResponse},
+        processor::commit::errors::ServeCommitError,
+    },
 };
 
-use doomstack::{here, ResultExt, Top};
+use doomstack::{here, Doom, ResultExt, Top};
+
+use rayon::prelude::*;
 
 use std::collections::HashMap;
 
@@ -26,19 +32,20 @@ use talk::{
 
 pub(in crate::processing::processor::commit) async fn fetch_dependencies(
     _keychain: &KeyChain,
-    _discovery: &Client,
+    discovery: &Client,
     database: &Voidable<Database>,
     session: &mut Session,
     batch: &WitnessedBatch,
-) -> Result<MultiSignature, Top<ServeCommitError>> {
+) -> Result<Vec<Option<Operation>>, Top<ServeCommitError>> {
     let dependencies = batch
         .payloads()
         .iter()
         .map(|payload| payload.dependency())
-        .flatten()
-        .collect::<Split<_>>();
+        .collect::<Vec<_>>();
 
     let database_dependencies = {
+        let dependencies = dependencies.iter().cloned().flatten().collect::<Split<_>>();
+
         let mut database = database
             .lock()
             .pot(ServeCommitError::DatabaseVoid, here!())?;
@@ -81,10 +88,73 @@ pub(in crate::processing::processor::commit) async fn fetch_dependencies(
         .filter_map(|dependency| dependency.as_ref().err().cloned())
         .collect::<Vec<_>>();
 
+    let mut database_dependencies = database_dependencies.into_iter();
+
+    if missing_ids.is_empty() {
+        let dependencies = dependencies
+            .iter()
+            .map(|dependency| {
+                if dependency.is_some() {
+                    Some(database_dependencies.next().unwrap().unwrap())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        return Ok(dependencies);
+    }
+
     session
-        .send(&CommitResponse::MissingDependencies(missing_ids))
+        .send(&CommitResponse::MissingDependencies(missing_ids.clone()))
         .await
         .pot(ServeCommitError::ConnectionError, here!())?;
 
-    todo!()
+    let request = session
+        .receive::<CommitRequest>()
+        .await
+        .pot(ServeCommitError::ConnectionError, here!())?;
+
+    let completions = match request {
+        CommitRequest::Dependencies(completions) => completions,
+        _ => {
+            return ServeCommitError::UnexpectedRequest.fail().spot(here!());
+        }
+    };
+
+    if completions.len() != missing_ids.len() {
+        return ServeCommitError::MalformedDependencies.fail().spot(here!());
+    }
+
+    missing_ids
+        .par_iter()
+        .zip(completions.par_iter())
+        .map(|(id, completion)| {
+            if completion.id() != *id {
+                ServeCommitError::MismatchedDependency.fail().spot(here!())
+            } else {
+                completion
+                    .validate(discovery)
+                    .pot(ServeCommitError::InvalidDependency, here!())
+            }
+        })
+        .collect::<Result<_, _>>()?;
+
+    let mut completions = completions.into_iter();
+
+    let dependencies = dependencies
+        .iter()
+        .map(|dependency| {
+            if dependency.is_some() {
+                match database_dependencies.next().unwrap() {
+                    Ok(dependency) => Some(dependency),
+                    Err(_) => Some(completions.next().unwrap().operation().clone()),
+                }
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    Ok(dependencies)
 }

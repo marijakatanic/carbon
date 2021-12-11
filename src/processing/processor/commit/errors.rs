@@ -12,4 +12,10 @@ pub(in crate::processing::processor::commit) enum ServeCommitError {
     InvalidBatch,
     #[doom(description("Invalid commit proof"))]
     InvalidCommitProof,
+    #[doom(description("Malformed dependencies"))]
+    MalformedDependencies,
+    #[doom(description("Mismatched dependency"))]
+    MismatchedDependency,
+    #[doom(description("Invalid dependency"))]
+    InvalidDependency,
 }
