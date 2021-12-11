@@ -2,8 +2,11 @@ use crate::{
     account::Id,
     commit::{BatchCompletionShard, BatchCompletionStatement},
     crypto::{Aggregator, Certificate, Identify},
+    discovery::Client,
     view::View,
 };
+
+use doomstack::{here, Doom, ResultExt, Top};
 
 use std::collections::{BTreeSet, HashMap};
 
@@ -22,6 +25,32 @@ pub(crate) struct BatchCompletionAggregator {
     aggregators: HashMap<BTreeSet<Id>, Aggregator<BatchCompletionStatement>>,
 }
 
+#[derive(Doom)]
+pub(crate) enum BatchCompletionError {
+    #[doom(description("View unknown"))]
+    ViewUnknown,
+    #[doom(description("Certificate invalid"))]
+    CertificateInvalid,
+}
+
+impl BatchCompletion {
+    pub fn validate(&self, discovery: &Client) -> Result<(), Top<BatchCompletionError>> {
+        let view = discovery
+            .view(&self.view)
+            .ok_or(BatchCompletionError::ViewUnknown.into_top())
+            .spot(here!())?;
+
+        let statement =
+            BatchCompletionStatement::new(self.view, self.root, self.exceptions.clone());
+
+        self.certificate
+            .verify_quorum(&view, &statement)
+            .pot(BatchCompletionError::CertificateInvalid, here!())?;
+
+        Ok(())
+    }
+}
+
 impl BatchCompletionAggregator {
     pub fn new(view: View, root: Hash) -> Self {
         BatchCompletionAggregator {
@@ -31,7 +60,7 @@ impl BatchCompletionAggregator {
         }
     }
 
-    pub fn add(&mut self, completer: &KeyCard, shard: BatchCompletionShard) -> bool {
+    pub fn add(&mut self, completer: &KeyCard, shard: BatchCompletionShard) {
         let statement =
             BatchCompletionStatement::new(self.view.identifier(), self.root, shard.exceptions());
 
@@ -44,8 +73,13 @@ impl BatchCompletionAggregator {
 
         // Assuming that `shard` is valid, `shard.signature()` is valid
         aggregator.add(completer, shard.signature()).unwrap();
+    }
 
-        aggregator.multiplicity() >= self.view.quorum()
+    pub fn complete(&self) -> bool {
+        self.aggregators
+            .iter()
+            .find(|(_, aggregator)| aggregator.multiplicity() >= self.view.quorum())
+            .is_some()
     }
 
     pub fn finalize(self) -> BatchCompletion {
