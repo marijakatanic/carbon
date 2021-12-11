@@ -33,9 +33,7 @@ pub(in crate::processing::processor::prepare) async fn batch(
 
     // Apply `batch` to `database` to obtain a `BatchCommitShard`
 
-    let start = Instant::now();
     let shard = steps::apply_batch(keychain, view, database, batch).await?;
-    info!("Applied batch in {} ms", start.elapsed().as_millis());
 
     // Send `shard` and end `session`
 
