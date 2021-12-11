@@ -15,7 +15,10 @@ use crate::{
 
 use doomstack::{here, ResultExt, Top};
 
-use std::{collections::{HashMap, HashSet}, time::Instant};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Instant,
+};
 
 use talk::{
     crypto::{primitives::hash::Hash, KeyChain},

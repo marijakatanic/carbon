@@ -61,6 +61,7 @@ impl FastBroker {
 
         info!("Starting prepare...");
 
+        let mut handles = Vec::new();
         for (i, submission) in submissions.into_iter().enumerate() {
             let discovery = discovery.clone();
             let view = view.clone();
@@ -69,10 +70,17 @@ impl FastBroker {
             let settings = settings.clone();
 
             info!("Submitting prepare batch {}", i);
-            let commit =
-                FastBroker::broker(discovery, view, ping_board, connector, submission, settings)
-                    .await;
 
+            let commit = tokio::spawn(async move{
+                FastBroker::broker(discovery, view, ping_board, connector, submission, settings)
+                    .await
+            });
+
+            handles.push(commit);
+        }
+        
+        for handle in handles {
+            let commit  = handle.await.unwrap();
             inlet.send(commit).unwrap();
         }
 

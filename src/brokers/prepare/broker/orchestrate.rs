@@ -10,7 +10,7 @@ use crate::{
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
-use log::{info, error};
+use log::{error, info};
 
 use std::{collections::HashMap, sync::Arc, time::Instant};
 

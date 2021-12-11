@@ -41,16 +41,12 @@ impl Processor {
             let view = view.clone();
             let database = database.clone();
 
-            info!("Serving prepare!");
-
             fuse.spawn(async move {
                 if let Err(e) =
                     Processor::serve_prepare(keychain, discovery, view, database, session).await
                 {
                     error!("Error serving prepare: {:?}", e);
                 }
-
-                info!("Finished serving prepare!");
             });
         }
     }
@@ -70,6 +66,8 @@ impl Processor {
         match request {
             PrepareRequest::Ping => handlers::ping(session).await,
             PrepareRequest::Batch(prepares) => {
+                info!("Serving prepare!");
+
                 let start = Instant::now();
                 let result = handlers::batch(
                     &keychain,
@@ -84,16 +82,23 @@ impl Processor {
                     "Processed prepare batch in {} ms",
                     start.elapsed().as_millis()
                 );
+                info!("Finished serving prepare!");
+
                 result
             }
             PrepareRequest::Commit(commit) => {
+                info!("Serving prepare!");
+
                 let start = Instant::now();
                 let commit =
                     handlers::commit(discovery.as_ref(), database.as_ref(), session, commit).await;
                 info!(
-                    "Processed prepare claims in {} ms",
+                    "Processed prepare commit in {} ms",
                     start.elapsed().as_millis()
                 );
+
+                info!("Finished serving prepare!");
+
                 commit
             }
             _ => ServePrepareError::UnexpectedRequest.fail().spot(here!()),
