@@ -1,8 +1,9 @@
 use buckets::{Buckets, Split};
 
 use crate::{
-    account::{Account, Entry, Operation},
+    account::{Account, Entry, Id, Operation},
     commit::{BatchCompletionShard, Payload, WitnessedBatch},
+    crypto::Identify,
     database::{
         commit::{BatchHolder, PayloadHandle},
         Database,
@@ -12,6 +13,7 @@ use crate::{
         messages::{CommitRequest, CommitResponse},
         processor::commit::errors::ServeCommitError,
     },
+    view::View,
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
@@ -20,15 +22,23 @@ use rayon::prelude::*;
 
 use std::collections::HashMap;
 
-use talk::{crypto::primitives::hash::Hash, net::Session, sync::voidable::Voidable};
+use talk::{
+    crypto::{primitives::hash::Hash, KeyChain},
+    net::Session,
+    sync::voidable::Voidable,
+};
 
 pub(in crate::processing::processor::commit) async fn apply_batch(
+    keychain: &KeyChain,
     discovery: &Client,
+    view: &View,
     database: &Voidable<Database>,
     session: &mut Session,
     batch: WitnessedBatch,
     dependencies: Vec<Option<Operation>>,
 ) -> Result<BatchCompletionShard, Top<ServeCommitError>> {
+    let root = batch.root();
+
     let entries = batch
         .payloads()
         .iter()
@@ -62,13 +72,9 @@ pub(in crate::processing::processor::commit) async fn apply_batch(
             .payloads()
             .iter()
             .cloned()
-            .zip(dependencies.iter().cloned()),
-        |(payload, _)| payload.id(),
-    );
-
-    let entries = Split::with_key(
-        batch.payloads().iter().map(Payload::entry).enumerate(),
-        |(_, entry)| entry.id,
+            .zip(dependencies.iter().cloned())
+            .enumerate(),
+        |(_, (payload, _))| payload.id(),
     );
 
     let exceptions = {
@@ -76,16 +82,35 @@ pub(in crate::processing::processor::commit) async fn apply_batch(
             .lock()
             .pot(ServeCommitError::DatabaseVoid, here!())?;
 
-        let exceptions = buckets::apply_sparse(
-            &mut database.accounts,
+        fn fields(
+            database: &mut Database,
+        ) -> (
+            &mut Buckets<HashMap<Id, Account>>,
+            &mut Buckets<HashMap<Entry, PayloadHandle>>,
+        ) {
+            (&mut database.accounts, &mut database.commit.payloads)
+        }
+
+        let (accounts, payloads) = fields(&mut database);
+
+        let exceptions = buckets::apply_sparse_attached(
+            (accounts, payloads),
+            &root,
             applications,
-            |accounts, (payload, dependency)| {
+            |(accounts, payloads), root, (index, (payload, dependency))| {
                 if accounts.get_mut(&payload.id()).unwrap().apply(
                     &payload,
                     dependency.as_ref(),
-                    &Default::default(),
+                    &Default::default(), // TODO: Add settings
                 ) {
-                    // TODO: Add settings
+                    payloads.insert(
+                        payload.entry(),
+                        PayloadHandle {
+                            batch: *root,
+                            index,
+                        },
+                    );
+
                     None
                 } else {
                     Some(payload.id())
@@ -93,30 +118,15 @@ pub(in crate::processing::processor::commit) async fn apply_batch(
             },
         );
 
-        let root = batch.root();
-
         database
             .commit
             .batches
             .insert(root, BatchHolder::new(batch));
 
-        buckets::apply_attached(
-            &mut database.commit.payloads,
-            &root,
-            entries,
-            |payloads, root, (index, entry)| {
-                payloads.insert(
-                    entry,
-                    PayloadHandle {
-                        batch: *root,
-                        index,
-                    },
-                );
-            },
-        );
-
         exceptions
     };
 
-    todo!()
+    let shard = BatchCompletionShard::new(keychain, view.identifier(), root, exceptions);
+
+    Ok(shard)
 }
