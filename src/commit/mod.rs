@@ -3,6 +3,7 @@ mod batch_completion_shard;
 mod batch_completion_statement;
 mod commit;
 mod commit_proof;
+mod completion_proof;
 mod extract;
 mod payload;
 mod witness_statement;
@@ -18,6 +19,7 @@ pub(crate) use batch_completion_statement::BatchCompletionStatement;
 pub(crate) use commit::Commit;
 
 pub(crate) use commit_proof::{CommitProof, CommitProofError};
+pub(crate) use completion_proof::CompletionProof;
 pub(crate) use extract::Extract;
 pub(crate) use payload::Payload;
 pub(crate) use witness_statement::WitnessStatement;

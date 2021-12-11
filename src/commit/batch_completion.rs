@@ -34,6 +34,10 @@ pub(crate) enum BatchCompletionError {
 }
 
 impl BatchCompletion {
+    pub fn root(&self) -> Hash {
+        self.root
+    }
+
     pub fn validate(&self, discovery: &Client) -> Result<(), Top<BatchCompletionError>> {
         let view = discovery
             .view(&self.view)
