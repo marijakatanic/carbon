@@ -5,7 +5,7 @@ use crate::account::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 use talk::crypto::primitives::hash::Hash;
 
@@ -15,7 +15,7 @@ pub(crate) struct CorrectState {
     id: Id,
     balance: u64,
     deposits: Deposits,
-    motions: HashSet<Hash>,
+    motions: BTreeSet<Hash>,
 }
 
 pub(crate) struct Deposits {
@@ -32,7 +32,7 @@ impl CorrectState {
                 slot: 0,
                 root: None,
             },
-            motions: HashSet::new(),
+            motions: BTreeSet::new(),
         }
     }
 
