@@ -1,3 +1,5 @@
+use buckets::Splittable;
+
 use crate::account::Id;
 
 use serde::{Deserialize, Serialize};
@@ -6,4 +8,12 @@ use serde::{Deserialize, Serialize};
 pub(crate) struct Entry {
     pub id: Id,
     pub height: u64,
+}
+
+impl Splittable for Entry {
+    type Key = Id;
+
+    fn key(&self) -> Id {
+        self.id
+    }
 }
