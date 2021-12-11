@@ -2,7 +2,10 @@ use crate::{
     commit::Payload,
     database::Database,
     discovery::Client,
-    processing::processor::commit::{errors::ServeCommitError, steps},
+    processing::{
+        messages::CommitResponse,
+        processor::commit::{errors::ServeCommitError, steps},
+    },
     view::View,
 };
 
@@ -20,12 +23,28 @@ pub(in crate::processing::processor::commit) async fn batch(
     mut session: Session,
     payloads: Vector<Payload>,
 ) -> Result<(), Top<ServeCommitError>> {
-    // Obtain a `WitnessedBatch`
-
     let batch =
         steps::witnessed_batch(keychain, discovery, view, database, &mut session, payloads).await?;
 
     let dependencies = steps::fetch_dependencies(discovery, database, &mut session, &batch).await?;
 
-    todo!()
+    let shard = steps::apply_batch(
+        keychain,
+        discovery,
+        view,
+        database,
+        &mut session,
+        batch,
+        dependencies,
+    )
+    .await?;
+
+    session
+        .send(&CommitResponse::CompletionShard(shard))
+        .await
+        .pot(ServeCommitError::ConnectionError, here!())?;
+
+    session.end();
+
+    Ok(())
 }
