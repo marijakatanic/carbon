@@ -1,6 +1,6 @@
 use crate::{
-    account::{Entry, Id},
-    commit::BatchCompletionStatement,
+    account::Id,
+    commit::{BatchCompletionStatement, Payload},
     crypto::Identify,
     view::View,
 };
@@ -58,12 +58,12 @@ impl BatchCompletionShard {
         &self,
         view: &View,
         root: Hash,
-        entries: &[Entry],
+        payloads: &[Payload],
         completer: &KeyCard,
     ) -> Result<(), Top<BatchCompletionShardError>> {
         for id in self.exceptions.iter() {
-            entries
-                .binary_search_by_key(id, |entry| entry.id)
+            payloads
+                .binary_search_by_key(id, |payload| payload.id())
                 .map_err(|_| BatchCompletionShardError::ForeignException.into_top())
                 .spot(here!())?;
         }
