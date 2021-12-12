@@ -9,7 +9,7 @@ use crate::{
     view::View,
 };
 
-use doomstack::Top;
+use doomstack::{here, ResultExt, Top};
 
 use talk::{crypto::KeyChain, net::Session, sync::voidable::Voidable};
 
@@ -28,16 +28,7 @@ pub(in crate::processing::processor::commit) async fn batch(
 
     let dependencies = steps::fetch_dependencies(discovery, database, &mut session, &batch).await?;
 
-    let shard = steps::apply_batch(
-        keychain,
-        discovery,
-        view,
-        database,
-        &mut session,
-        batch,
-        dependencies,
-    )
-    .await?;
+    let shard = steps::apply_batch(keychain, view, database, batch, dependencies).await?;
 
     session
         .send(&CommitResponse::CompletionShard(shard))

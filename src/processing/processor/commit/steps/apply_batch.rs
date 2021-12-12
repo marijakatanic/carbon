@@ -8,32 +8,20 @@ use crate::{
         commit::{BatchHolder, PayloadHandle},
         Database,
     },
-    discovery::Client,
-    processing::{
-        messages::{CommitRequest, CommitResponse},
-        processor::commit::errors::ServeCommitError,
-    },
+    processing::processor::commit::errors::ServeCommitError,
     view::View,
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use rayon::prelude::*;
-
 use std::collections::HashMap;
 
-use talk::{
-    crypto::{primitives::hash::Hash, KeyChain},
-    net::Session,
-    sync::voidable::Voidable,
-};
+use talk::{crypto::KeyChain, sync::voidable::Voidable};
 
 pub(in crate::processing::processor::commit) async fn apply_batch(
     keychain: &KeyChain,
-    discovery: &Client,
     view: &View,
     database: &Voidable<Database>,
-    session: &mut Session,
     batch: WitnessedBatch,
     dependencies: Vec<Option<Operation>>,
 ) -> Result<BatchCompletionShard, Top<ServeCommitError>> {
