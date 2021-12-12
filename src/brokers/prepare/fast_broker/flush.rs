@@ -190,24 +190,24 @@ impl FastBroker {
 
         info!("Batch root: {:?}", root);
 
-        let multi_sig = clients[0].0.multisign(&ReductionStatement::new(root)).unwrap();
+        let reduction_signature = clients[0].0.multisign(&ReductionStatement::new(root)).unwrap();
 
-        let multi_sigs: Vec<MultiSignature> = clients
-            .par_iter()
-            .enumerate()
-            .filter_map(|(i, (keychain, _))| {
-                if i >= num_individual {
-                    Some(keychain)
-                } else {
-                    None
-                }
-            })
-            .map(|keychain| multi_sig.clone())
-            .collect();
+        // let multi_sigs: Vec<MultiSignature> = clients
+        //     .par_iter()
+        //     .enumerate()
+        //     .filter_map(|(i, (keychain, _))| {
+        //         if i >= num_individual {
+        //             Some(keychain)
+        //         } else {
+        //             None
+        //         }
+        //     })
+        //     .map(|keychain| multi_sig.clone())
+        //     .collect();
 
-        info!("Number of multisignatures: {}", multi_sigs.len());
+        // info!("Number of multisignatures: {}", multi_sigs.len());
 
-        let reduction_signature = MultiSignature::aggregate(multi_sigs).unwrap();
+        // let reduction_signature = MultiSignature::aggregate(multi_sigs).unwrap();
 
         // Prepare `Submission`
 
