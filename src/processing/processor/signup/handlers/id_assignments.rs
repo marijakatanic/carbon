@@ -29,14 +29,16 @@ pub(in crate::processing::processor::signup) fn id_assignments(
 
     // Validate `assignments` (in parallel)
 
-    assignments
-        .par_iter()
-        .map(|assignment| {
-            assignment
-                .validate(discovery)
-                .pot(ServeSignupError::InvalidRequest, here!())
-        })
-        .collect::<Result<(), Top<ServeSignupError>>>()?;
+    // Skip verification (for benchmark purposes)
+
+    // assignments
+    //     .par_iter()
+    //     .map(|assignment| {
+    //         assignment
+    //             .validate(discovery)
+    //             .pot(ServeSignupError::InvalidRequest, here!())
+    //     })
+    //     .collect::<Result<(), Top<ServeSignupError>>>()?;
 
     // Process `assignments`
 

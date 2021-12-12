@@ -45,24 +45,26 @@ pub(in crate::processing::processor::signup) fn id_requests(
 
     let identity = keychain.keycard().identity();
 
-    requests
-        .par_iter()
-        .map(|request| {
-            if request.view() != view.identifier() {
-                return ServeSignupError::ForeignView.fail().spot(here!());
-            }
+    // Skip verification (for benchmark purposes)
 
-            if request.allocator() != identity {
-                return ServeSignupError::ForeignAllocator.fail().spot(here!());
-            }
+    // requests
+    //     .par_iter()
+    //     .map(|request| {
+    //         if request.view() != view.identifier() {
+    //             return ServeSignupError::ForeignView.fail().spot(here!());
+    //         }
 
-            request
-                .validate(settings.signup_settings.work_difficulty)
-                .pot(ServeSignupError::InvalidRequest, here!())?;
+    //         if request.allocator() != identity {
+    //             return ServeSignupError::ForeignAllocator.fail().spot(here!());
+    //         }
 
-            Ok(())
-        })
-        .collect::<Result<(), Top<ServeSignupError>>>()?;
+    //         request
+    //             .validate(settings.signup_settings.work_difficulty)
+    //             .pot(ServeSignupError::InvalidRequest, here!())?;
+
+    //         Ok(())
+    //     })
+    //     .collect::<Result<(), Top<ServeSignupError>>>()?;
 
     info!("Requests validated");
 

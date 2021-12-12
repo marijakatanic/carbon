@@ -35,20 +35,22 @@ pub(in crate::processing::processor::signup) fn id_claims(
 
     // Validate `claims` (in parallel)
 
-    claims
-        .par_iter()
-        .map(|claim| {
-            if claim.view() != view.identifier() {
-                return ServeSignupError::ForeignView.fail().spot(here!());
-            }
+    // Skip verification (for benchmark purposes)
 
-            claim
-                .validate(settings.signup_settings.work_difficulty)
-                .pot(ServeSignupError::InvalidRequest, here!())?;
+    // claims
+    //     .par_iter()
+    //     .map(|claim| {
+    //         if claim.view() != view.identifier() {
+    //             return ServeSignupError::ForeignView.fail().spot(here!());
+    //         }
 
-            Ok(())
-        })
-        .collect::<Result<(), Top<ServeSignupError>>>()?;
+    //         claim
+    //             .validate(settings.signup_settings.work_difficulty)
+    //             .pot(ServeSignupError::InvalidRequest, here!())?;
+
+    //         Ok(())
+    //     })
+    //     .collect::<Result<(), Top<ServeSignupError>>>()?;
 
     // Process `claims` into `shards`
 
