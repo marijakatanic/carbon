@@ -190,7 +190,10 @@ impl FastBroker {
 
         info!("Batch root: {:?}", root);
 
-        let reduction_signature = clients[0].0.multisign(&ReductionStatement::new(root)).unwrap();
+        let reduction_signature = clients[0]
+            .0
+            .multisign(&ReductionStatement::new(root))
+            .unwrap();
 
         // let multi_sigs: Vec<MultiSignature> = clients
         //     .par_iter()

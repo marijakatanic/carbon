@@ -49,3 +49,8 @@ required-features = ["benchmark"]
 name = "broker"
 path = "src/executables/broker.rs"
 required-features = ["benchmark"]
+
+[[bin]]
+name = "client"
+path = "src/executables/client.rs"
+required-features = ["benchmark"] 
