@@ -73,6 +73,17 @@ impl Broker {
             });
         }
 
+        {
+            let discovery = discovery.clone();
+            let view = view.clone();
+            let ping_board = ping_board.clone();
+            let connector = connector.clone();
+
+            fuse.spawn(async move {
+                Broker::flush(discovery, view, brokerage_sponge, ping_board, connector).await;
+            });
+        }
+
         for replica in view.members().keys().copied() {
             let ping_board = ping_board.clone();
             let connector = connector.clone();
@@ -87,5 +98,7 @@ impl Broker {
     }
 }
 
+mod broker;
+mod flush;
 mod frontend;
 mod ping;

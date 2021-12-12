@@ -1,4 +1,5 @@
 use crate::{
+    account::Id,
     commit::{Commit, Completion},
     discovery::Client,
 };
@@ -26,6 +27,10 @@ pub(crate) enum RequestError {
 impl Request {
     pub fn new(commit: Commit, dependency: Option<Completion>) -> Self {
         Request { commit, dependency }
+    }
+
+    pub fn id(&self) -> Id {
+        self.commit.payload().id()
     }
 
     pub fn validate(&self, discovery: &Client) -> Result<(), Top<RequestError>> {
