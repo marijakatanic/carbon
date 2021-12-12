@@ -28,8 +28,8 @@ pub(in crate::processing::processor::commit) async fn batch(
     let batch =
         steps::witnessed_batch(keychain, discovery, view, database, &mut session, payloads).await?;
 
-    // Retrieve the `Operation` (if any) on which each element of `payloads` depends. If any 
-    // `Operation` cannot be retrieved directly from a completed `WitnessedBatch` in `database`, 
+    // Retrieve the `Operation` (if any) on which each element of `payloads` depends. If any
+    // `Operation` cannot be retrieved directly from a completed `WitnessedBatch` in `database`,
     // query `session` for the necessary `Completion`s.
 
     let dependencies = steps::fetch_dependencies(discovery, database, &mut session, &batch).await?;
