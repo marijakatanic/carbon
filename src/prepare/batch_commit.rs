@@ -84,6 +84,14 @@ impl BatchCommit {
         self.root
     }
 
+    pub fn excepts(&self, id: Id) -> bool {
+        // In order to be excepted by `self`, it is sufficient for
+        // `id` to be in any of `self.patches`'s `exceptions`
+        self.patches
+            .iter()
+            .any(|patch| patch.exceptions.contains(&id))
+    }
+
     pub fn validate(&self, discovery: &Client) -> Result<(), Top<BatchCommitError>> {
         let view = discovery
             .view(&self.view)
