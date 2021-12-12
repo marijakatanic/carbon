@@ -27,7 +27,7 @@ pub(in crate::processing::processor::prepare) async fn commit(
             .pot(ServePrepareError::DatabaseVoid, here!())?;
 
         if let Some(holder) = database.prepare.batches.get_mut(&commit.root()) {
-            holder.commit(commit);
+            holder.attach(commit);
         }
     }
 

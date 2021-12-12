@@ -6,10 +6,14 @@ pub(in crate::processing::processor::commit) enum ServeCommitError {
     ConnectionError,
     #[doom(description("Unexpected request"))]
     UnexpectedRequest,
+    #[doom(description("Malformed batch"))]
+    MalformedBatch,
     #[doom(description("Database void"))]
     DatabaseVoid,
     #[doom(description("Invalid batch"))]
     InvalidBatch,
+    #[doom(description("Malformed commit proofs"))]
+    MalformedCommitProofs,
     #[doom(description("Invalid commit proof"))]
     InvalidCommitProof,
     #[doom(description("Malformed dependencies"))]

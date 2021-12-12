@@ -22,7 +22,7 @@ pub(in crate::processing::processor::prepare) async fn validate_signed(
     session: &mut Session,
     batch: &SignedBatch,
 ) -> Result<MultiSignature, Top<ServePrepareError>> {
-    // Verify `batch.prepares()` is strictly increasing by `Id`
+    // Verify that `batch.prepares()` is strictly increasing by `Id`
     // (this ensures searchability and non-duplication of `Id`s)
     if !batch
         .prepares()
