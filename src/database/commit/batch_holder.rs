@@ -23,15 +23,15 @@ impl BatchHolder {
         self.applied
     }
 
-    pub fn completed(&self) -> bool {
-        self.completion.is_some()
+    pub fn completion(&self) -> Option<&BatchCompletion> {
+        self.completion.as_ref()
     }
 
     pub fn apply(&mut self) {
         self.applied = true;
     }
 
-    pub fn complete(&mut self, completion: BatchCompletion) {
+    pub fn attach(&mut self, completion: BatchCompletion) {
         self.completion = Some(completion);
     }
 }
