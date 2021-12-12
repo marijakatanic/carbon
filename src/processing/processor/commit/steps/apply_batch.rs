@@ -27,6 +27,10 @@ pub(in crate::processing::processor::commit) async fn apply_batch(
 ) -> Result<BatchCompletionShard, Top<ServeCommitError>> {
     let root = batch.root();
 
+    // Check if `batch` can be applied to `database` (i.e.,
+    // every `Entry` in `batch.payloads()` is applicable
+    // to the relevant element of `database.accounts`)
+
     let entries = batch
         .payloads()
         .iter()
@@ -39,9 +43,14 @@ pub(in crate::processing::processor::commit) async fn apply_batch(
             .pot(ServeCommitError::DatabaseVoid, here!())?;
 
         buckets::apply_sparse(&mut database.accounts, entries, |accounts, entry| {
+            // Fetch `entry.id`'s `Account` (if no operation was previously
+            // processed from `entry.id`, initialize an empty `Account`)
+
             let account = accounts
                 .entry(entry.id)
                 .or_insert_with(|| Account::new(entry.id, &Default::default())); // TODO: Add settings
+
+            // If `entry.height` is not applicable to `account`, return `entry.id`
 
             if account.applicable(entry.height) {
                 None
@@ -51,9 +60,12 @@ pub(in crate::processing::processor::commit) async fn apply_batch(
         })
     };
 
+    // The whole batch must be applicable in order to be processed
     if !inapplicable_ids.is_empty() {
         return ServeCommitError::BatchInapplicable.fail().spot(here!());
     }
+
+    // Zip together in a `Split` an enumeration of `payloads` and `dependencies`
 
     let applications = Split::with_key(
         batch
@@ -69,6 +81,9 @@ pub(in crate::processing::processor::commit) async fn apply_batch(
         let mut database = database
             .lock()
             .pot(ServeCommitError::DatabaseVoid, here!())?;
+
+        // Apply each `(_, (payload, dependency))` in `applications` to `database.accounts`,
+        // then store `payload` in `database.commit.payloads` as a `PayloadHandle`
 
         fn fields(
             database: &mut Database,
@@ -86,25 +101,35 @@ pub(in crate::processing::processor::commit) async fn apply_batch(
             &root,
             applications,
             |(accounts, payloads), root, (index, (payload, dependency))| {
-                if accounts.get_mut(&payload.id()).unwrap().apply(
+                // Apply `(payload, dependency)` to `accounts`
+
+                // All missing accounts where created when checking applicability,
+                // so the following `unwrap` is guaranteed to succeed
+                let exception = if accounts.get_mut(&payload.id()).unwrap().apply(
                     &payload,
                     dependency.as_ref(),
                     &Default::default(), // TODO: Add settings
                 ) {
-                    payloads.insert(
-                        payload.entry(),
-                        PayloadHandle {
-                            batch: *root,
-                            index,
-                        },
-                    );
-
                     None
                 } else {
                     Some(payload.id())
-                }
+                };
+
+                // Store (a reference to) `payload` in `payloads`
+
+                payloads.insert(
+                    payload.entry(),
+                    PayloadHandle {
+                        batch: *root,
+                        index,
+                    },
+                );
+
+                exception
             },
         );
+
+        // Store `batch` in `database.commit.batches`
 
         database
             .commit
@@ -113,6 +138,8 @@ pub(in crate::processing::processor::commit) async fn apply_batch(
 
         exceptions
     };
+
+    // Sign and return a `BatchCompletionShard` with the appropriate `exceptions`
 
     let shard = BatchCompletionShard::new(keychain, view.identifier(), root, exceptions);
 
