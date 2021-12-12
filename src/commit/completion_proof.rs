@@ -21,6 +21,8 @@ pub(crate) enum CompletionProofError {
     BatchCompletionInvalid,
     #[doom(description("Inclusion `Proof` invalid"))]
     InclusionInvalid,
+    #[doom(description("`Payload` is in `BatchCompletion`'s exceptions"))]
+    PayloadException,
 }
 
 impl CompletionProof {
@@ -40,6 +42,10 @@ impl CompletionProof {
         self.inclusion
             .verify(self.batch.root(), payload)
             .pot(CompletionProofError::InclusionInvalid, here!())?;
+
+        if self.batch.exceptions().contains(&payload.id()) {
+            return CompletionProofError::PayloadException.fail().spot(here!());
+        }
 
         Ok(())
     }

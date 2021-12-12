@@ -20,7 +20,6 @@ impl Commit {
 
     pub fn validate(&self, discovery: &Client) -> Result<(), Top<CommitProofError>> {
         let prepare = self.payload.prepare();
-
         self.proof.validate(&discovery, &prepare)
     }
 }

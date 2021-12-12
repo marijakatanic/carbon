@@ -30,15 +30,19 @@ pub(crate) struct BatchCompletionAggregator {
 
 #[derive(Doom)]
 pub(crate) enum BatchCompletionError {
-    #[doom(description("View unknown"))]
+    #[doom(description("`View` unknown"))]
     ViewUnknown,
-    #[doom(description("Certificate invalid"))]
+    #[doom(description("`Certificate` invalid"))]
     CertificateInvalid,
 }
 
 impl BatchCompletion {
     pub fn root(&self) -> Hash {
         self.root
+    }
+
+    pub fn exceptions(&self) -> &BTreeSet<Id> {
+        &self.exceptions
     }
 
     pub fn validate(&self, discovery: &Client) -> Result<(), Top<BatchCompletionError>> {
@@ -96,6 +100,7 @@ impl BatchCompletionAggregator {
             aggregators,
         } = self;
 
+        // Assuming that `self.complete()`, exactly one `Aggregator` in `aggregators` has reached a quorum multiplicity
         let (exceptions, aggregator) = aggregators
             .into_iter()
             .find(|(_, aggregator)| aggregator.multiplicity() >= view.quorum())

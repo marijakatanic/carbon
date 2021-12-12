@@ -8,29 +8,29 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Payload {
-    id: Id,
-    height: u64,
+    entry: Entry,
     operation: Operation,
 }
 
 impl Payload {
+    pub fn new(entry: Entry, operation: Operation) -> Self {
+        Payload { entry, operation }
+    }
+
+    pub fn entry(&self) -> Entry {
+        self.entry
+    }
+
     pub fn id(&self) -> Id {
-        self.id
+        self.entry.id
     }
 
     pub fn height(&self) -> u64 {
-        self.height
+        self.entry.height
     }
 
     pub fn operation(&self) -> &Operation {
         &self.operation
-    }
-
-    pub fn entry(&self) -> Entry {
-        Entry {
-            id: self.id,
-            height: self.height,
-        }
     }
 
     pub fn dependency(&self) -> Option<Entry> {
@@ -38,6 +38,6 @@ impl Payload {
     }
 
     pub fn prepare(&self) -> Prepare {
-        Prepare::new(self.id, self.height, self.operation.identifier())
+        Prepare::new(self.entry, self.operation.identifier())
     }
 }

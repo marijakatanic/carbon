@@ -21,9 +21,9 @@ pub(crate) struct WitnessedBatch {
 
 #[derive(Doom)]
 pub(crate) enum WitnessedBatchError {
-    #[doom(description("View unknown"))]
+    #[doom(description("`View` unknown"))]
     ViewUnknown,
-    #[doom(description("Certificate invalid"))]
+    #[doom(description("`Certificate` invalid"))]
     CertificateInvalid,
 }
 
@@ -42,10 +42,6 @@ impl WitnessedBatch {
 
     pub fn payloads(&self) -> &[Payload] {
         self.payloads.items()
-    }
-
-    pub fn witness(&self) -> &Certificate {
-        &self.witness
     }
 
     pub fn extract(&self, index: usize) -> Extract {
