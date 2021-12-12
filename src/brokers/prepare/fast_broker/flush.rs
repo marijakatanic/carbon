@@ -54,7 +54,7 @@ impl FastBroker {
         info!("Pre-computing submissions...");
 
         let submissions: Vec<Submission> = (0..batch_number)
-            .map(|number| FastBroker::prepare(single_sign_percentage, number as u64, &clients))
+            .map(|number| FastBroker::prepare_fast(single_sign_percentage, number as u64, &clients))
             .collect();
 
         info!("All submissions pre-computed!");
@@ -134,6 +134,75 @@ impl FastBroker {
                 }
             })
             .map(|keychain| keychain.multisign(&ReductionStatement::new(root)).unwrap())
+            .collect();
+
+        info!("Number of multisignatures: {}", multi_sigs.len());
+
+        let reduction_signature = MultiSignature::aggregate(multi_sigs).unwrap();
+
+        // Prepare `Submission`
+
+        let submission = Submission::new(
+            assignments,
+            prepares,
+            reduction_signature,
+            individual_signatures,
+        );
+
+        submission
+    }
+
+    fn prepare_fast(
+        single_sign_percentage: usize,
+        height: u64,
+        clients: &Vec<(KeyChain, IdAssignment)>,
+    ) -> Submission {
+        let operation = hash::hash(&0).unwrap();
+        let num_individual = single_sign_percentage * clients.len() / 100;
+
+        info!("Number of individual signatures: {}", num_individual);
+
+        let assignments = clients
+            .iter()
+            .map(|(_, id_assignment)| id_assignment)
+            .cloned()
+            .collect();
+
+        let prepare = Prepare::new(clients[0].1.id(), height, operation);
+        let sig = clients[0].0.sign(&prepare).unwrap();
+
+        let (prepares, individual_signatures): (Vec<Prepare>, Vec<Option<SingleSignature>>) =
+            clients
+                .par_iter()
+                .enumerate()
+                .map(|(num, (keychain, assignment))| {
+                    let prepare = Prepare::new(assignment.id(), height, operation);
+                    if num < num_individual {
+                        (prepare, Some(sig.clone()))
+                    } else {
+                        (prepare, None)
+                    }
+                })
+                .unzip();
+
+        let prepares = Vector::new(prepares).unwrap();
+        let root = prepares.root();
+
+        info!("Batch root: {:?}", root);
+
+        let multi_sig = clients[0].0.multisign(&ReductionStatement::new(root)).unwrap();
+
+        let multi_sigs: Vec<MultiSignature> = clients
+            .par_iter()
+            .enumerate()
+            .filter_map(|(i, (keychain, _))| {
+                if i >= num_individual {
+                    Some(keychain)
+                } else {
+                    None
+                }
+            })
+            .map(|keychain| multi_sig.clone())
             .collect();
 
         info!("Number of multisignatures: {}", multi_sigs.len());
