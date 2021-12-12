@@ -48,7 +48,7 @@ async fn main() {
                 info!("Creating full broker");
                 match FullBroker::new(rendezvous, parameters_file).await {
                     Ok(_broker) => {
-                        info!("Full broker done");
+                        info!("Full broker done!");
                         std::future::pending::<()>().await;
                     }
                     Err(e) => error!("{}", e),
@@ -57,7 +57,7 @@ async fn main() {
                 info!("Creating fast broker");
                 match FastBroker::new(rendezvous, parameters_file).await {
                     Ok(_broker) => {
-                        info!("Fast broker done");
+                        info!("Fast broker done!");
                         std::future::pending::<()>().await;
                     }
                     Err(e) => error!("{}", e),
