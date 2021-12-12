@@ -116,20 +116,18 @@ pub(in crate::processing::processor::commit) async fn fetch_dependencies(
     if missing.is_empty() {
         // No query to `session` is necessary: `unwrap` `database_operations` to match
         // each `Some` element of `dependencies`
-        let dependencies = dependencies
+        let operations = dependencies
             .map(|dependency| {
-                if dependency.is_some() {
+                dependency.map(|_| {
                     // The following `unwrap`s cannot fail:
                     // - There are as many `database_operations` as there are `Some` `dependencies`
                     // - All elements of `database_operations` are guaranteed to be `Ok`
-                    Some(database_operations.next().unwrap().unwrap())
-                } else {
-                    None
-                }
+                    database_operations.next().unwrap().unwrap()
+                })
             })
             .collect::<Vec<_>>();
 
-        return Ok(dependencies);
+        return Ok(operations);
     }
 
     // Send the `MissingDependencies` vector of `Id`s of payloads whose dependency is `Some`,
