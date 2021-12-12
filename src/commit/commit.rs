@@ -1,4 +1,5 @@
 use crate::{
+    account::Operation,
     commit::{CommitProof, CommitProofError, Payload},
     discovery::Client,
 };
@@ -16,6 +17,14 @@ pub(crate) struct Commit {
 impl Commit {
     pub fn new(proof: CommitProof, payload: Payload) -> Self {
         Commit { proof, payload }
+    }
+
+    pub fn payload(&self) -> &Payload {
+        &self.payload
+    }
+
+    pub fn operation(&self) -> &Operation {
+        self.payload.operation()
     }
 
     pub fn validate(&self, discovery: &Client) -> Result<(), Top<CommitProofError>> {
