@@ -41,8 +41,8 @@ impl BatchCompletion {
         self.root
     }
 
-    pub fn exceptions(&self) -> &BTreeSet<Id> {
-        &self.exceptions
+    pub fn excepts(&self, id: Id) -> bool {
+        self.exceptions.contains(&id)
     }
 
     pub fn validate(&self, discovery: &Client) -> Result<(), Top<BatchCompletionError>> {

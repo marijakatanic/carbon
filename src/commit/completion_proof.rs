@@ -43,7 +43,7 @@ impl CompletionProof {
             .verify(self.batch.root(), payload)
             .pot(CompletionProofError::InclusionInvalid, here!())?;
 
-        if self.batch.exceptions().contains(&payload.id()) {
+        if self.batch.excepts(payload.id()) {
             return CompletionProofError::PayloadException.fail().spot(here!());
         }
 
