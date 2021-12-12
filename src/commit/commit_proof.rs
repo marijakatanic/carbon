@@ -21,6 +21,8 @@ pub(crate) enum CommitProofError {
     BatchCommitInvalid,
     #[doom(description("Inclusion `Proof` invalid"))]
     InclusionInvalid,
+    #[doom(description("`Id` excepted by `BatchCommit`"))]
+    IdExcepted,
 }
 
 impl CommitProof {
@@ -40,6 +42,10 @@ impl CommitProof {
         self.inclusion
             .verify(self.batch.root(), prepare)
             .pot(CommitProofError::InclusionInvalid, here!())?;
+
+        if self.batch.excepts(prepare.id()) {
+            return CommitProofError::IdExcepted.fail().spot(here!());
+        }
 
         Ok(())
     }
