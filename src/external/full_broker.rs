@@ -116,7 +116,7 @@ impl FullBroker {
         info!("Syncing with other brokers...");
 
         client
-            .publish_card(keychain.keycard().clone(), Some(1))
+            .publish_card(KeyChain::random().keycard().clone(), Some(1))
             .await
             .unwrap();
 
