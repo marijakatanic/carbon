@@ -1,5 +1,9 @@
 mod broker_failure;
+mod brokerage;
 mod request;
+
+#[allow(unused_imports)]
+use brokerage::Brokerage;
 
 #[allow(unused_imports)]
 pub(crate) use broker_failure::BrokerFailure;
