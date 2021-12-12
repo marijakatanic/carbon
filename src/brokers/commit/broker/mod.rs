@@ -57,10 +57,10 @@ impl Broker {
 
         let dispatcher = ConnectDispatcher::new(connector);
         let context = format!("{:?}::processor::commit", view.identifier());
-        let _connector = Arc::new(SessionConnector::new(dispatcher.register(context)));
+        let connector = Arc::new(SessionConnector::new(dispatcher.register(context)));
 
         let brokerage_sponge = Arc::new(Sponge::new(Default::default())); // TODO: Add settings
-        let _ping_board = PingBoard::new(&view);
+        let ping_board = PingBoard::new(&view);
 
         let fuse = Fuse::new();
 
@@ -73,6 +73,13 @@ impl Broker {
             });
         }
 
+        for replica in view.members().keys().copied() {
+            let ping_board = ping_board.clone();
+            let connector = connector.clone();
+
+            fuse.spawn(async move { Broker::ping(ping_board, connector, replica).await });
+        }
+
         Ok(Broker {
             address,
             _fuse: fuse,
@@ -81,3 +88,4 @@ impl Broker {
 }
 
 mod frontend;
+mod ping;
