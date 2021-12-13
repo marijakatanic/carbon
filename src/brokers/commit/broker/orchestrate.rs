@@ -1,9 +1,12 @@
 use crate::{
     brokers::commit::{submission::Submission, Broker},
-    commit::{BatchCompletion, BatchCompletionAggregator, BatchCompletionShard, WitnessStatement},
+    commit::{
+        BatchCompletion, BatchCompletionAggregator, BatchCompletionShard, CommitProof, Completion,
+        WitnessStatement,
+    },
     crypto::{Aggregator, Certificate},
     data::PingBoard,
-    discovery::Client,
+    processing::messages::{CommitRequest, CommitResponse},
     view::View,
 };
 
@@ -70,6 +73,16 @@ enum SubmitError {
     ConnectionFailed,
     #[doom(description("Connection error"))]
     ConnectionError,
+    #[doom(description("Unexpected response"))]
+    UnexpectedResponse,
+    #[doom(description("Malformed response"))]
+    MalformedResponse,
+    #[doom(description("Invalid witness shard"))]
+    InvalidWitnessShard,
+    #[doom(description("Invalid `BatchCompletionShard`"))]
+    InvalidCompletionShard,
+    #[doom(description("`Command` channel closed (most likely, the `Broker` is shutting down)"))]
+    CommandChannelClosed,
 }
 
 #[derive(Doom)]
@@ -80,7 +93,6 @@ enum CollectorError {
 
 impl Broker {
     pub(in crate::brokers::commit::broker) async fn orchestrate(
-        discovery: Arc<Client>,
         view: View,
         ping_board: PingBoard,
         connector: Arc<SessionConnector>,
@@ -96,7 +108,6 @@ impl Broker {
         let fuse = Fuse::new();
 
         for replica in view.members().values().cloned() {
-            let discovery = discovery.clone();
             let view = view.clone();
             let connector = connector.clone();
             let submission = submission.clone();
@@ -107,7 +118,6 @@ impl Broker {
 
             fuse.spawn(async move {
                 let _ = Broker::submit(
-                    discovery,
                     view,
                     connector,
                     replica,
@@ -194,15 +204,218 @@ impl Broker {
     }
 
     async fn submit(
-        _discovery: Arc<Client>,
-        _view: View,
-        _connector: Arc<SessionConnector>,
-        _replica: KeyCard,
-        _submission: Arc<Submission>,
-        _command_outlet: CommandOutlet,
-        _update_inlet: UpdateInlet,
+        view: View,
+        connector: Arc<SessionConnector>,
+        replica: KeyCard,
+        submission: Arc<Submission>,
+        mut command_outlet: CommandOutlet,
+        update_inlet: UpdateInlet,
     ) {
-        todo!()
+        // In order to catch all `Err`s while maintaining `?`-syntax, all
+        // operations are executed within the scope of an `async` block
+        let result: Result<BatchCompletionShard, Top<SubmitError>> = async {
+            // Connect to `replica`
+
+            let mut session = connector
+                .connect(replica.identity())
+                .await
+                .pot(SubmitError::ConnectionFailed, here!())?;
+
+            // Submit `Payload`s (with a `CommitRequest::Batch` request)
+
+            session
+                .send(&submission.requests.batch())
+                .await
+                .pot(SubmitError::ConnectionError, here!())?;
+
+            // Wait for a `Command` from `orchestrate` master
+
+            let command = command_outlet
+                .recv()
+                .await
+                .ok_or(SubmitError::CommandChannelClosed.into_top())
+                .spot(here!())?;
+
+            // Obtain a witness: either directly from master; or by submitting a `WitnessRequest`,
+            // obtaining a witness shard, then trading the shard with master
+
+            let witness = match command {
+                // If `command` is `SubmitWitnessRequest` then: submit `WitnessRequest`; receive a witness shard;
+                // send the witness shard to master; receive a witness from master
+                Command::SubmitWitnessRequest => {
+                    // Submit `WitnessRequest`
+
+                    session
+                        .send(&CommitRequest::WitnessRequest)
+                        .await
+                        .pot(SubmitError::ConnectionError, here!())?;
+
+                    // Obtain a witness shard (if requested to do so, first provide `replica` with the
+                    // `CommitProof`s it is missing)
+
+                    let response = session
+                        .receive::<CommitResponse>()
+                        .await
+                        .pot(SubmitError::ConnectionError, here!())?;
+
+                    let shard = match response {
+                        // If `response` is `MissingCommitProofs`, then `replica` misses some `CommitProof`s,
+                        // required to validate the batch
+                        CommitResponse::MissingCommitProofs(missing_ids) => {
+                            // Gather the necessary `CommitProof`s. Proofs are requested
+                            // by `Id`, prompting a binary search on `submission.commit_proofs()`
+                            // (which was sorted by `Id` by `Broker::prepare`)
+                            let commit_proofs = missing_ids
+                                .into_iter()
+                                .map(|id| {
+                                    // If `id` is not present in `submission.commit_proofs()`, then
+                                    // `replica` is Byzantine
+                                    let index = submission
+                                        .commit_proofs()
+                                        .binary_search_by_key(&id, |(id, _)| *id)
+                                        .map_err(|_| SubmitError::MalformedResponse.into_top())
+                                        .spot(here!())?;
+
+                                    Ok(submission.commit_proofs()[index].1.clone())
+                                })
+                                .collect::<Result<Vec<CommitProof>, Top<SubmitError>>>()?;
+
+                            // Send missing `CommitProof`s
+
+                            session
+                                .send(&CommitRequest::CommitProofs(commit_proofs))
+                                .await
+                                .pot(SubmitError::ConnectionError, here!())?;
+
+                            // Receive witness shard (a correct `replica` cannot provide any
+                            // response other than `WitnessShard`)
+
+                            let response = session
+                                .receive::<CommitResponse>()
+                                .await
+                                .pot(SubmitError::ConnectionError, here!())?;
+
+                            match response {
+                                CommitResponse::WitnessShard(shard) => Ok(shard),
+                                _ => SubmitError::UnexpectedResponse.fail().spot(here!()),
+                            }
+                        }
+
+                        // If `response` is `WitnessShard`, return witness shard
+                        CommitResponse::WitnessShard(shard) => Ok(shard),
+
+                        _ => SubmitError::UnexpectedResponse.fail().spot(here!()),
+                    }?;
+
+                    // Verify `shard`
+
+                    let statement = WitnessStatement::new(submission.root());
+
+                    shard
+                        .verify([&replica], &statement)
+                        .pot(SubmitError::InvalidWitnessShard, here!())?;
+
+                    // Send `shard` to master
+
+                    let _ = update_inlet.send((replica.identity(), Update::WitnessShard(shard)));
+
+                    // Receive witness from master, return witness
+
+                    let command = command_outlet
+                        .recv()
+                        .await
+                        .ok_or(SubmitError::CommandChannelClosed.into_top())
+                        .spot(here!())?;
+
+                    match command {
+                        Command::SubmitWitness(witness) => witness,
+                        _ => {
+                            panic!("unexpected `Command`");
+                        }
+                    }
+                }
+
+                // If `command` is `SubmitWitness`, return witness
+                Command::SubmitWitness(witness) => witness,
+            };
+
+            // Send `witness` (with a `CommitRequest::Witness` request)
+
+            session
+                .send(&CommitRequest::Witness(witness))
+                .await
+                .pot(SubmitError::ConnectionError, here!())?;
+
+            // Obtain a `BatchCompletionShard` (if requested to do so, first provide `replica` with the
+            // dependencies it is missing)
+
+            let response = session
+                .receive::<CommitResponse>()
+                .await
+                .pot(SubmitError::ConnectionError, here!())?;
+
+            let shard = match response {
+                CommitResponse::MissingDependencies(missing_ids) => {
+                    // Gather the necessary `Completion`s. Dependencies are requested
+                    // by `Id`, prompting a binary search on `submission.dependencies()`
+                    // (which was sorted by `Id` by `Broker::prepare`)
+                    let completions = missing_ids
+                        .into_iter()
+                        .map(|id| {
+                            // If `id` is not present in `submission.commit_proofs()`, then
+                            // `replica` is Byzantine
+                            let index = submission
+                                .dependencies()
+                                .binary_search_by_key(&id, |(id, _)| *id)
+                                .map_err(|_| SubmitError::MalformedResponse.into_top())
+                                .spot(here!())?;
+
+                            Ok(submission.dependencies()[index].1.clone())
+                        })
+                        .collect::<Result<Vec<Completion>, Top<SubmitError>>>()?;
+
+                    // Send missing `CommitProof`s
+
+                    session
+                        .send(&CommitRequest::Dependencies(completions))
+                        .await
+                        .pot(SubmitError::ConnectionError, here!())?;
+
+                    // Receive `BatchCompletionShard` (a correct `replica` cannot provide any
+                    // response other than `CompletionShard`)
+
+                    let response = session
+                        .receive::<CommitResponse>()
+                        .await
+                        .pot(SubmitError::ConnectionError, here!())?;
+
+                    match response {
+                        CommitResponse::CompletionShard(shard) => Ok(shard),
+                        _ => SubmitError::UnexpectedResponse.fail().spot(here!()),
+                    }
+                }
+
+                CommitResponse::CompletionShard(shard) => Ok(shard),
+
+                _ => SubmitError::UnexpectedResponse.fail().spot(here!()),
+            }?;
+
+            // Validate and return `shard`
+
+            shard
+                .validate(&view, submission.root(), submission.payloads(), &replica)
+                .pot(SubmitError::InvalidCompletionShard, here!())?;
+
+            Ok(shard)
+        }
+        .await;
+
+        // If `shard` is `Ok`, send `BatchCompletionShard` to master, otherwise signal `Error`
+
+        let _ = match result {
+            Ok(shard) => update_inlet.send((replica.identity(), Update::CompletionShard(shard))),
+            Err(_) => update_inlet.send((replica.identity(), Update::Error)),
+        };
     }
 }
 

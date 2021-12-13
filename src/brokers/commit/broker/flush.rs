@@ -1,7 +1,6 @@
 use crate::{
     brokers::commit::{Broker, BrokerFailure, Brokerage},
     data::{PingBoard, Sponge},
-    discovery::Client,
     view::View,
 };
 
@@ -11,7 +10,6 @@ use talk::{net::SessionConnector, sync::fuse::Fuse};
 
 impl Broker {
     pub(in crate::brokers::commit::broker) async fn flush(
-        discovery: Arc<Client>,
         view: View,
         brokerage_sponge: Arc<Sponge<Brokerage>>,
         ping_board: PingBoard,
@@ -25,13 +23,12 @@ impl Broker {
             // duplicates, it never produces an empty output on a non-empty input.
             let brokerages = Broker::prepare(brokerage_sponge.flush().await);
 
-            let discovery = discovery.clone();
             let view = view.clone();
             let ping_board = ping_board.clone();
             let connector = connector.clone();
 
             fuse.spawn(async move {
-                Broker::broker(discovery, view, ping_board, connector, brokerages).await;
+                Broker::broker(view, ping_board, connector, brokerages).await;
             });
         }
     }
