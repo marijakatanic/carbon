@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Commit {
-    proof: CommitProof,
-    payload: Payload,
+    pub proof: CommitProof,
+    pub payload: Payload,
 }
 
 impl Commit {
@@ -30,10 +30,5 @@ impl Commit {
     pub fn validate(&self, discovery: &Client) -> Result<(), Top<CommitProofError>> {
         let prepare = self.payload.prepare();
         self.proof.validate(&discovery, &prepare)
-    }
-
-    // TODO: Settle indecision over visibility of members
-    pub fn explode(self) -> (CommitProof, Payload) {
-        (self.proof, self.payload)
     }
 }

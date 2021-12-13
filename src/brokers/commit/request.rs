@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Request {
-    commit: Commit,
-    dependency: Option<Completion>,
+    pub commit: Commit,
+    pub dependency: Option<Completion>,
 }
 
 #[derive(Doom)]
