@@ -1,12 +1,12 @@
 use crate::{
     account::Id,
     brokers::commit::{BrokerFailure, Request},
-    commit::{Commit, CommitProof, Completion, Payload},
+    commit::{Commit, CommitProof, Completion, CompletionProof, Payload},
 };
 
 use tokio::sync::oneshot::Sender;
 
-type CompletionInlet = Sender<Result<Completion, BrokerFailure>>;
+type CompletionInlet = Sender<Result<CompletionProof, BrokerFailure>>;
 
 pub(in crate::brokers::commit) struct Brokerage {
     pub request: Request,
