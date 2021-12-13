@@ -144,7 +144,53 @@ impl Broker {
         )
         .await;
 
-        todo!()
+        // If the fastest plurality of slaves failed to produce witness shards,
+        // extend signature sumbission to fastest quorum of slaves
+
+        // If `witness_collector.complete()` is `Err`, then a plurality of slaves
+        // failed already, and collecting a `BatchCommit` is impossible
+        let complete = witness_collector
+            .complete()
+            .pot(OrchestrateError::WitnessCollectionFailed, here!())?;
+
+        if !complete {
+            for replica in &rankings[view.plurality()..view.quorum()] {
+                let _ = command_inlets
+                    .get_mut(replica)
+                    .unwrap()
+                    .send(Command::SubmitWitnessRequest);
+            }
+
+            // Because a quorum of replicas is (theoretically) guaranteed to provide
+            // a plurality of responses, collection of witness shards from a quorum
+            // must carry on, without timeout, until success or failure.
+            witness_collector.progress(&mut update_outlet).await;
+
+            // Because `witness_collector.progress()` returned, if `witness_collector.complete()`
+            // is `Ok`, then a plurality of witness shards was achieved.
+            witness_collector
+                .complete()
+                .pot(OrchestrateError::WitnessCollectionFailed, here!())?;
+        }
+
+        // Finalize `witness_collector` to obtain witness
+
+        let (commit_collector, witness) = witness_collector.finalize();
+
+        // Direct all slaves to send `witness`
+
+        for command_inlet in command_inlets.values_mut() {
+            let _ = command_inlet.send(Command::SubmitWitness(witness.clone()));
+        }
+
+        // Collect `BatchCommit` from a quorum of slaves
+
+        let commit = commit_collector
+            .run(&mut update_outlet)
+            .await
+            .pot(OrchestrateError::CompletionCollectionFailed, here!())?;
+
+        Ok(commit)
     }
 
     async fn submit(
