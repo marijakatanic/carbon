@@ -9,7 +9,7 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use talk::{
     crypto::{
@@ -20,7 +20,10 @@ use talk::{
     sync::fuse::Fuse,
 };
 
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::{
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    time,
+};
 
 type CommandInlet = UnboundedSender<Command>;
 type CommandOutlet = UnboundedReceiver<Command>;
@@ -87,7 +90,7 @@ impl Broker {
 
         let submission = Arc::new(submission);
 
-        let (update_inlet, _update_outlet) = mpsc::unbounded_channel();
+        let (update_inlet, mut update_outlet) = mpsc::unbounded_channel();
         let mut command_inlets = HashMap::new();
 
         let fuse = Fuse::new();
@@ -128,6 +131,18 @@ impl Broker {
                 .unwrap()
                 .send(Command::SubmitWitnessRequest);
         }
+
+        // Initialize `WitnessCollector`
+
+        let mut witness_collector = WitnessCollector::new(view.clone(), submission.root());
+
+        // Wait (or timeout) for the fastest plurality of slaves to produce witness shards
+
+        let _ = time::timeout(
+            Duration::from_secs(1), // TODO: Add settings
+            witness_collector.progress(&mut update_outlet),
+        )
+        .await;
 
         todo!()
     }
