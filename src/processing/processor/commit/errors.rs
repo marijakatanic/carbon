@@ -24,4 +24,6 @@ pub(in crate::processing::processor::commit) enum ServeCommitError {
     InvalidDependency,
     #[doom(description("Batch inapplicable"))]
     BatchInapplicable,
+    #[doom(description("`BatchCompletion` invalid"))]
+    BatchCompletionInvalid,
 }
