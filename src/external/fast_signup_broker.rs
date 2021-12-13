@@ -132,7 +132,7 @@ impl FastSignupBroker {
 
         let fuse = Fuse::new();
 
-        let mut handles = vec![];
+        let mut id_assignments = Vec::new();
         for (i, request) in requests.into_iter().enumerate() {
             let view = view.clone();
             let connector = connector.clone();
@@ -155,11 +155,6 @@ impl FastSignupBroker {
                 assignments
             });
 
-            handles.push(handle);
-        }
-
-        let mut id_assignments = Vec::new();
-        for handle in handles {
             id_assignments.push(handle.await.unwrap().unwrap());
         }
 
