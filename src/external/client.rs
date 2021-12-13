@@ -23,8 +23,6 @@ use talk::{
     net::traits::TcpConnect,
 };
 
-use tokio::time;
-
 pub struct Client {}
 
 #[derive(Doom)]

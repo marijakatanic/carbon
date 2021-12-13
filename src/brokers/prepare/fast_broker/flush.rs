@@ -50,8 +50,6 @@ impl FastBroker {
             return;
         }
 
-        let interval = (1000 * batch_size / local_rate) as u64;
-
         let mut clients = clients[0..batch_size].to_vec();
         clients.par_sort_by_key(|(_, id_assignment)| id_assignment.id());
 
@@ -65,6 +63,7 @@ impl FastBroker {
 
         info!("Starting prepare...");
 
+        let interval = (1000 * batch_size / local_rate) as u64;
         let mut handles = Vec::new();
         for (i, submission) in submissions.into_iter().enumerate() {
             let discovery = discovery.clone();

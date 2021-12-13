@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use crate::{
     database::Database,
     discovery::Client,
@@ -13,7 +11,6 @@ use crate::{
 
 use doomstack::{here, ResultExt, Top};
 
-use log::info;
 use talk::{crypto::KeyChain, net::Session, sync::voidable::Voidable};
 
 use zebra::vector::Vector;
