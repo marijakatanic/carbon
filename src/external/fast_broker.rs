@@ -53,7 +53,7 @@ impl FastBroker {
             }
             None => Parameters::default().broker,
         };
-        
+
         info!("Rate limit: {}", rate);
         info!("Signup batch number: {}", signup_batch_number);
         info!("Signup batch size: {}", signup_batch_size);

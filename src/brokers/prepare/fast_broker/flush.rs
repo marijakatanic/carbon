@@ -64,7 +64,7 @@ impl FastBroker {
         info!("Starting prepare...");
 
         let interval = (1000 * batch_size / local_rate) as u64;
-        let mut handles = Vec::new();
+        
         for (i, submission) in submissions.into_iter().enumerate() {
             let discovery = discovery.clone();
             let view = view.clone();
@@ -74,19 +74,20 @@ impl FastBroker {
 
             info!("Submitting prepare batch {}", i);
 
-            let commit = tokio::spawn(async move {
-                FastBroker::broker(discovery, view, ping_board, connector, submission, settings)
-                    .await
-            });
+            {
+                let inlet = inlet.clone();
 
-            handles.push(commit);
+                tokio::spawn(async move {
+                    let commit = FastBroker::broker(
+                        discovery, view, ping_board, connector, submission, settings,
+                    )
+                    .await;
+
+                    inlet.send(commit).unwrap();
+                });
+            }
 
             time::sleep(Duration::from_millis(interval)).await;
-        }
-
-        for handle in handles {
-            let commit = handle.await.unwrap();
-            inlet.send(commit).unwrap();
         }
 
         info!("Exiting flush");
