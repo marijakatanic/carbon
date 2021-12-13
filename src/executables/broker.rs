@@ -18,6 +18,9 @@ async fn main() {
                 .args_from_usage(
                     "--rendezvous=<STRING> 'The ip address of the server to rendezvous at'",
                 )
+                .args_from_usage(
+                    "--rate=<INT> 'The maximum throughput rate at which to send transactions'",
+                )
                 .args_from_usage("--full=<BOOL> 'Whether this broker is a full broker or not'")
                 .args_from_usage("--parameters=[FILE] 'The file containing the broker parameters'"),
         )
@@ -41,12 +44,13 @@ async fn main() {
     match matches.subcommand() {
         ("run", Some(subm)) => {
             let rendezvous = subm.value_of("rendezvous").unwrap().to_string();
+            let rate = subm.value_of("rate").unwrap().parse::<usize>().unwrap();
             let full = subm.value_of("full").unwrap().to_string() == String::from("true");
             let parameters_file = subm.value_of("parameters");
 
             if full {
                 info!("Creating full broker!");
-                match FullBroker::new(rendezvous, parameters_file).await {
+                match FullBroker::new(rendezvous, parameters_file, rate).await {
                     Ok(_broker) => {
                         info!("Full broker done!");
                         std::future::pending::<()>().await;
@@ -55,7 +59,7 @@ async fn main() {
                 }
             } else {
                 info!("Creating fast broker!");
-                match FastBroker::new(rendezvous, parameters_file).await {
+                match FastBroker::new(rendezvous, parameters_file, rate).await {
                     Ok(_broker) => {
                         info!("Fast broker done!");
                         std::future::pending::<()>().await;

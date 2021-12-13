@@ -40,6 +40,7 @@ impl FullBroker {
     pub async fn new<A: 'static + TcpConnect + Clone>(
         rendezvous: A,
         parameters_file: Option<&str>,
+        _rate: usize,
     ) -> Result<Self, Top<FullBrokerError>> {
         // Load default parameters if none are specified.
         let BrokerParameters {

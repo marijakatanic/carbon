@@ -41,6 +41,7 @@ pub(crate) enum BrokerError {
 
 impl FastBroker {
     pub fn new<C>(
+        local_rate: usize,
         batch_size: usize,
         batch_number: usize,
         single_sign_percentage: usize,
@@ -87,6 +88,7 @@ impl FastBroker {
 
             fuse.spawn(async move {
                 FastBroker::flush(
+                    local_rate,
                     batch_size,
                     batch_number,
                     single_sign_percentage,

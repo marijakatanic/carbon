@@ -7,7 +7,7 @@ use crate::{
     view::View,
 };
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use log::{error, info};
 use rayon::{
@@ -23,12 +23,14 @@ use talk::{
     },
     net::SessionConnector,
 };
+use tokio::time;
 use zebra::vector::Vector;
 
 use super::CommitInlet;
 
 impl FastBroker {
     pub(in crate::brokers::prepare::fast_broker) async fn flush(
+        local_rate: usize,
         batch_size: usize,
         batch_number: usize,
         single_sign_percentage: usize,
@@ -47,6 +49,8 @@ impl FastBroker {
             );
             return;
         }
+
+        let interval = (1000 * batch_size / local_rate) as u64;
 
         let mut clients = clients[0..batch_size].to_vec();
         clients.par_sort_by_key(|(_, id_assignment)| id_assignment.id());
@@ -77,6 +81,8 @@ impl FastBroker {
             });
 
             handles.push(commit);
+
+            time::sleep(Duration::from_millis(interval)).await;
         }
 
         for handle in handles {
@@ -194,23 +200,6 @@ impl FastBroker {
             .0
             .multisign(&ReductionStatement::new(root))
             .unwrap();
-
-        // let multi_sigs: Vec<MultiSignature> = clients
-        //     .par_iter()
-        //     .enumerate()
-        //     .filter_map(|(i, (keychain, _))| {
-        //         if i >= num_individual {
-        //             Some(keychain)
-        //         } else {
-        //             None
-        //         }
-        //     })
-        //     .map(|keychain| multi_sig.clone())
-        //     .collect();
-
-        // info!("Number of multisignatures: {}", multi_sigs.len());
-
-        // let reduction_signature = MultiSignature::aggregate(multi_sigs).unwrap();
 
         // Prepare `Submission`
 

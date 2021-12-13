@@ -36,6 +36,7 @@ impl FastBroker {
     pub async fn new<A: 'static + TcpConnect + Clone>(
         rendezvous: A,
         parameters_file: Option<&str>,
+        rate: usize,
     ) -> Result<Self, Top<FastBrokerError>> {
         // Load default parameters if none are specified.
         let BrokerParameters {
@@ -111,7 +112,7 @@ impl FastBroker {
             .await
             .unwrap();
 
-        let _shard = loop {
+        let shard = loop {
             match client.get_shard(1).await {
                 Ok(shard) => break shard,
                 Err(e) => match e.top() {
@@ -120,12 +121,14 @@ impl FastBroker {
                         time::sleep(Duration::from_millis(500)).await
                     }
                     _ => {
-                        error!("Error obtaining first shard view");
+                        error!("Error obtaining second shard view");
                         return FastBrokerError::Fail.fail();
                     }
                 },
             }
         };
+
+        let local_rate = rate / shard.len();
 
         info!("Synced with other brokers. Making sure IdAssignments are published...");
 
@@ -141,6 +144,7 @@ impl FastBroker {
         let connector = Connector::new(rendezvous, keychain.clone(), Default::default());
 
         let mut fast_prepare_broker = FastPrepareBroker::new(
+            local_rate,
             prepare_batch_size,
             prepare_batch_number,
             prepare_single_sign_percentage,
