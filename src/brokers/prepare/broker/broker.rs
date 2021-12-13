@@ -6,14 +6,30 @@ use crate::{
     },
     data::{PingBoard, Sponge, SpongeSettings},
     discovery::Client,
+    processing::messages::PrepareRequest,
     view::View,
 };
 
+use doomstack::{here, Doom, ResultExt, Top};
+
+use futures::stream::{FuturesUnordered, StreamExt};
+
 use std::{iter, sync::Arc};
 
-use talk::{crypto::primitives::multi::Signature as MultiSignature, net::SessionConnector};
+use talk::{
+    crypto::{primitives::multi::Signature as MultiSignature, Identity},
+    net::SessionConnector,
+};
 
 use zebra::vector::Vector;
+
+#[derive(Doom)]
+enum PublishError {
+    #[doom(description("Connection failed"))]
+    ConnectionFailed,
+    #[doom(description("Connection error"))]
+    ConnectionError,
+}
 
 impl Broker {
     pub(in crate::brokers::prepare::broker) async fn broker(
@@ -102,10 +118,16 @@ impl Broker {
 
         // Orchestrate submission of `submission`
 
-        let commit =
-            Broker::orchestrate(discovery, view, ping_board, connector, submission, settings)
-                .await
-                .map_err(|_| BrokerFailure::Error);
+        let commit = Broker::orchestrate(
+            discovery,
+            view.clone(),
+            ping_board,
+            connector.clone(),
+            submission,
+            settings,
+        )
+        .await
+        .map_err(|_| BrokerFailure::Error);
 
         // Send a copy of `commit` to each `serve` task (note that `commit` is
         // a `Result<BatchCommit, Failure>`)
@@ -113,5 +135,39 @@ impl Broker {
         for commit_inlet in commit_inlets {
             let _ = commit_inlet.send(commit.clone());
         }
+
+        // If `commit` is `Ok`, publish `BatchCommit` to all replicas
+
+        if let Ok(commit) = commit {
+            let request = PrepareRequest::Commit(commit);
+
+            view.members()
+                .keys()
+                .copied()
+                .map(|replica| Broker::publish(connector.as_ref(), &request, replica))
+                .collect::<FuturesUnordered<_>>()
+                .collect::<Vec<_>>()
+                .await;
+        }
+    }
+
+    async fn publish(
+        connector: &SessionConnector,
+        request: &PrepareRequest,
+        replica: Identity,
+    ) -> Result<(), Top<PublishError>> {
+        let mut session = connector
+            .connect(replica)
+            .await
+            .pot(PublishError::ConnectionFailed, here!())?;
+
+        session
+            .send(request)
+            .await
+            .pot(PublishError::ConnectionError, here!())?;
+
+        session.end();
+
+        Ok(())
     }
 }
