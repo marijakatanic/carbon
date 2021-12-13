@@ -1,7 +1,7 @@
 use crate::{
     brokers::commit::{submission::Submission, Broker},
-    commit::{BatchCompletion, BatchCompletionShard},
-    crypto::Certificate,
+    commit::{BatchCompletion, BatchCompletionAggregator, BatchCompletionShard, WitnessStatement},
+    crypto::{Aggregator, Certificate},
     data::PingBoard,
     discovery::Client,
     view::View,
@@ -12,7 +12,10 @@ use doomstack::{Doom, Top};
 use std::{collections::HashMap, sync::Arc};
 
 use talk::{
-    crypto::{primitives::multi::Signature as MultiSignature, Identity, KeyCard},
+    crypto::{
+        primitives::{hash::Hash, multi::Signature as MultiSignature},
+        Identity, KeyCard,
+    },
     net::SessionConnector,
     sync::fuse::Fuse,
 };
@@ -34,6 +37,20 @@ enum Update {
     WitnessShard(MultiSignature),
     CompletionShard(BatchCompletionShard),
     Error,
+}
+
+struct WitnessCollector {
+    view: View,
+    root: Hash,
+    aggregator: Aggregator<WitnessStatement>,
+    errors: usize,
+}
+
+struct CompletionCollector {
+    view: View,
+    root: Hash,
+    aggregator: BatchCompletionAggregator,
+    errors: usize,
 }
 
 #[derive(Doom)]

@@ -10,9 +10,7 @@ mod payload;
 mod witness_statement;
 mod witnessed_batch;
 
-#[allow(unused_imports)]
-pub(crate) use batch_completion::BatchCompletion;
-
+pub(crate) use batch_completion::{BatchCompletion, BatchCompletionAggregator};
 pub(crate) use batch_completion_shard::BatchCompletionShard;
 pub(crate) use batch_completion_statement::BatchCompletionStatement;
 
