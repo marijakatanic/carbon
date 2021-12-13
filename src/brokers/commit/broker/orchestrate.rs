@@ -56,10 +56,12 @@ impl Broker {
     pub(in crate::brokers::commit::broker) async fn orchestrate(
         discovery: Arc<Client>,
         view: View,
-        _ping_board: PingBoard,
+        ping_board: PingBoard,
         connector: Arc<SessionConnector>,
         submission: Submission,
     ) -> Result<BatchCompletion, Top<OrchestrateError>> {
+        // Submit a `submit` slave for each replica in `view`
+
         let submission = Arc::new(submission);
 
         let (update_inlet, _update_outlet) = mpsc::unbounded_channel();
@@ -89,6 +91,19 @@ impl Broker {
                 )
                 .await;
             });
+        }
+
+        // Obtain `PingBoard` rankings
+
+        let rankings = ping_board.rankings();
+
+        // Optimistically direct the fastest plurality of slaves to submit `submission`'s signatures
+
+        for replica in &rankings[0..view.plurality()] {
+            let _ = command_inlets
+                .get_mut(replica)
+                .unwrap()
+                .send(Command::SubmitWitnessRequest);
         }
 
         todo!()
