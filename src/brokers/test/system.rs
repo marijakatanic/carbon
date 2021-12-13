@@ -1,5 +1,8 @@
 use crate::{
-    brokers::{prepare::Broker as PrepareBroker, signup::Broker as SignupBroker},
+    brokers::{
+        commit::Broker as CommitBroker, prepare::Broker as PrepareBroker,
+        signup::Broker as SignupBroker,
+    },
     database::Database,
     discovery::{self, Client, Mode, Server},
     processing::Processor,
@@ -17,10 +20,16 @@ pub(crate) struct System {
     pub processors: Vec<(KeyChain, Processor)>,
     pub signup_brokers: Vec<SignupBroker>,
     pub prepare_brokers: Vec<PrepareBroker>,
+    pub commit_brokers: Vec<CommitBroker>,
 }
 
 impl System {
-    pub async fn setup(processors: usize, signup_brokers: usize, prepare_brokers: usize) -> Self {
+    pub async fn setup(
+        processors: usize,
+        signup_brokers: usize,
+        prepare_brokers: usize,
+        commit_brokers: usize,
+    ) -> Self {
         let (install_generator, discovery_server, _, mut discovery_clients, _) =
             discovery::test::setup(processors, processors, Mode::Full).await;
 
@@ -42,6 +51,12 @@ impl System {
 
         prepare_broker_keychains.sort_by_key(|keychain| keychain.keycard().identity());
 
+        let mut commit_broker_keychains = (0..commit_brokers)
+            .map(|_| KeyChain::random())
+            .collect::<Vec<_>>();
+
+        commit_broker_keychains.sort_by_key(|keychain| keychain.keycard().identity());
+
         let NetSystem {
             mut connectors,
             mut listeners,
@@ -51,7 +66,8 @@ impl System {
                 .iter()
                 .cloned()
                 .chain(signup_broker_keychains.iter().cloned())
-                .chain(prepare_broker_keychains.iter().cloned()),
+                .chain(prepare_broker_keychains.iter().cloned())
+                .chain(commit_broker_keychains.iter().cloned()),
         )
         .await;
 
@@ -104,6 +120,21 @@ impl System {
             );
         }
 
+        let mut commit_brokers = Vec::new();
+
+        for _ in commit_broker_keychains {
+            commit_brokers.push(
+                CommitBroker::new(
+                    discovery_client.clone(),
+                    view.clone(),
+                    (Ipv4Addr::LOCALHOST, 0),
+                    connectors.remove(0),
+                )
+                .await
+                .unwrap(),
+            );
+        }
+
         System {
             view,
             discovery_server,
@@ -111,6 +142,7 @@ impl System {
             processors,
             signup_brokers,
             prepare_brokers,
+            commit_brokers,
         }
     }
 }

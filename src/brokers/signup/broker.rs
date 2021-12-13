@@ -615,7 +615,7 @@ mod tests {
             processors,
             mut signup_brokers,
             ..
-        } = System::setup(4, 1, 0).await;
+        } = System::setup(4, 1, 0, 0).await;
 
         let discovery_client = Arc::new(discovery_client);
 

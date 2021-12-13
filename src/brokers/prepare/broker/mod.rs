@@ -155,7 +155,8 @@ mod tests {
             processors,
             mut signup_brokers,
             mut prepare_brokers,
-        } = System::setup(4, 1, 1).await;
+            ..
+        } = System::setup(4, 1, 1, 0).await;
 
         let client_keychain = KeyChain::random();
 
