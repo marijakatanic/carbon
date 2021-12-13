@@ -122,7 +122,7 @@ mod tests {
             signup::BrokerFailure as SignupBrokerFailure,
             test::System,
         },
-        commit::{Commit, CommitProof, CompletionProof, Payload},
+        commit::{Commit, CommitProof, Completion, CompletionProof, Payload},
         prepare::BatchCommit,
         signup::{IdAssignment, IdRequest, SignupSettings},
     };
@@ -145,9 +145,14 @@ mod tests {
 
         let client_keychain = KeyChain::random();
 
-        // Signup
+        // Brokers
 
         let signup_broker = signup_brokers.remove(0);
+        let prepare_broker = prepare_brokers.remove(0);
+        let commit_broker = commit_brokers.remove(0);
+
+        // Signup
+
         let allocator_identity = processors[0].0.keycard().identity();
 
         let request = IdRequest::new(
@@ -170,25 +175,23 @@ mod tests {
 
         println!("Signup completed.");
 
-        // Payload
+        // --------------------- Withdraw ---------------------
 
         let payload = Payload::new(
             Entry {
                 id: assignment.id(),
                 height: 1,
             },
-            Operation::withdraw(33, 0, 0),
+            Operation::withdraw(assignment.id(), 0, 0),
         );
 
         let prepare = payload.prepare();
 
         // Prepare
 
-        let prepare_broker = prepare_brokers.remove(0);
-
         let request = PrepareRequest::new(
             &client_keychain,
-            assignment,
+            assignment.clone(),
             prepare.height(),
             prepare.commitment(),
         );
@@ -218,13 +221,11 @@ mod tests {
 
         let commit_proof = CommitProof::new(batch_commit, inclusion.proof);
 
-        let commit = Commit::new(commit_proof, payload);
+        let commit = Commit::new(commit_proof, payload.clone());
 
-        println!("Prepare completed.");
+        println!("[Withdraw] Prepare completed.");
 
         // Commit
-
-        let commit_broker = commit_brokers.remove(0);
 
         let request = Request::new(commit, None);
 
@@ -236,10 +237,81 @@ mod tests {
         let completion_proof = connection
             .receive::<Result<CompletionProof, BrokerFailure>>()
             .await
+            .unwrap()
             .unwrap();
 
-        println!("Completion proof:");
-        println!("{:?}", completion_proof);
+        let withdrawal = Completion::new(completion_proof, payload);
+
+        println!("[Withdraw] Commit completed.");
+
+        // --------------------- Deposit ---------------------
+
+        let payload = Payload::new(
+            Entry {
+                id: assignment.id(),
+                height: 2,
+            },
+            Operation::deposit(withdrawal.entry(), None, true),
+        );
+
+        let prepare = payload.prepare();
+
+        // Prepare
+
+        let request = PrepareRequest::new(
+            &client_keychain,
+            assignment.clone(),
+            prepare.height(),
+            prepare.commitment(),
+        );
+
+        let stream = TcpStream::connect(prepare_broker.address()).await.unwrap();
+        let mut connection: PlainConnection = stream.into();
+
+        connection.send(&request).await.unwrap();
+
+        let inclusion = connection
+            .receive::<Result<PrepareInclusion, PrepareBrokerFailure>>()
+            .await
+            .unwrap()
+            .unwrap();
+
+        let reduction_shard = inclusion
+            .certify_reduction(&client_keychain, request.prepare())
+            .unwrap();
+
+        connection.send(&reduction_shard).await.unwrap();
+
+        let batch_commit = connection
+            .receive::<Result<BatchCommit, PrepareBrokerFailure>>()
+            .await
+            .unwrap()
+            .unwrap();
+
+        let commit_proof = CommitProof::new(batch_commit, inclusion.proof);
+
+        let commit = Commit::new(commit_proof, payload.clone());
+
+        println!("[Deposit] Prepare completed.");
+
+        // Commit
+
+        let request = Request::new(commit, Some(withdrawal.clone()));
+
+        let stream = TcpStream::connect(commit_broker.address()).await.unwrap();
+        let mut connection: PlainConnection = stream.into();
+
+        connection.send(&request).await.unwrap();
+
+        let completion_proof = connection
+            .receive::<Result<CompletionProof, BrokerFailure>>()
+            .await
+            .unwrap()
+            .unwrap();
+
+        println!("[Deposit] Completion proof:\n{:?}", completion_proof);
+
+        let deposit = Completion::new(completion_proof, payload);
 
         tokio::time::sleep(Duration::from_secs(10)).await;
     }
