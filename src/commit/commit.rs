@@ -31,4 +31,9 @@ impl Commit {
         let prepare = self.payload.prepare();
         self.proof.validate(&discovery, &prepare)
     }
+
+    // TODO: Settle indecision over visibility of members
+    pub fn explode(self) -> (CommitProof, Payload) {
+        (self.proof, self.payload)
+    }
 }
