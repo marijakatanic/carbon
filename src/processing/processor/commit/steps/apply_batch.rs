@@ -18,6 +18,8 @@ use std::collections::HashMap;
 
 use talk::{crypto::KeyChain, sync::voidable::Voidable};
 
+use zebra::database::TableTransaction;
+
 pub(in crate::processing::processor::commit) async fn apply_batch(
     keychain: &KeyChain,
     view: &View,
@@ -77,7 +79,7 @@ pub(in crate::processing::processor::commit) async fn apply_batch(
         |(_, (payload, _))| payload.id(),
     );
 
-    let exceptions = {
+    let flush = {
         let mut database = database
             .lock()
             .pot(ServeCommitError::DatabaseVoid, here!())?;
@@ -96,7 +98,7 @@ pub(in crate::processing::processor::commit) async fn apply_batch(
 
         let (accounts, payloads) = fields(&mut database);
 
-        let exceptions = buckets::apply_sparse_attached(
+        let flush = buckets::apply_attached(
             (accounts, payloads),
             &root,
             applications,
@@ -105,7 +107,9 @@ pub(in crate::processing::processor::commit) async fn apply_batch(
 
                 // All missing accounts where created when checking applicability,
                 // so the following `unwrap` is guaranteed to succeed
-                let exception = if accounts.get_mut(&payload.id()).unwrap().apply(
+                let account = accounts.get_mut(&payload.id()).unwrap();
+
+                let exception = if account.apply(
                     &payload,
                     dependency.as_ref(),
                     &Default::default(), // TODO: Add settings
@@ -114,6 +118,9 @@ pub(in crate::processing::processor::commit) async fn apply_batch(
                 } else {
                     Some(payload.id())
                 };
+
+                let id = payload.id();
+                let summary = account.summarize();
 
                 // Store (a reference to) `payload` in `payloads`
 
@@ -125,7 +132,7 @@ pub(in crate::processing::processor::commit) async fn apply_batch(
                     },
                 );
 
-                exception
+                ((id, summary), exception)
             },
         );
 
@@ -136,8 +143,27 @@ pub(in crate::processing::processor::commit) async fn apply_batch(
             .batches
             .insert(root, BatchHolder::new(batch));
 
-        exceptions
-    };
+        flush
+    }
+    .join();
+
+    let mut transaction = TableTransaction::new();
+
+    let exceptions = flush
+        .into_iter()
+        .filter_map(|((id, summary), exception)| {
+            transaction.set(id, summary).unwrap();
+            exception
+        })
+        .collect::<Vec<_>>();
+
+    {
+        let mut database = database
+            .lock()
+            .pot(ServeCommitError::DatabaseVoid, here!())?;
+
+        database.imminent.execute(transaction);
+    }
 
     // Sign and return a `BatchCompletionShard` with the appropriate `exceptions`
 
