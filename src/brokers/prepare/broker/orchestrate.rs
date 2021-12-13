@@ -366,9 +366,6 @@ impl Broker {
                 _ => SubmitError::UnexpectedResponse.fail().spot(here!()),
             }?;
 
-            // Validate and return `shard`
-            let start = Instant::now();
-
             shard
                 .validate(
                     discovery.as_ref(),
@@ -378,8 +375,6 @@ impl Broker {
                     &replica,
                 )
                 .pot(SubmitError::InvalidCommitShard, here!())?;
-
-            info!("Shard validation took {} ms", start.elapsed().as_millis());
 
             Ok(shard)
         }
