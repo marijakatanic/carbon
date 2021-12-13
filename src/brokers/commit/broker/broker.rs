@@ -1,5 +1,5 @@
 use crate::{
-    brokers::commit::{Broker, Brokerage, Submission, UnzippedBrokerages},
+    brokers::commit::{Broker, BrokerFailure, Brokerage, Submission, UnzippedBrokerages},
     data::PingBoard,
     discovery::Client,
     view::View,
@@ -12,10 +12,10 @@ use std::sync::Arc;
 
 impl Broker {
     pub(in crate::brokers::commit::broker) async fn broker(
-        _discovery: Arc<Client>,
-        _view: View,
-        _ping_board: PingBoard,
-        _connector: Arc<SessionConnector>,
+        discovery: Arc<Client>,
+        view: View,
+        ping_board: PingBoard,
+        connector: Arc<SessionConnector>,
         brokerages: Vec<Brokerage>,
     ) {
         // Unzip `brokerages` into its components
@@ -28,11 +28,10 @@ impl Broker {
         } = Brokerage::unzip(brokerages);
 
         let payloads = Vector::new(payloads).unwrap();
+        let submission = Submission::new(payloads.clone(), commit_proofs, dependencies);
 
-        let _submission = Arc::new(Submission::new(
-            payloads.clone(),
-            commit_proofs,
-            dependencies,
-        ));
+        let _completion = Broker::orchestrate(discovery, view, ping_board, connector, submission)
+            .await
+            .map_err(|_| BrokerFailure::Error);
     }
 }

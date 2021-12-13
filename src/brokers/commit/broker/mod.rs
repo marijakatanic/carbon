@@ -101,4 +101,5 @@ impl Broker {
 mod broker;
 mod flush;
 mod frontend;
+mod orchestrate;
 mod ping;
