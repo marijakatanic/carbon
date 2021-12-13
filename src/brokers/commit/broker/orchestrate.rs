@@ -7,7 +7,7 @@ use crate::{
     view::View,
 };
 
-use doomstack::{Doom, Top};
+use doomstack::{here, Doom, ResultExt, Top};
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -67,6 +67,12 @@ enum SubmitError {
     ConnectionFailed,
     #[doom(description("Connection error"))]
     ConnectionError,
+}
+
+#[derive(Doom)]
+enum CollectorError {
+    #[doom(description("Reached plurality of errors"))]
+    ErrorPlurality,
 }
 
 impl Broker {
@@ -136,5 +142,108 @@ impl Broker {
         _update_inlet: UpdateInlet,
     ) {
         todo!()
+    }
+}
+
+impl WitnessCollector {
+    pub fn new(view: View, root: Hash) -> Self {
+        let statement = WitnessStatement::new(root);
+        let aggregator = Aggregator::new(view.clone(), statement);
+
+        WitnessCollector {
+            view,
+            root,
+            aggregator,
+            errors: 0,
+        }
+    }
+
+    fn succeeded(&self) -> bool {
+        self.aggregator.multiplicity() >= self.view.plurality()
+    }
+
+    fn failed(&self) -> bool {
+        self.errors >= self.view.plurality()
+    }
+
+    async fn progress(&mut self, update_outlet: &mut UpdateOutlet) {
+        while !self.succeeded() && !self.failed() {
+            // A copy of `update_inlet` is held by `orchestrate`.
+            // As a result, `update_outlet.recv()` cannot return `None`.
+            match update_outlet.recv().await.unwrap() {
+                (replica, Update::WitnessShard(shard)) => {
+                    let keycard = self.view.members().get(&replica).unwrap();
+                    self.aggregator.add(keycard, shard).unwrap();
+                }
+                (_, Update::Error) => {
+                    self.errors += 1;
+                }
+                _ => {
+                    panic!("`WitnessCollector::progress` received an unexpected `Update`");
+                }
+            }
+        }
+    }
+
+    pub fn complete(&self) -> Result<bool, Top<CollectorError>> {
+        if self.failed() {
+            CollectorError::ErrorPlurality.fail().spot(here!())
+        } else {
+            Ok(self.succeeded())
+        }
+    }
+
+    pub fn finalize(self) -> (CompletionCollector, Certificate) {
+        let completion_collector = CompletionCollector::new(self.view, self.root, self.errors);
+        let (_, witness) = self.aggregator.finalize();
+
+        (completion_collector, witness)
+    }
+}
+
+impl CompletionCollector {
+    fn new(view: View, root: Hash, errors: usize) -> Self {
+        let aggregator = BatchCompletionAggregator::new(view.clone(), root);
+
+        CompletionCollector {
+            view,
+            root,
+            aggregator,
+            errors,
+        }
+    }
+
+    fn succeeded(&self) -> bool {
+        self.aggregator.complete()
+    }
+
+    fn failed(&self) -> bool {
+        self.errors >= self.view.plurality()
+    }
+
+    async fn run(
+        mut self,
+        update_outlet: &mut UpdateOutlet,
+    ) -> Result<BatchCompletion, Top<CollectorError>> {
+        while !self.succeeded() && !self.failed() {
+            // A copy of `update_inlet` is held by `orchestrate`.
+            // As a result, `update_outlet.recv()` cannot return `None`.
+            match update_outlet.recv().await.unwrap() {
+                (replica, Update::CompletionShard(shard)) => {
+                    let keycard = self.view.members().get(&replica).unwrap().clone();
+                    self.aggregator.add(&keycard, shard);
+                }
+                (_, Update::Error) => {
+                    self.errors += 1;
+                }
+                (_, Update::WitnessShard(_)) => {}
+            }
+        }
+
+        if self.succeeded() {
+            Ok(self.aggregator.finalize())
+        } else {
+            CollectorError::ErrorPlurality.fail().spot(here!())
+        }
     }
 }
