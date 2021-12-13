@@ -95,6 +95,10 @@ impl Broker {
             _fuse: fuse,
         })
     }
+
+    pub fn address(&self) -> SocketAddr {
+        self.address
+    }
 }
 
 mod broker;
@@ -102,3 +106,141 @@ mod flush;
 mod frontend;
 mod orchestrate;
 mod ping;
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use crate::{
+        account::{Entry, Operation},
+        brokers::{
+            commit::{BrokerFailure, Request},
+            prepare::{
+                BrokerFailure as PrepareBrokerFailure, Inclusion as PrepareInclusion,
+                Request as PrepareRequest,
+            },
+            signup::BrokerFailure as SignupBrokerFailure,
+            test::System,
+        },
+        commit::{Commit, CommitProof, CompletionProof, Payload},
+        prepare::BatchCommit,
+        signup::{IdAssignment, IdRequest, SignupSettings},
+    };
+
+    use talk::{crypto::KeyChain, net::PlainConnection};
+
+    use tokio::net::TcpStream;
+
+    #[tokio::test]
+    async fn develop() {
+        let System {
+            view,
+            discovery_server: _discovery_server,
+            discovery_client: _discovery_client,
+            processors,
+            mut signup_brokers,
+            mut prepare_brokers,
+            mut commit_brokers,
+        } = System::setup(4, 1, 1, 1).await;
+
+        let client_keychain = KeyChain::random();
+
+        // Signup
+
+        let signup_broker = signup_brokers.remove(0);
+        let allocator_identity = processors[0].0.keycard().identity();
+
+        let request = IdRequest::new(
+            &client_keychain,
+            &view,
+            allocator_identity,
+            SignupSettings::default().work_difficulty,
+        );
+
+        let stream = TcpStream::connect(signup_broker.address()).await.unwrap();
+        let mut connection: PlainConnection = stream.into();
+
+        connection.send(&request).await.unwrap();
+
+        let assignment = connection
+            .receive::<Result<IdAssignment, SignupBrokerFailure>>()
+            .await
+            .unwrap()
+            .unwrap();
+
+        println!("Signup completed.");
+
+        // Payload
+
+        let payload = Payload::new(
+            Entry {
+                id: assignment.id(),
+                height: 1,
+            },
+            Operation::withdraw(33, 0, 0),
+        );
+
+        let prepare = payload.prepare();
+
+        // Prepare
+
+        let prepare_broker = prepare_brokers.remove(0);
+
+        let request = PrepareRequest::new(
+            &client_keychain,
+            assignment,
+            prepare.height(),
+            prepare.commitment(),
+        );
+
+        let stream = TcpStream::connect(prepare_broker.address()).await.unwrap();
+        let mut connection: PlainConnection = stream.into();
+
+        connection.send(&request).await.unwrap();
+
+        let inclusion = connection
+            .receive::<Result<PrepareInclusion, PrepareBrokerFailure>>()
+            .await
+            .unwrap()
+            .unwrap();
+
+        let reduction_shard = inclusion
+            .certify_reduction(&client_keychain, request.prepare())
+            .unwrap();
+
+        connection.send(&reduction_shard).await.unwrap();
+
+        let batch_commit = connection
+            .receive::<Result<BatchCommit, PrepareBrokerFailure>>()
+            .await
+            .unwrap()
+            .unwrap();
+
+        let commit_proof = CommitProof::new(batch_commit, inclusion.proof);
+
+        let commit = Commit::new(commit_proof, payload);
+
+        println!("Prepare completed.");
+
+        // Commit
+
+        let commit_broker = commit_brokers.remove(0);
+
+        let request = Request::new(commit, None);
+
+        let stream = TcpStream::connect(commit_broker.address()).await.unwrap();
+        let mut connection: PlainConnection = stream.into();
+
+        connection.send(&request).await.unwrap();
+
+        let completion_proof = connection
+            .receive::<Result<CompletionProof, BrokerFailure>>()
+            .await
+            .unwrap();
+
+        println!("Completion proof:");
+        println!("{:?}", completion_proof);
+
+        tokio::time::sleep(Duration::from_secs(10)).await;
+    }
+}

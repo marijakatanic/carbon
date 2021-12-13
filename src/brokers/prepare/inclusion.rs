@@ -13,8 +13,8 @@ use zebra::vector::{Proof, Vector};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Inclusion {
-    root: Hash,
-    proof: Proof,
+    pub root: Hash,
+    pub proof: Proof,
 }
 
 #[derive(Doom)]
