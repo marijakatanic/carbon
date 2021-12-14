@@ -168,19 +168,23 @@ impl Broker {
         let fuse = Fuse::new();
 
         loop {
-            if let Ok((stream, _)) = listener.accept().await {
-                let connection: PlainConnection = stream.into();
+            match listener.accept().await {
+                Ok((stream, _)) => {
+                    let connection: PlainConnection = stream.into();
 
-                let view = view.clone();
-                let sponges = sponges.clone();
-                let signup_settings = signup_settings.clone();
+                    let view = view.clone();
+                    let sponges = sponges.clone();
+                    let signup_settings = signup_settings.clone();
 
-                fuse.spawn(async move {
-                    if let Err(e) = Broker::serve(connection, view, sponges, signup_settings).await
-                    {
-                        error!("Error listening to connection: {:?}", e);
-                    }
-                });
+                    fuse.spawn(async move {
+                        if let Err(e) =
+                            Broker::serve(connection, view, sponges, signup_settings).await
+                        {
+                            error!("Error listening to connection: {:?}", e);
+                        }
+                    });
+                }
+                Err(e) => error!("Error listening to connection: {:?}", e),
             }
         }
     }
