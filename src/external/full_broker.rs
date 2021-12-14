@@ -104,22 +104,27 @@ impl FullBroker {
             signup_keychain.clone(),
             Default::default(),
         );
-        let address = (Ipv4Addr::UNSPECIFIED, 0);
 
+        let addresses = (0..100).map(|_| (Ipv4Addr::UNSPECIFIED, 0));
         let _signup_broker =
-            SignupBroker::new(genesis.clone(), address, connector, Default::default())
+            SignupBroker::new(genesis.clone(), addresses, connector, Default::default())
                 .await
                 .unwrap();
 
-        let port = _signup_broker.address().port();
-        client
-            .advertise_port(signup_keychain.keycard().identity(), port)
-            .await;
-        // So the client can connect
-        client
-            .publish_card(signup_keychain.keycard().clone(), Some(2))
-            .await
-            .unwrap();
+        let addresses = _signup_broker.addresses();
+        let ports = addresses.iter().map(|address| address.port());
+        for port in ports {
+            let signup_keychain = KeyChain::random();
+
+            client
+                .advertise_port(signup_keychain.keycard().identity(), port)
+                .await;
+            // So the client can connect
+            client
+                .publish_card(signup_keychain.keycard().clone(), Some(2))
+                .await
+                .unwrap();
+        }
 
         info!("Initializing prepare broker...");
 

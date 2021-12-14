@@ -31,7 +31,7 @@ type OutcomeInlet = Sender<Result<IdAssignment, BrokerFailure>>;
 type OutcomeOutlet = Receiver<Result<IdAssignment, BrokerFailure>>;
 
 pub(crate) struct Broker {
-    address: SocketAddr,
+    addresses: Vec<SocketAddr>,
     _fuse: Fuse,
 }
 
@@ -92,28 +92,17 @@ enum SubmitError {
 }
 
 impl Broker {
-    pub async fn new<A, C>(
+    pub async fn new<A, I, C>(
         view: View,
-        address: A,
+        addresses: I,
         connector: C,
         settings: BrokerSettings,
     ) -> Result<Self, Top<BrokerError>>
     where
+        I: IntoIterator<Item = A>,
         A: ToSocketAddrs,
         C: Connector,
     {
-        let listener = TcpListener::bind(address)
-            .await
-            .map_err(BrokerError::initialize_failed)
-            .map_err(Doom::into_top)
-            .spot(here!())?;
-
-        let address = listener
-            .local_addr()
-            .map_err(BrokerError::initialize_failed)
-            .map_err(Doom::into_top)
-            .spot(here!())?;
-
         let dispatcher = ConnectDispatcher::new(connector);
         let context = format!("{:?}::processor::signup", view.identifier());
         let connector = Arc::new(SessionConnector::new(dispatcher.register(context)));
@@ -128,7 +117,20 @@ impl Broker {
         let signup_settings = settings.signup_settings;
         let fuse = Fuse::new();
 
-        {
+        let mut new_addresses = Vec::new();
+        for address in addresses {
+            let listener = TcpListener::bind(address)
+                .await
+                .map_err(BrokerError::initialize_failed)
+                .map_err(Doom::into_top)
+                .spot(here!())?;
+
+            let address = listener
+                .local_addr()
+                .map_err(BrokerError::initialize_failed)
+                .map_err(Doom::into_top)
+                .spot(here!())?;
+
             let view = view.clone();
             let sponges = sponges.clone();
             let signup_settings = signup_settings.clone();
@@ -136,6 +138,8 @@ impl Broker {
             fuse.spawn(async move {
                 Broker::listen(view, sponges, listener, signup_settings).await;
             });
+
+            new_addresses.push(address);
         }
 
         for allocator in view.members().keys().cloned() {
@@ -150,13 +154,17 @@ impl Broker {
         }
 
         Ok(Broker {
-            address,
+            addresses: new_addresses,
             _fuse: fuse,
         })
     }
 
     pub fn address(&self) -> SocketAddr {
-        self.address
+        self.addresses[0]
+    }
+
+    pub fn addresses(&self) -> Vec<SocketAddr> {
+        self.addresses.clone()
     }
 
     async fn listen(

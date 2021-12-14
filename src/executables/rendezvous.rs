@@ -62,7 +62,7 @@ async fn main() {
                     shard_sizes: vec![
                         shard_size,
                         fast_brokers + full_brokers,
-                        full_brokers,
+                        full_brokers * 100,
                         full_brokers,
                     ],
                 },

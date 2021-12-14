@@ -76,8 +76,10 @@ impl Client {
                 .collect::<Vec<_>>()
         );
 
-        let broker = shard[0].clone();
-        let address = client.get_address(broker.identity()).await.unwrap();
+        let mut addresses = Vec::new();
+        for broker in shard.iter() {
+            addresses.push(client.get_address(broker.identity()).await.unwrap());
+        }
 
         let mut shard = get_shard(&client, 0).await?;
         shard.sort_by_key(|keycard| keycard.identity());
@@ -104,32 +106,28 @@ impl Client {
             .unzip();
 
         info!("Getting assignments...");
-        let mut assignments = Vec::new();
-        for chunk in batch_requests.chunks(5000) {
-            let chunk_assignments: Vec<IdAssignment> = chunk
-                .into_iter()
-                .map(|id_request| {
-                    let address = address.clone();
 
-                    async move {
-                        let stream = TcpStream::connect(address).await.unwrap();
-                        let mut connection: PlainConnection = stream.into();
+        let assignments: Vec<IdAssignment> = batch_requests
+            .into_iter().enumerate()
+            .map(|(num, id_request)| {
+                let address = addresses[num/100].clone();
 
-                        connection.send(&id_request).await.unwrap();
+                async move {
+                    let stream = TcpStream::connect(address).await.unwrap();
+                    let mut connection: PlainConnection = stream.into();
 
-                        connection
-                            .receive::<Result<IdAssignment, SignupBrokerFailure>>()
-                            .await
-                            .unwrap()
-                            .unwrap()
-                    }
-                })
-                .collect::<FuturesUnordered<_>>()
-                .collect::<Vec<_>>()
-                .await;
+                    connection.send(&id_request).await.unwrap();
 
-            assignments.extend(chunk_assignments)
-        }
+                    connection
+                        .receive::<Result<IdAssignment, SignupBrokerFailure>>()
+                        .await
+                        .unwrap()
+                        .unwrap()
+                }
+            })
+            .collect::<FuturesUnordered<_>>()
+            .collect::<Vec<_>>()
+            .await;
 
         info!("All alocations obtained.");
 
