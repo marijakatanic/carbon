@@ -41,7 +41,8 @@ impl Broker {
                     let brokerage_sponge = brokerage_sponge.clone();
 
                     fuse.spawn(async move {
-                        if let Err(e) = Broker::serve(discovery, brokerage_sponge, connection).await {
+                        if let Err(e) = Broker::serve(discovery, brokerage_sponge, connection).await
+                        {
                             error!("Error {:?}", e);
                         }
                     });

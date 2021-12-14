@@ -135,7 +135,7 @@ impl Client {
 
         info!("All IdAssignments obtained.");
 
-        let prepare_request_batches = (0..10)
+        let prepare_request_batches = (0..2)
             .map(|height| prepare(height as u64, &batch_key_chains, &assignments))
             .collect::<Vec<_>>();
 
@@ -168,12 +168,10 @@ impl Client {
         let _ = get_shard(&client, 1).await?;
 
         info!("Awaiting to be in the middle of the throughput...");
-        time::sleep(Duration::from_secs(20)).await;
+        time::sleep(Duration::from_secs(20 + 10)).await;
 
         info!("Starting latency test...");
         for (height, batch) in prepare_request_batches.into_iter().enumerate() {
-            time::sleep(Duration::from_secs(5)).await;
-
             let _completions: Vec<Completion> = batch_key_chains
                 .iter()
                 .zip(batch.into_iter())
@@ -266,6 +264,8 @@ impl Client {
                 .collect::<FuturesUnordered<_>>()
                 .collect::<Vec<_>>()
                 .await;
+
+            time::sleep(Duration::from_secs(30)).await;
         }
 
         Ok(Client {})
