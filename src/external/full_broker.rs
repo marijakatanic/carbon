@@ -113,7 +113,7 @@ impl FullBroker {
 
         let sponge_settings = SpongeSettings {
             capacity: signup_batch_size,
-            timeout: Duration::from_secs(10),
+            timeout: Duration::from_secs(5),
         };
 
         let signup_broker_settings = SignupBrokerSettings {

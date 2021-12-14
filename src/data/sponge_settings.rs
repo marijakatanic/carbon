@@ -9,7 +9,7 @@ pub(crate) struct SpongeSettings {
 impl Default for SpongeSettings {
     fn default() -> Self {
         SpongeSettings {
-            capacity: 100,
+            capacity: 50000,
             timeout: Duration::from_secs(1),
         }
     }
