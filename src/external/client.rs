@@ -111,7 +111,7 @@ impl Client {
             .into_iter()
             .enumerate()
             .map(|(num, id_request)| {
-                let address = addresses[100 * num / (prepare_batch_size / num_clients) ].clone();
+                let address = addresses[100 * num / (prepare_batch_size / num_clients)].clone();
 
                 async move {
                     let stream = TcpStream::connect(address.clone()).await.unwrap();
@@ -140,8 +140,11 @@ impl Client {
 
         info!("Sending operations...");
         let prepare_shard = get_shard(&client, 3).await?;
-        let broker = prepare_shard[0].clone();
-        let address = client.get_address(broker.identity()).await.unwrap();
+
+        let mut addresses = Vec::new();
+        for broker in prepare_shard.iter() {
+            addresses.push(client.get_address(broker.identity()).await.unwrap());
+        }
 
         let reduction_shard = batch_key_chains[0]
             .multisign(&ReductionStatement::new(hash::hash(&0).unwrap()))
@@ -153,11 +156,11 @@ impl Client {
                 .iter()
                 .zip(batch.into_iter())
                 .enumerate()
-                .map(|(i, (keychain, prepare_request))| {
-                    let address = address.clone();
+                .map(|(num, (keychain, prepare_request))| {
+                    let address = addresses[100 * num / (prepare_batch_size / num_clients)].clone();
 
                     async move {
-                        if i == 0 {
+                        if num == 0 {
                             info!("Client sending prepare for height {}", height);
                         }
 
@@ -175,7 +178,7 @@ impl Client {
                         // When benchmarking, we only simulate the processing time of a single client
                         // In real life, each client is separate and only processes their own transaction
                         // so other clients' processing time should not be included in latency
-                        if i == 0 {
+                        if num == 0 {
                             let _ = inclusion
                                 .certify_reduction(&keychain, prepare_request.prepare())
                                 .unwrap();
@@ -189,7 +192,7 @@ impl Client {
                             .unwrap()
                             .unwrap();
 
-                        if i == 0 {
+                        if num == 0 {
                             info!("Client finished prepare for height {}", height);
                         }
 

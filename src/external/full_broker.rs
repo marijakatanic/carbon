@@ -108,6 +108,7 @@ impl FullBroker {
         );
 
         let addresses = (0..100).map(|_| (Ipv4Addr::UNSPECIFIED, 0));
+
         let sponge_settings = SpongeSettings {
             capacity: signup_batch_size,
             timeout: Duration::from_secs(10),
@@ -149,7 +150,10 @@ impl FullBroker {
             rendezvous.clone(),
             Default::default(),
         ));
+
         let connector = Connector::new(rendezvous, prepare_keychain.clone(), Default::default());
+
+        let addresses = (0..100).map(|_| (Ipv4Addr::UNSPECIFIED, 0));
 
         let sponge_settings = SpongeSettings {
             capacity: prepare_batch_size,
@@ -164,26 +168,30 @@ impl FullBroker {
             ping_interval: Duration::from_secs(60),
         };
 
-        let address = (Ipv4Addr::UNSPECIFIED, 0);
-
         let mut _prepare_broker = PrepareBroker::new(
             discovery,
             genesis.clone(),
-            address,
+            addresses,
             connector,
             broker_settings,
         )
         .await
         .unwrap();
 
-        let port = _prepare_broker.address().port();
-        client
-            .advertise_port(prepare_keychain.keycard().identity(), port)
-            .await;
-        client
-            .publish_card(prepare_keychain.keycard().clone(), Some(3))
-            .await
-            .unwrap();
+        let addresses = _prepare_broker.addresses();
+        let ports = addresses.iter().map(|address| address.port());
+        for port in ports {
+            let signup_keychain = KeyChain::random();
+
+            client
+                .advertise_port(signup_keychain.keycard().identity(), port)
+                .await;
+
+            client
+                .publish_card(signup_keychain.keycard().clone(), Some(3))
+                .await
+                .unwrap();
+        }
 
         info!("Syncing with other brokers...");
 

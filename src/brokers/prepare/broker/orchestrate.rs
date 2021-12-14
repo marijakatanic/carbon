@@ -10,9 +10,9 @@ use crate::{
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
-use log::{error, info};
+use log::error;
 
-use std::{collections::HashMap, sync::Arc, time::Instant};
+use std::{collections::HashMap, sync::Arc};
 
 use talk::{
     crypto::{
