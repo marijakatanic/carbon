@@ -64,9 +64,10 @@ impl FullBroker {
         info!("Prepare batch size: {}", prepare_batch_size);
         info!("Brokerage timeout: {}", brokerage_timeout);
         info!("Reduction timeout: {}", reduction_timeout);
+        let reduction_threshold = 100 - prepare_single_sign_percentage;
         info!(
             "Reduction percentage: {}",
-            100 - prepare_single_sign_percentage
+            reduction_threshold
         );
 
         let signup_keychain = KeyChain::random();
@@ -139,7 +140,7 @@ impl FullBroker {
 
         let broker_settings = PrepareBrokerSettings {
             brokerage_sponge_settings: sponge_settings,
-            reduction_threshold: prepare_single_sign_percentage as f64 / 100 as f64,
+            reduction_threshold: reduction_threshold as f64 / 100 as f64,
             reduction_timeout: Duration::from_millis(reduction_timeout as u64),
             optimistic_witness_timeout: Duration::from_secs(1),
             ping_interval: Duration::from_secs(60),
