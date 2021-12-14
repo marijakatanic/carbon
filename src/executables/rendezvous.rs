@@ -17,7 +17,7 @@ async fn main() {
                 .args_from_usage("--size=[INT] 'The number of members in the system")
                 .args_from_usage("--fast_brokers=[INT] 'The number of fast brokers in the system")
                 .args_from_usage("--full_brokers=[INT] 'The number of full brokers in the system")
-                .args_from_usage("--full_clients=[INT] 'The number of clients in the system"),
+                .args_from_usage("--num_clients=[INT] 'The number of clients in the system"),
         )
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .get_matches();
@@ -53,7 +53,7 @@ async fn main() {
                 .parse::<usize>()
                 .unwrap();
             let clients = subm
-                .value_of("full_clients")
+                .value_of("num_clients")
                 .unwrap()
                 .parse::<usize>()
                 .unwrap();
