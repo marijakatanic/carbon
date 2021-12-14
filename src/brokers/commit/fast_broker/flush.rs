@@ -31,19 +31,21 @@ impl FastBroker {
             // Remark: `brokerage_sponge.flush()` always returns a non-empty
             // `Vec<Brokerage>`. Because `FastBroker::prepare` only filters `Id`
             // duplicates, it never produces an empty output on a non-empty input.
-            let requests = request_outlet.recv().await.unwrap();
+            if let Some(requests) = request_outlet.recv().await {
+                let view = view.clone();
+                let ping_board = ping_board.clone();
+                let connector = connector.clone();
 
-            let view = view.clone();
-            let ping_board = ping_board.clone();
-            let connector = connector.clone();
+                let inlet = inlet.clone();
 
-            let inlet = inlet.clone();
+                fuse.spawn(async move {
+                    let result = FastBroker::broker(view, ping_board, connector, requests).await;
 
-            fuse.spawn(async move {
-                let result = FastBroker::broker(view, ping_board, connector, requests).await;
-
-                inlet.send(result).unwrap();
-            });
+                    inlet.send(result).unwrap();
+                });
+            } else {
+                std::future::pending::<()>().await;
+            }
         }
     }
 }

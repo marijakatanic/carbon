@@ -167,7 +167,7 @@ impl FastBroker {
 
         for i in 0..prepare_batch_number {
             let _commit = fast_commit_broker.completion_outlet.recv().await.unwrap();
-            
+
             info!("Completed prepare batch {}", i);
         }
 
