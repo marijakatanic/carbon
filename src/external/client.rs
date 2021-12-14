@@ -113,9 +113,10 @@ impl Client {
                 let address = addresses[num/100].clone();
 
                 async move {
-                    let stream = TcpStream::connect(address).await.unwrap();
+                    let stream = TcpStream::connect(address.clone()).await.unwrap();
                     let mut connection: PlainConnection = stream.into();
 
+                    info!("Address: {}", address);
                     connection.send(&id_request).await.unwrap();
 
                     connection
