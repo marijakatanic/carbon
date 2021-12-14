@@ -117,7 +117,6 @@ impl Client {
                     let stream = TcpStream::connect(address.clone()).await.unwrap();
                     let mut connection: PlainConnection = stream.into();
 
-                    info!("Address: {}", address);
                     connection.send(&id_request).await.unwrap();
 
                     connection
