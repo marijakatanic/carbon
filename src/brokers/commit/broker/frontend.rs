@@ -5,6 +5,7 @@ use crate::{
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
+use log::error;
 
 use std::sync::Arc;
 
@@ -32,15 +33,20 @@ impl Broker {
         let fuse = Fuse::new();
 
         loop {
-            if let Ok((stream, _)) = listener.accept().await {
-                let connection: PlainConnection = stream.into();
+            match listener.accept().await {
+                Ok((stream, _)) => {
+                    let connection: PlainConnection = stream.into();
 
-                let discovery = discovery.clone();
-                let brokerage_sponge = brokerage_sponge.clone();
+                    let discovery = discovery.clone();
+                    let brokerage_sponge = brokerage_sponge.clone();
 
-                fuse.spawn(async move {
-                    let _ = Broker::serve(discovery, brokerage_sponge, connection).await;
-                });
+                    fuse.spawn(async move {
+                        if let Err(e) = Broker::serve(discovery, brokerage_sponge, connection).await {
+                            error!("Error {:?}", e);
+                        }
+                    });
+                }
+                Err(e) => error!("Error {:?}", e),
             }
         }
     }
