@@ -11,6 +11,8 @@ use crate::{
 
 use std::{iter, sync::Arc};
 
+use log::info;
+
 use talk::{crypto::primitives::multi::Signature as MultiSignature, net::SessionConnector};
 
 use zebra::vector::Vector;
@@ -69,6 +71,8 @@ impl Broker {
                 reduction_sponge,
             })
             .collect::<Vec<_>>();
+
+        info!("Number of reductions: {}", reductions.len());
 
         // Send each element of `reductions` to the appropriate `serve` task
 

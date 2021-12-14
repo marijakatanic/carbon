@@ -43,6 +43,7 @@ impl Client {
             prepare_batch_number,
             prepare_batch_size,
             prepare_single_sign_percentage,
+            ..
         } = match parameters_file {
             Some(filename) => {
                 Parameters::read(filename)

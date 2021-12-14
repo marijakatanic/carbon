@@ -52,6 +52,8 @@ pub struct BrokerParameters {
     pub prepare_batch_size: usize,
     pub prepare_batch_number: usize,
     pub prepare_single_sign_percentage: usize,
+    pub brokerage_timeout: usize, // millis
+    pub reduction_timeout: usize, // millis
 }
 
 impl Export for BrokerParameters {}
@@ -64,6 +66,8 @@ impl Default for BrokerParameters {
             prepare_batch_size: 50_000,
             prepare_batch_number: 1,
             prepare_single_sign_percentage: 0,
+            brokerage_timeout: 1000,
+            reduction_timeout: 1000,
         }
     }
 }

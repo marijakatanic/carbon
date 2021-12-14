@@ -44,11 +44,12 @@ impl FullBroker {
     ) -> Result<Self, Top<FullBrokerError>> {
         // Load default parameters if none are specified.
         let BrokerParameters {
-            signup_batch_number,
             signup_batch_size,
-            prepare_batch_number,
             prepare_batch_size,
             prepare_single_sign_percentage,
+            brokerage_timeout,
+            reduction_timeout,
+            ..
         } = match parameters_file {
             Some(filename) => {
                 Parameters::read(filename)
@@ -59,13 +60,12 @@ impl FullBroker {
         };
 
         info!("Rate limit: {}", rate);
-        info!("Signup batch number: {}", signup_batch_number);
         info!("Signup batch size: {}", signup_batch_size);
-        info!("Prepare batch number: {}", prepare_batch_number);
-        info!("Prepare batch size: {}", prepare_batch_size);
+        info!("Brokerage timeout: {}", brokerage_timeout);
+        info!("Reduction timeout: {}", reduction_timeout);
         info!(
-            "Prepare single sign percentage: {}",
-            prepare_single_sign_percentage
+            "Reduction percentage: {}",
+            100 - prepare_single_sign_percentage
         );
 
         let signup_keychain = KeyChain::random();
@@ -133,13 +133,13 @@ impl FullBroker {
 
         let sponge_settings = SpongeSettings {
             capacity: prepare_batch_size,
-            timeout: Duration::from_secs(1),
+            timeout: Duration::from_millis(brokerage_timeout as u64),
         };
 
         let broker_settings = PrepareBrokerSettings {
             brokerage_sponge_settings: sponge_settings,
             reduction_threshold: prepare_single_sign_percentage as f64 / 100 as f64,
-            reduction_timeout: Duration::from_secs(1),
+            reduction_timeout: Duration::from_millis(reduction_timeout as u64),
             optimistic_witness_timeout: Duration::from_secs(1),
             ping_interval: Duration::from_secs(60),
         };
