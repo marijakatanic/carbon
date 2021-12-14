@@ -10,8 +10,9 @@ use crate::{
 use doomstack::{here, Doom, ResultExt, Top};
 
 use futures::stream::{FuturesUnordered, StreamExt};
+use log::info;
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use talk::{crypto::Identity, net::SessionConnector};
 
@@ -48,6 +49,7 @@ impl FastBroker {
                 .unwrap();
 
         // Dispatch appropriate `CompletionProof` to all `serve` tasks
+        let start = Instant::now();
 
         let completion_proofs = (0..payloads.len())
             .map(|index| {
@@ -55,6 +57,8 @@ impl FastBroker {
                 CompletionProof::new(batch_completion.clone(), inclusion)
             })
             .collect::<Vec<_>>();
+
+        info!("Creating completion proofs took: {} ms", start.elapsed().as_millis());
 
         // If `completion` is `Ok`, publish `BatchCommit` to all replicas
 

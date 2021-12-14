@@ -17,7 +17,7 @@ use std::{sync::Arc, time::Duration};
 
 use log::{error, info};
 use rayon::{
-    iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator},
+    iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator, IntoParallelIterator},
     slice::ParallelSliceMut,
 };
 use talk::{
@@ -90,7 +90,6 @@ impl FastBroker {
 
                 tokio::spawn(async move {
                     let assignments = submission.assignments().to_vec();
-                    let prepares = submission.prepares().to_vec();
 
                     let batch_commit = FastBroker::broker(
                         discovery, view, ping_board, connector, submission, settings,
@@ -99,9 +98,8 @@ impl FastBroker {
                     .unwrap();
 
                     let requests = assignments
-                        .into_iter()
-                        .zip(prepares.into_iter())
-                        .map(|(assignment, prepare)| {
+                        .into_par_iter()
+                        .map(|assignment| {
                             let commit_proof =
                                 CommitProof::new(batch_commit.clone(), proof.clone());
                             let operation = Operation::withdraw(assignment.id(), 0, 0);
@@ -122,7 +120,7 @@ impl FastBroker {
 
                     info!("Committed prepare batch {}", height);
 
-                    inlet.send(requests).unwrap();
+                    inlet.send((height as u64, requests)).unwrap();
                 });
             }
 
@@ -137,7 +135,6 @@ impl FastBroker {
         height: u64,
         clients: &Vec<(KeyChain, IdAssignment)>,
     ) -> Submission {
-        let operation = hash::hash(&0).unwrap();
         let num_individual = single_sign_percentage * clients.len() / 100;
 
         info!("Number of individual signatures: {}", num_individual);

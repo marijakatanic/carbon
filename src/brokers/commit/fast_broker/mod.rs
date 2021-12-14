@@ -16,8 +16,8 @@ use super::{Broker, Request};
 
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
-type RequestInlet = UnboundedSender<Vec<Request>>;
-type RequestOutlet = UnboundedReceiver<Vec<Request>>;
+type RequestInlet = UnboundedSender<(u64, Vec<Request>)>;
+type RequestOutlet = UnboundedReceiver<(u64, Vec<Request>)>;
 
 type CompletionInlet = UnboundedSender<Vec<CompletionProof>>;
 type CompletionOutlet = UnboundedReceiver<Vec<CompletionProof>>;

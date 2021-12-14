@@ -26,8 +26,8 @@ use tokio::{
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
 };
 
-type CommitInlet = UnboundedSender<Vec<CommitRequest>>;
-type CommitOutlet = UnboundedReceiver<Vec<CommitRequest>>;
+type CommitInlet = UnboundedSender<(u64, Vec<CommitRequest>)>;
+type CommitOutlet = UnboundedReceiver<(u64, Vec<CommitRequest>)>;
 
 pub(crate) struct FastBroker {
     pub _fuse: Fuse,
