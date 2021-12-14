@@ -18,7 +18,8 @@ async fn main() {
                 .args_from_usage(
                     "--rendezvous=<STRING> 'The ip address of the server to rendezvous at'",
                 )
-                .args_from_usage("--parameters=[FILE] 'The file containing the client parameters'"),
+                .args_from_usage("--parameters=[FILE] 'The file containing the client parameters'")
+                .args_from_usage("--num_clients=[INT] 'The total number of clients'"),
         )
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .get_matches();
@@ -41,9 +42,10 @@ async fn main() {
         ("run", Some(subm)) => {
             let rendezvous = subm.value_of("rendezvous").unwrap().to_string();
             let parameters_file = subm.value_of("parameters");
+            let num_clients = subm.value_of("size").unwrap().parse::<usize>().unwrap();
 
             info!("Creating client");
-            match Client::new(rendezvous, parameters_file).await {
+            match Client::new(rendezvous, parameters_file, num_clients).await {
                 Ok(_broker) => {
                     info!("Full client done");
                     std::future::pending::<()>().await;

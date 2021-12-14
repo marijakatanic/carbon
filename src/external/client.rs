@@ -35,6 +35,7 @@ impl Client {
     pub async fn new<A: 'static + TcpConnect + Clone>(
         rendezvous: A,
         parameters_file: Option<&str>,
+        num_clients: usize,
     ) -> Result<Self, Top<ClientError>> {
         // Load default parameters if none are specified.
         let BrokerParameters {
@@ -93,7 +94,7 @@ impl Client {
         let genesis = View::genesis(shard);
 
         let (batch_key_chains, batch_requests): (Vec<KeyChain>, Vec<IdRequest>) = (0
-            ..prepare_batch_size)
+            ..prepare_batch_size/num_clients)
             .map(|_| {
                 let keychain = KeyChain::random();
                 let request = IdRequest::new(&keychain, &genesis, allocator.clone(), 0);
@@ -144,8 +145,7 @@ impl Client {
 
         info!("Getting assignments...");
         for (height, batch) in prepare_request_batches.into_iter().enumerate() {
-            
-            let commits: Vec<BatchCommit> = batch_key_chains
+            let _commits: Vec<BatchCommit> = batch_key_chains
                 .iter()
                 .zip(batch.into_iter())
                 .enumerate()
