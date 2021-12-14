@@ -53,7 +53,7 @@ async fn main() {
                 .parse::<usize>()
                 .unwrap();
             let clients = subm
-                .value_of("full_brokers")
+                .value_of("full_clients")
                 .unwrap()
                 .parse::<usize>()
                 .unwrap();
