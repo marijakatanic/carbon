@@ -57,9 +57,10 @@ impl Broker {
             .await
             .pot(ServeError::ConnectionError, here!())?;
 
-        request
+        // Skip for benchmark
+        let _ = request
             .validate(discovery.as_ref())
-            .pot(ServeError::RequestInvalid, here!())?;
+            .pot(ServeError::RequestInvalid, here!());
 
         // Build and submit `Brokerage` to `brokerage_sponge`
 
