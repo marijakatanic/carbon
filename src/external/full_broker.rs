@@ -61,6 +61,7 @@ impl FullBroker {
 
         info!("Rate limit: {}", rate);
         info!("Signup batch size: {}", signup_batch_size);
+        info!("Prepare batch size: {}", prepare_batch_size);
         info!("Brokerage timeout: {}", brokerage_timeout);
         info!("Reduction timeout: {}", reduction_timeout);
         info!(
