@@ -1,7 +1,10 @@
 use crate::{
-    brokers::{prepare::Request, signup::BrokerFailure as SignupBrokerFailure},
+    brokers::{
+        prepare::{BrokerFailure, Inclusion, Request as PrepareRequest},
+        signup::BrokerFailure as SignupBrokerFailure,
+    },
     external::parameters::{BrokerParameters, Export, Parameters},
-    prepare::Prepare,
+    prepare::{BatchCommit, Prepare, ReductionStatement},
     signup::{IdAssignment, IdRequest},
     view::View,
 };
@@ -103,6 +106,7 @@ impl Client {
             .into_iter()
             .map(|id_request| {
                 let address = address.clone();
+
                 async move {
                     let stream = TcpStream::connect(address).await.unwrap();
                     let mut connection: PlainConnection = stream.into();
@@ -122,12 +126,73 @@ impl Client {
 
         info!("All alocations obtained.");
 
-        let prepared_requests = (0..10)
+        let prepare_request_batches = (0..1)
             .map(|height| prepare(height as u64, &batch_key_chains, &assignments))
             .collect::<Vec<_>>();
 
-        info!("Waiting to start prepare...");
-        let _ = get_shard(&client, 1).await?;
+        info!("Sending operations...");
+        let prepare_shard = get_shard(&client, 3).await?;
+        let broker = prepare_shard[0].clone();
+        let address = client.get_address(broker.identity()).await.unwrap();
+
+        let reduction_shard = batch_key_chains[0]
+            .multisign(&ReductionStatement::new(hash::hash(&0).unwrap()))
+            .unwrap();
+
+        info!("Getting assignments...");
+        for (height, batch) in prepare_request_batches.into_iter().enumerate() {
+            
+            let commits: Vec<BatchCommit> = batch_key_chains
+                .iter()
+                .zip(batch.into_iter())
+                .enumerate()
+                .map(|(i, (keychain, prepare_request))| {
+                    let address = address.clone();
+
+                    async move {
+                        if i == 0 {
+                            info!("Client sending prepare for height {}", height);
+                        }
+
+                        let stream = TcpStream::connect(address).await.unwrap();
+                        let mut connection: PlainConnection = stream.into();
+
+                        connection.send(&prepare_request).await.unwrap();
+
+                        let inclusion = connection
+                            .receive::<Result<Inclusion, BrokerFailure>>()
+                            .await
+                            .unwrap()
+                            .unwrap();
+
+                        // When benchmarking, we only simulate the processing time of a single client
+                        // In real life, each client is separate and only processes their own transaction
+                        // so other clients' processing time should not be included in latency
+                        if i == 0 {
+                            let _ = inclusion
+                                .certify_reduction(&keychain, prepare_request.prepare())
+                                .unwrap();
+                        }
+
+                        connection.send(&reduction_shard).await.unwrap();
+
+                        let result = connection
+                            .receive::<Result<BatchCommit, BrokerFailure>>()
+                            .await
+                            .unwrap()
+                            .unwrap();
+
+                        if i == 0 {
+                            info!("Client finished prepare for height {}", height);
+                        }
+
+                        result
+                    }
+                })
+                .collect::<FuturesUnordered<_>>()
+                .collect::<Vec<_>>()
+                .await;
+        }
 
         Ok(Client {})
     }
@@ -158,7 +223,7 @@ fn prepare(
     height: u64,
     clients: &Vec<KeyChain>,
     id_assignments: &Vec<IdAssignment>,
-) -> Vec<Request> {
+) -> Vec<PrepareRequest> {
     let commitment = hash::hash(&0).unwrap();
     let fake_prepare = Prepare::new(id_assignments[0].id(), height, commitment.clone());
     let fake_signature = clients[0].sign(&fake_prepare).unwrap();
@@ -168,7 +233,7 @@ fn prepare(
         .cloned()
         .map(|assignment| {
             let prepare = Prepare::new(assignment.id(), height, commitment.clone());
-            Request {
+            PrepareRequest {
                 assignment,
                 prepare,
                 signature: fake_signature.clone(),
