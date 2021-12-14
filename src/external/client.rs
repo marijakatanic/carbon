@@ -93,7 +93,7 @@ impl Client {
         let genesis = View::genesis(shard);
 
         let (batch_key_chains, batch_requests): (Vec<KeyChain>, Vec<IdRequest>) = (0
-            ..5000)
+            ..prepare_batch_size)
             .map(|_| {
                 let keychain = KeyChain::random();
                 let request = IdRequest::new(&keychain, &genesis, allocator.clone(), 0);
@@ -130,6 +130,8 @@ impl Client {
         let prepare_request_batches = (0..1)
             .map(|height| prepare(height as u64, &batch_key_chains, &assignments))
             .collect::<Vec<_>>();
+
+        time::sleep(Duration::from_secs(10)).await;
 
         info!("Sending operations...");
         let prepare_shard = get_shard(&client, 3).await?;
