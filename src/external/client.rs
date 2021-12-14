@@ -111,7 +111,7 @@ impl Client {
             .into_iter()
             .enumerate()
             .map(|(num, id_request)| {
-                let address = addresses[num / 100].clone();
+                let address = addresses[100 * num / (prepare_batch_size / num_clients) ].clone();
 
                 async move {
                     let stream = TcpStream::connect(address.clone()).await.unwrap();
