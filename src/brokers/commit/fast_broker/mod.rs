@@ -1,6 +1,6 @@
-use crate::{crypto::Identify, data::PingBoard, view::View};
+use crate::{commit::CompletionProof, crypto::Identify, data::PingBoard, view::View};
 
-use doomstack::{Doom, Top};
+use doomstack::Doom;
 
 use std::sync::Arc;
 
@@ -10,7 +10,7 @@ use talk::{
     sync::fuse::Fuse,
 };
 
-use tokio::{io, net::ToSocketAddrs};
+use tokio::{io, sync::mpsc};
 
 use super::{Broker, Request};
 
@@ -19,8 +19,12 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 type RequestInlet = UnboundedSender<Vec<Request>>;
 type RequestOutlet = UnboundedReceiver<Vec<Request>>;
 
+type CompletionInlet = UnboundedSender<Vec<CompletionProof>>;
+type CompletionOutlet = UnboundedReceiver<Vec<CompletionProof>>;
+
 pub(crate) struct FastBroker {
-    _fuse: Fuse,
+    pub _fuse: Fuse,
+    pub completion_outlet: CompletionOutlet,
 }
 
 #[derive(Doom)]
@@ -31,13 +35,8 @@ pub(crate) enum FastBrokerError {
 }
 
 impl FastBroker {
-    pub async fn new<A, C>(
-        view: View,
-        request_outlet: RequestOutlet,
-        connector: C,
-    ) -> Result<Self, Top<FastBrokerError>>
+    pub async fn new<C>(view: View, request_outlet: RequestOutlet, connector: C) -> Self
     where
-        A: ToSocketAddrs,
         C: Connector,
     {
         let dispatcher = ConnectDispatcher::new(connector);
@@ -47,6 +46,8 @@ impl FastBroker {
         let ping_board = PingBoard::new(&view);
 
         let fuse = Fuse::new();
+
+        let (inlet, outlet) = mpsc::unbounded_channel();
 
         for replica in view.members().keys().copied() {
             let ping_board = ping_board.clone();
@@ -59,13 +60,17 @@ impl FastBroker {
             let view = view.clone();
             let ping_board = ping_board.clone();
             let connector = connector.clone();
+            let inlet = inlet.clone();
 
             fuse.spawn(async move {
-                FastBroker::flush(view, request_outlet, ping_board, connector).await;
+                FastBroker::flush(view, request_outlet, ping_board, connector, inlet).await;
             });
         }
 
-        Ok(FastBroker { _fuse: fuse })
+        FastBroker {
+            completion_outlet: outlet,
+            _fuse: fuse,
+        }
     }
 }
 

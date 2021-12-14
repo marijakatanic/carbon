@@ -1,5 +1,5 @@
 use crate::{
-    brokers::prepare::FastBroker as FastPrepareBroker,
+    brokers::{commit::FastBroker as FastCommitBroker, prepare::FastBroker as FastPrepareBroker},
     discovery::Client,
     external::{
         fast_signup_broker::FastSignupBroker,
@@ -143,9 +143,12 @@ impl FastBroker {
             rendezvous.clone(),
             Default::default(),
         ));
-        let connector = Connector::new(rendezvous, keychain.clone(), Default::default());
+        let connector = Connector::new(rendezvous.clone(), keychain.clone(), Default::default());
 
-        let mut fast_prepare_broker = FastPrepareBroker::new(
+        let FastPrepareBroker {
+            _fuse,
+            commit_outlet,
+        } = FastPrepareBroker::new(
             local_rate,
             prepare_batch_size,
             prepare_batch_number,
@@ -158,16 +161,17 @@ impl FastBroker {
         )
         .unwrap();
 
+        let connector = Connector::new(rendezvous, keychain.clone(), Default::default());
+
+        let mut fast_commit_broker = FastCommitBroker::new(genesis, commit_outlet, connector).await;
+
         for i in 0..prepare_batch_number {
-            let commit = fast_prepare_broker.commit_outlet.recv().await.unwrap();
-            if let Err(e) = commit {
-                error!("Error brokering submission: {:?}", e);
-            } else {
-                info!("Committed prepare batch {}", i);
-            }
+            let _commit = fast_commit_broker.completion_outlet.recv().await.unwrap();
+            
+            info!("Completed prepare batch {}", i);
         }
 
-        info!("Prepare complete!");
+        info!("All transactions completed!");
 
         Ok(FastBroker {})
     }

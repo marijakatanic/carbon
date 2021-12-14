@@ -1,6 +1,11 @@
 use crate::{
-    account::Entry,
-    brokers::prepare::{broker_settings::BrokerTaskSettings, submission::Submission, FastBroker},
+    account::{Entry, Operation},
+    brokers::{
+        commit::Request,
+        prepare::{broker_settings::BrokerTaskSettings, submission::Submission, FastBroker},
+    },
+    commit::{Commit, CommitProof, Payload},
+    crypto::Identify,
     data::PingBoard,
     discovery::Client,
     prepare::{Prepare, ReductionStatement},
@@ -60,31 +65,64 @@ impl FastBroker {
             .map(|number| FastBroker::prepare_fast(single_sign_percentage, number as u64, &clients))
             .collect();
 
+        let proof = Vector::new(submissions[0].prepares().to_vec())
+            .unwrap()
+            .prove(0);
+
         info!("All submissions pre-computed!");
 
         info!("Starting prepare...");
 
         let interval = (1000 * batch_size / local_rate) as u64;
 
-        for (i, submission) in submissions.into_iter().enumerate() {
+        for (height, submission) in submissions.into_iter().enumerate() {
             let discovery = discovery.clone();
             let view = view.clone();
             let ping_board = ping_board.clone();
             let connector = connector.clone();
             let settings = settings.clone();
 
-            info!("Submitting prepare batch {}", i);
+            info!("Submitting prepare batch {}", height);
 
             {
                 let inlet = inlet.clone();
+                let proof = proof.clone();
 
                 tokio::spawn(async move {
-                    let commit = FastBroker::broker(
+                    let assignments = submission.assignments().to_vec();
+                    let prepares = submission.prepares().to_vec();
+
+                    let batch_commit = FastBroker::broker(
                         discovery, view, ping_board, connector, submission, settings,
                     )
-                    .await;
+                    .await
+                    .unwrap();
 
-                    inlet.send(commit).unwrap();
+                    let requests = assignments
+                        .into_iter()
+                        .zip(prepares.into_iter())
+                        .map(|(assignment, prepare)| {
+                            let commit_proof =
+                                CommitProof::new(batch_commit.clone(), proof.clone());
+                            let operation = Operation::withdraw(assignment.id(), 0, 0);
+
+                            let payload = Payload::new(
+                                Entry {
+                                    id: assignment.id(),
+                                    height: height as u64,
+                                },
+                                operation,
+                            );
+
+                            let commit = Commit::new(commit_proof, payload.clone());
+
+                            Request::new(commit, None)
+                        })
+                        .collect::<Vec<_>>();
+
+                    info!("Committed prepare batch {}", height);
+
+                    inlet.send(requests).unwrap();
                 });
             }
 
@@ -115,12 +153,14 @@ impl FastBroker {
                 .par_iter()
                 .enumerate()
                 .map(|(num, (keychain, assignment))| {
+                    let operation = Operation::withdraw(assignment.id(), 0, 0);
+
                     let prepare = Prepare::new(
                         Entry {
                             id: assignment.id(),
                             height,
                         },
-                        operation,
+                        operation.identifier(),
                     );
                     if num < num_individual {
                         let sig = keychain.sign(&prepare).unwrap();

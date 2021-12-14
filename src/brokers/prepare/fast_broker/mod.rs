@@ -1,9 +1,11 @@
 use crate::{
-    brokers::prepare::{Broker, BrokerFailure, BrokerSettings, BrokerSettingsComponents},
+    brokers::{
+        commit::Request as CommitRequest,
+        prepare::{Broker, BrokerSettings, BrokerSettingsComponents},
+    },
     crypto::Identify,
     data::PingBoard,
     discovery::Client,
-    prepare::BatchCommit,
     signup::IdAssignment,
     view::View,
 };
@@ -24,11 +26,11 @@ use tokio::{
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
 };
 
-type CommitInlet = UnboundedSender<Result<BatchCommit, BrokerFailure>>;
-type CommitOutlet = UnboundedReceiver<Result<BatchCommit, BrokerFailure>>;
+type CommitInlet = UnboundedSender<Vec<CommitRequest>>;
+type CommitOutlet = UnboundedReceiver<Vec<CommitRequest>>;
 
 pub(crate) struct FastBroker {
-    _fuse: Fuse,
+    pub _fuse: Fuse,
     pub commit_outlet: CommitOutlet,
 }
 
