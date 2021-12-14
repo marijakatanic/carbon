@@ -10,6 +10,7 @@ use crate::{
 use doomstack::{here, Doom, ResultExt, Top};
 
 use futures::stream::{FuturesUnordered, StreamExt};
+use log::error;
 
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
@@ -175,7 +176,9 @@ impl Broker {
                 let signup_settings = signup_settings.clone();
 
                 fuse.spawn(async move {
-                    let _ = Broker::serve(connection, view, sponges, signup_settings).await;
+                    if let Err(e) = Broker::serve(connection, view, sponges, signup_settings).await {
+                        error!("Error listening to connection: {:?}", e);
+                    }
                 });
             }
         }
