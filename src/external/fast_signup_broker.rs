@@ -51,10 +51,6 @@ enum SubmitError {
     UnexpectedResponse,
     #[doom(description("Malformed response"))]
     MalformedResponse,
-    #[doom(description("Invalid allocation"))]
-    InvalidAllocation,
-    #[doom(description("Invalid shard"))]
-    InvalidShard,
     #[doom(description("Invalid claim"))]
     InvalidClaim,
     #[doom(description("Not a collision"))]

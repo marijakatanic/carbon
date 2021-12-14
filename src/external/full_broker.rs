@@ -68,15 +68,10 @@ impl FullBroker {
             prepare_single_sign_percentage
         );
 
-        let keychain = KeyChain::random();
+        let signup_keychain = KeyChain::random();
+        let prepare_keychain = KeyChain::random();
 
         let client = RendezvousClient::new(rendezvous.clone(), Default::default());
-
-        // So the client can connect
-        client
-            .publish_card(keychain.keycard().clone(), Some(2))
-            .await
-            .unwrap();
 
         info!("Getting shard");
 
@@ -105,9 +100,11 @@ impl FullBroker {
         );
 
         let genesis = View::genesis(shard);
-
-        let connector = Connector::new(rendezvous.clone(), keychain.clone(), Default::default());
-
+        let connector = Connector::new(
+            rendezvous.clone(),
+            signup_keychain.clone(),
+            Default::default(),
+        );
         let address = (Ipv4Addr::UNSPECIFIED, 0);
 
         let _signup_broker =
@@ -115,45 +112,24 @@ impl FullBroker {
                 .await
                 .unwrap();
 
-        info!("Syncing with other brokers...");
-
+        let port = _signup_broker.address().port();
         client
-            .publish_card(KeyChain::random().keycard().clone(), Some(1))
+            .advertise_port(signup_keychain.keycard().identity(), port)
+            .await;
+        // So the client can connect
+        client
+            .publish_card(signup_keychain.keycard().clone(), Some(2))
             .await
             .unwrap();
 
-        let _shard = loop {
-            match client.get_shard(1).await {
-                Ok(shard) => break shard,
-                Err(e) => match e.top() {
-                    RendezvousClientError::ShardIncomplete => {
-                        info!("Shard still incomplete, sleeping...");
-                        time::sleep(Duration::from_millis(500)).await
-                    }
-                    _ => {
-                        error!("Error obtaining first shard view");
-                        return FullBrokerError::Fail.fail();
-                    }
-                },
-            }
-        };
-
-        info!("Synced with other brokers. Making sure IdAssignments are published...");
-
-        time::sleep(Duration::from_secs(20)).await;
-
-        info!("Initiating prepare phase...");
+        info!("Initializing prepare broker...");
 
         let discovery = Arc::new(Client::new(
             genesis.clone(),
             rendezvous.clone(),
             Default::default(),
         ));
-        let connector = Connector::new(rendezvous, keychain.clone(), Default::default());
-
-        // prepare_batch_size,
-        // prepare_batch_number,
-        // prepare_single_sign_percentage,
+        let connector = Connector::new(rendezvous, prepare_keychain.clone(), Default::default());
 
         let sponge_settings = SpongeSettings {
             capacity: prepare_batch_size,
@@ -182,8 +158,37 @@ impl FullBroker {
 
         let port = _prepare_broker.address().port();
         client
-            .advertise_port(keychain.keycard().identity(), port)
+            .advertise_port(prepare_keychain.keycard().identity(), port)
             .await;
+        client
+            .publish_card(prepare_keychain.keycard().clone(), Some(3))
+            .await
+            .unwrap();
+
+        info!("Syncing with other brokers...");
+
+        client
+            .publish_card(KeyChain::random().keycard().clone(), Some(1))
+            .await
+            .unwrap();
+
+        let _shard = loop {
+            match client.get_shard(1).await {
+                Ok(shard) => break shard,
+                Err(e) => match e.top() {
+                    RendezvousClientError::ShardIncomplete => {
+                        info!("Shard still incomplete, sleeping...");
+                        time::sleep(Duration::from_millis(500)).await
+                    }
+                    _ => {
+                        error!("Error obtaining first shard view");
+                        return FullBrokerError::Fail.fail();
+                    }
+                },
+            }
+        };
+
+        info!("Synced with other brokers. Making sure IdAssignments are published...");
 
         Ok(FullBroker {
             _signup_broker,

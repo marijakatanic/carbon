@@ -1,6 +1,7 @@
 use crate::{
-    brokers::signup::BrokerFailure as SignupBrokerFailure,
+    brokers::{prepare::Request, signup::BrokerFailure as SignupBrokerFailure},
     external::parameters::{BrokerParameters, Export, Parameters},
+    prepare::Prepare,
     signup::{IdAssignment, IdRequest},
     view::View,
 };
@@ -14,7 +15,7 @@ use tokio::{net::TcpStream, time};
 use std::time::Duration;
 
 use talk::{
-    crypto::{KeyCard, KeyChain},
+    crypto::{primitives::hash, KeyCard, KeyChain},
     link::rendezvous::{Client as RendezvousClient, ClientError as RendezvousClientError, ShardId},
     net::{traits::TcpConnect, PlainConnection},
 };
@@ -97,8 +98,8 @@ impl Client {
             })
             .unzip();
 
-        info!("Getting allocations...");
-        let allocations: Vec<IdAssignment> = batch_requests
+        info!("Getting assignments...");
+        let assignments: Vec<IdAssignment> = batch_requests
             .into_iter()
             .map(|id_request| {
                 let address = address.clone();
@@ -116,10 +117,14 @@ impl Client {
                 }
             })
             .collect::<FuturesUnordered<_>>()
-            .collect::<Vec<_>>().await;
-        
+            .collect::<Vec<_>>()
+            .await;
+
         info!("All alocations obtained.");
-            
+
+        let prepared_requests = (0..10)
+            .map(|height| prepare(height as u64, &batch_key_chains, &assignments))
+            .collect::<Vec<_>>();
 
         info!("Waiting to start prepare...");
         let _ = get_shard(&client, 1).await?;
@@ -147,4 +152,27 @@ async fn get_shard(
             },
         }
     }
+}
+
+fn prepare(
+    height: u64,
+    clients: &Vec<KeyChain>,
+    id_assignments: &Vec<IdAssignment>,
+) -> Vec<Request> {
+    let commitment = hash::hash(&0).unwrap();
+    let fake_prepare = Prepare::new(id_assignments[0].id(), height, commitment.clone());
+    let fake_signature = clients[0].sign(&fake_prepare).unwrap();
+
+    id_assignments
+        .iter()
+        .cloned()
+        .map(|assignment| {
+            let prepare = Prepare::new(assignment.id(), height, commitment.clone());
+            Request {
+                assignment,
+                prepare,
+                signature: fake_signature.clone(),
+            }
+        })
+        .collect()
 }
