@@ -133,18 +133,18 @@ impl Client {
             .collect::<Vec<_>>()
             .await;
 
-        info!("All alocations obtained.");
+        info!("All IdAssignments obtained.");
 
-        let prepare_request_batches = (0..1)
+        let prepare_request_batches = (0..10)
             .map(|height| prepare(height as u64, &batch_key_chains, &assignments))
             .collect::<Vec<_>>();
 
         time::sleep(Duration::from_secs(10)).await;
 
-        info!("Sending operations...");
+        info!("Getting prepare shard...");
         let prepare_shard = get_shard(&client, 3).await?;
 
-        info!("Sending operations...");
+        info!("Getting commit shard");
         let commit_shard = get_shard(&client, 4).await?;
 
         let mut prepare_addresses = Vec::new();
@@ -161,7 +161,13 @@ impl Client {
             .multisign(&ReductionStatement::new(hash::hash(&0).unwrap()))
             .unwrap();
 
-        info!("Getting assignments...");
+        client.publish_card(KeyChain::random().keycard(), Some(1)).await.unwrap();
+        let _ = get_shard(&client, 1).await?;
+
+        info!("Awaiting to be in the middle of the throughput...");
+        time::sleep(Duration::from_secs(20 + 5)).await;
+
+        info!("Starting latency test...");
         for (height, batch) in prepare_request_batches.into_iter().enumerate() {
             let _completions: Vec<Completion> = batch_key_chains
                 .iter()

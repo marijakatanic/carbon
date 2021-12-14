@@ -16,7 +16,8 @@ async fn main() {
                 .args_from_usage("--port=[INT] 'The port in which to run")
                 .args_from_usage("--size=[INT] 'The number of members in the system")
                 .args_from_usage("--fast_brokers=[INT] 'The number of fast brokers in the system")
-                .args_from_usage("--full_brokers=[INT] 'The number of full brokers in the system"),
+                .args_from_usage("--full_brokers=[INT] 'The number of full brokers in the system")
+                .args_from_usage("--full_clients=[INT] 'The number of clients in the system"),
         )
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .get_matches();
@@ -51,6 +52,11 @@ async fn main() {
                 .unwrap()
                 .parse::<usize>()
                 .unwrap();
+            let clients = subm
+                .value_of("full_brokers")
+                .unwrap()
+                .parse::<usize>()
+                .unwrap();
 
             let address = ("0.0.0.0", port);
 
@@ -61,7 +67,7 @@ async fn main() {
                 ServerSettings {
                     shard_sizes: vec![
                         shard_size,
-                        fast_brokers + full_brokers,
+                        fast_brokers + full_brokers + clients,
                         full_brokers * 100,
                         full_brokers * 100,
                         full_brokers * 100,
