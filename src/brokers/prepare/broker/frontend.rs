@@ -65,9 +65,10 @@ impl Broker {
             .await
             .pot(ServeError::ConnectionError, here!())?;
 
-        request
+        // Verify (for fair latency) but accept wrong pre-generated signatures for benchmark purposes
+        let _ = request
             .validate(discovery.as_ref())
-            .pot(ServeError::RequestInvalid, here!())?;
+            .pot(ServeError::RequestInvalid, here!());
 
         // Build and submit `Brokerage` to `brokerage_sponge`
 
@@ -127,9 +128,10 @@ impl Broker {
             .await
             .pot(ServeError::ConnectionError, here!())?;
 
-        reduction_shard
+        // Verify (for fair latency) but accept wrong pre-generated signatures for benchmark purposes
+        let _ = reduction_shard
             .verify([&keycard], &ReductionStatement::new(root))
-            .pot(ServeError::ReductionShardInvalid, here!())?;
+            .pot(ServeError::ReductionShardInvalid, here!());
 
         // Submit `reduction_shard` to `reduction_sponge`
 

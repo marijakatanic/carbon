@@ -64,7 +64,7 @@ impl FastBroker {
         info!("Starting prepare...");
 
         let interval = (1000 * batch_size / local_rate) as u64;
-        
+
         for (i, submission) in submissions.into_iter().enumerate() {
             let discovery = discovery.clone();
             let view = view.clone();
