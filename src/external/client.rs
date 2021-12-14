@@ -161,7 +161,10 @@ impl Client {
             .multisign(&ReductionStatement::new(hash::hash(&0).unwrap()))
             .unwrap();
 
-        client.publish_card(KeyChain::random().keycard(), Some(1)).await.unwrap();
+        client
+            .publish_card(KeyChain::random().keycard(), Some(1))
+            .await
+            .unwrap();
         let _ = get_shard(&client, 1).await?;
 
         info!("Awaiting to be in the middle of the throughput...");
@@ -237,11 +240,17 @@ impl Client {
 
                         connection.send(&request).await.unwrap();
 
-                        let completion_proof = connection
+                        let completion_proof = match connection
                             .receive::<Result<CompletionProof, BrokerFailure>>()
                             .await
                             .unwrap()
-                            .unwrap();
+                        {
+                            Ok(proof) => proof,
+                            Err(e) => {
+                                error!("Completion error! {:?}", e);
+                                Err(e).unwrap()
+                            }
+                        };
 
                         let withdrawal = Completion::new(completion_proof, payload);
 
