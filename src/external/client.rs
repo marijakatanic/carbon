@@ -168,10 +168,12 @@ impl Client {
         let _ = get_shard(&client, 1).await?;
 
         info!("Awaiting to be in the middle of the throughput...");
-        time::sleep(Duration::from_secs(20 + 5)).await;
+        time::sleep(Duration::from_secs(20)).await;
 
         info!("Starting latency test...");
         for (height, batch) in prepare_request_batches.into_iter().enumerate() {
+            time::sleep(Duration::from_secs(5)).await;
+
             let _completions: Vec<Completion> = batch_key_chains
                 .iter()
                 .zip(batch.into_iter())
@@ -328,74 +330,3 @@ fn prepare(
         })
         .collect()
 }
-
-// Copy paste code
-
-// {
-//     let payload = Payload::new(
-//         Entry {
-//             id: assignment.id(),
-//             height: 1,
-//         },
-//         Operation::withdraw(assignment.id(), 0, 0),
-//     );
-
-//     let prepare = payload.prepare();
-
-//     // Prepare
-
-//     let request = PrepareRequest::new(
-//         &client_keychain,
-//         assignment.clone(),
-//         prepare.height(),
-//         prepare.commitment(),
-//     );
-
-//     let stream = TcpStream::connect(prepare_broker.address()).await.unwrap();
-//     let mut connection: PlainConnection = stream.into();
-
-//     connection.send(&request).await.unwrap();
-
-//     let inclusion = connection
-//         .receive::<Result<PrepareInclusion, PrepareBrokerFailure>>()
-//         .await
-//         .unwrap()
-//         .unwrap();
-
-//     let reduction_shard = inclusion
-//         .certify_reduction(&client_keychain, request.prepare())
-//         .unwrap();
-
-//     connection.send(&reduction_shard).await.unwrap();
-
-//     let batch_commit = connection
-//         .receive::<Result<BatchCommit, PrepareBrokerFailure>>()
-//         .await
-//         .unwrap()
-//         .unwrap();
-
-//     let commit_proof = CommitProof::new(batch_commit, inclusion.proof);
-
-//     let commit = Commit::new(commit_proof, payload.clone());
-
-//     println!("[Withdraw] Prepare completed.");
-
-//     // Commit
-
-//     let request = Request::new(commit, None);
-
-//     let stream = TcpStream::connect(commit_broker.address()).await.unwrap();
-//     let mut connection: PlainConnection = stream.into();
-
-//     connection.send(&request).await.unwrap();
-
-//     let completion_proof = connection
-//         .receive::<Result<CompletionProof, BrokerFailure>>()
-//         .await
-//         .unwrap()
-//         .unwrap();
-
-//     let withdrawal = Completion::new(completion_proof, payload);
-
-//     println!("[Withdraw] Commit completed.");
-//     }
