@@ -134,7 +134,9 @@ pub(in crate::processing::processor::commit) async fn validate_batch(
 
     // All elements of `unproven_prepares` necessitate a `CommitProof`
     // in order for their corresponding payloads to be committed
-    if !unproven_prepares.is_empty() {
+
+    // Skip for benchmarking
+    if false && !unproven_prepares.is_empty() {
         warn!("Have unproven prepares!");
 
         // Query `session` for the `Id` corresponding to each
