@@ -1,7 +1,7 @@
 use crate::{
     brokers::{
         prepare::{Broker as PrepareBroker, BrokerSettings as PrepareBrokerSettings},
-        signup::Broker as SignupBroker, signup::BrokerSettings as SignupBrokerSettings,
+        signup::{Broker as SignupBroker, BrokerSettings as SignupBrokerSettings},
     },
     data::SpongeSettings,
     discovery::Client,
@@ -59,6 +59,8 @@ impl FullBroker {
             None => Parameters::default().broker,
         };
 
+        info!("NEW BROKER");
+
         info!("Rate limit: {}", rate);
         info!("Signup batch size: {}", signup_batch_size);
         info!("Prepare batch size: {}", prepare_batch_size);
@@ -108,16 +110,22 @@ impl FullBroker {
         let addresses = (0..100).map(|_| (Ipv4Addr::UNSPECIFIED, 0));
         let sponge_settings = SpongeSettings {
             capacity: signup_batch_size,
-            timeout: Duration::from_millis(1000 as u64),
+            timeout: Duration::from_secs(10),
         };
-        let settings = SignupBrokerSettings {
+
+        let signup_broker_settings = SignupBrokerSettings {
             signup_settings: Default::default(),
             sponge_settings,
         };
-        let _signup_broker =
-            SignupBroker::new(genesis.clone(), addresses, connector, settings)
-                .await
-                .unwrap();
+
+        let _signup_broker = SignupBroker::new(
+            genesis.clone(),
+            addresses,
+            connector,
+            signup_broker_settings,
+        )
+        .await
+        .unwrap();
 
         let addresses = _signup_broker.addresses();
         let ports = addresses.iter().map(|address| address.port());
@@ -127,7 +135,7 @@ impl FullBroker {
             client
                 .advertise_port(signup_keychain.keycard().identity(), port)
                 .await;
-            // So the client can connect
+
             client
                 .publish_card(signup_keychain.keycard().clone(), Some(2))
                 .await

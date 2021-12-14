@@ -11,7 +11,7 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use futures::stream::{FuturesUnordered, StreamExt, FuturesOrdered};
+use futures::stream::{FuturesUnordered, StreamExt};
 use log::{error, info};
 use tokio::{net::TcpStream, time};
 
@@ -108,9 +108,10 @@ impl Client {
         info!("Getting assignments...");
 
         let assignments: Vec<IdAssignment> = batch_requests
-            .into_iter().enumerate()
+            .into_iter()
+            .enumerate()
             .map(|(num, id_request)| {
-                let address = addresses[num/100].clone();
+                let address = addresses[num / 100].clone();
 
                 async move {
                     let stream = TcpStream::connect(address.clone()).await.unwrap();
@@ -126,7 +127,7 @@ impl Client {
                         .unwrap()
                 }
             })
-            .collect::<FuturesOrdered<_>>()
+            .collect::<FuturesUnordered<_>>()
             .collect::<Vec<_>>()
             .await;
 

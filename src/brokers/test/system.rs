@@ -79,7 +79,7 @@ impl System {
             signup_brokers.push(
                 SignupBroker::new(
                     view.clone(),
-                    (Ipv4Addr::LOCALHOST, 0),
+                    vec!((Ipv4Addr::LOCALHOST, 0)),
                     connectors.remove(0),
                     Default::default(),
                 )
