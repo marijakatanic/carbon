@@ -176,7 +176,8 @@ impl Broker {
                 let signup_settings = signup_settings.clone();
 
                 fuse.spawn(async move {
-                    if let Err(e) = Broker::serve(connection, view, sponges, signup_settings).await {
+                    if let Err(e) = Broker::serve(connection, view, sponges, signup_settings).await
+                    {
                         error!("Error listening to connection: {:?}", e);
                     }
                 });

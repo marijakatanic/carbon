@@ -65,10 +65,7 @@ impl FullBroker {
         info!("Brokerage timeout: {}", brokerage_timeout);
         info!("Reduction timeout: {}", reduction_timeout);
         let reduction_threshold = 100 - prepare_single_sign_percentage;
-        info!(
-            "Reduction percentage: {}",
-            reduction_threshold
-        );
+        info!("Reduction percentage: {}", reduction_threshold);
 
         let signup_keychain = KeyChain::random();
         let prepare_keychain = KeyChain::random();

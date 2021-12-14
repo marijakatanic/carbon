@@ -28,7 +28,7 @@ impl Broker {
             // `Vec<Brokerage>`. Because `Broker::prepare` only filters `Id`
             // duplicates, it never produces an empty output on a non-empty input.
             let brokerages = Broker::prepare(brokerage_sponge.flush().await);
-            
+
             info!("Number of brokerages: {}", brokerages.len());
 
             let discovery = discovery.clone();

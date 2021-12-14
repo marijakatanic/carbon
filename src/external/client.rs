@@ -94,7 +94,7 @@ impl Client {
         let genesis = View::genesis(shard);
 
         let (batch_key_chains, batch_requests): (Vec<KeyChain>, Vec<IdRequest>) = (0
-            ..prepare_batch_size/num_clients)
+            ..prepare_batch_size / num_clients)
             .map(|_| {
                 let keychain = KeyChain::random();
                 let request = IdRequest::new(&keychain, &genesis, allocator.clone(), 0);
@@ -104,27 +104,32 @@ impl Client {
             .unzip();
 
         info!("Getting assignments...");
-        let assignments: Vec<IdAssignment> = batch_requests
-            .into_iter()
-            .map(|id_request| {
-                let address = address.clone();
+        let mut assignments = Vec::new();
+        for chunk in batch_requests.chunks(5000) {
+            let chunk_assignments: Vec<IdAssignment> = chunk
+                .into_iter()
+                .map(|id_request| {
+                    let address = address.clone();
 
-                async move {
-                    let stream = TcpStream::connect(address).await.unwrap();
-                    let mut connection: PlainConnection = stream.into();
+                    async move {
+                        let stream = TcpStream::connect(address).await.unwrap();
+                        let mut connection: PlainConnection = stream.into();
 
-                    connection.send(&id_request).await.unwrap();
+                        connection.send(&id_request).await.unwrap();
 
-                    connection
-                        .receive::<Result<IdAssignment, SignupBrokerFailure>>()
-                        .await
-                        .unwrap()
-                        .unwrap()
-                }
-            })
-            .collect::<FuturesUnordered<_>>()
-            .collect::<Vec<_>>()
-            .await;
+                        connection
+                            .receive::<Result<IdAssignment, SignupBrokerFailure>>()
+                            .await
+                            .unwrap()
+                            .unwrap()
+                    }
+                })
+                .collect::<FuturesUnordered<_>>()
+                .collect::<Vec<_>>()
+                .await;
+
+            assignments.extend(chunk_assignments)
+        }
 
         info!("All alocations obtained.");
 
