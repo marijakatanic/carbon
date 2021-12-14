@@ -21,7 +21,7 @@ use tokio::{
 };
 
 pub(crate) struct Broker {
-    address: SocketAddr,
+    addresses: Vec<SocketAddr>,
     _fuse: Fuse,
 }
 
@@ -33,28 +33,17 @@ pub(crate) enum BrokerError {
 }
 
 impl Broker {
-    pub async fn new<A, C>(
+    pub async fn new<A, I, C>(
         discovery: Arc<Client>,
         view: View,
-        address: A,
+        addresses: I,
         connector: C,
     ) -> Result<Self, Top<BrokerError>>
     where
+        I: IntoIterator<Item = A>,
         A: ToSocketAddrs,
         C: Connector,
     {
-        let listener = TcpListener::bind(address)
-            .await
-            .map_err(BrokerError::initialize_failed)
-            .map_err(Doom::into_top)
-            .spot(here!())?;
-
-        let address = listener
-            .local_addr()
-            .map_err(BrokerError::initialize_failed)
-            .map_err(Doom::into_top)
-            .spot(here!())?;
-
         let dispatcher = ConnectDispatcher::new(connector);
         let context = format!("{:?}::processor::commit", view.identifier());
         let connector = Arc::new(SessionConnector::new(dispatcher.register(context)));
@@ -65,22 +54,38 @@ impl Broker {
         let fuse = Fuse::new();
 
         {
+            let view = view.clone();
+            let ping_board = ping_board.clone();
+            let connector = connector.clone();
+            let brokerage_sponge = brokerage_sponge.clone();
+
+            fuse.spawn(async move {
+                Broker::flush(view, brokerage_sponge, ping_board, connector).await;
+            });
+        }
+
+        let mut new_addresses = Vec::new();
+        for address in addresses {
+            let listener = TcpListener::bind(address)
+                .await
+                .map_err(BrokerError::initialize_failed)
+                .map_err(Doom::into_top)
+                .spot(here!())?;
+
+            let address = listener
+                .local_addr()
+                .map_err(BrokerError::initialize_failed)
+                .map_err(Doom::into_top)
+                .spot(here!())?;
+
             let discovery = discovery.clone();
             let brokerage_sponge = brokerage_sponge.clone();
 
             fuse.spawn(async move {
                 Broker::listen(discovery, brokerage_sponge, listener).await;
             });
-        }
 
-        {
-            let view = view.clone();
-            let ping_board = ping_board.clone();
-            let connector = connector.clone();
-
-            fuse.spawn(async move {
-                Broker::flush(view, brokerage_sponge, ping_board, connector).await;
-            });
+            new_addresses.push(address);
         }
 
         for replica in view.members().keys().copied() {
@@ -91,13 +96,17 @@ impl Broker {
         }
 
         Ok(Broker {
-            address,
+            addresses: new_addresses,
             _fuse: fuse,
         })
     }
 
     pub fn address(&self) -> SocketAddr {
-        self.address
+        self.addresses[0]
+    }
+
+    pub fn addresses(&self) -> Vec<SocketAddr> {
+        self.addresses.clone()
     }
 }
 

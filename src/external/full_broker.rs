@@ -1,5 +1,6 @@
 use crate::{
     brokers::{
+        commit::Broker as CommitBroker,
         prepare::{Broker as PrepareBroker, BrokerSettings as PrepareBrokerSettings},
         signup::{Broker as SignupBroker, BrokerSettings as SignupBrokerSettings},
     },
@@ -28,6 +29,7 @@ use tokio::time;
 pub struct FullBroker {
     _signup_broker: SignupBroker,
     _prepare_broker: PrepareBroker,
+    _commit_broker: CommitBroker,
 }
 
 #[derive(Doom)]
@@ -151,7 +153,11 @@ impl FullBroker {
             Default::default(),
         ));
 
-        let connector = Connector::new(rendezvous, prepare_keychain.clone(), Default::default());
+        let connector = Connector::new(
+            rendezvous.clone(),
+            prepare_keychain.clone(),
+            Default::default(),
+        );
 
         let addresses = (0..100).map(|_| (Ipv4Addr::UNSPECIFIED, 0));
 
@@ -169,7 +175,7 @@ impl FullBroker {
         };
 
         let mut _prepare_broker = PrepareBroker::new(
-            discovery,
+            discovery.clone(),
             genesis.clone(),
             addresses,
             connector,
@@ -181,14 +187,38 @@ impl FullBroker {
         let addresses = _prepare_broker.addresses();
         let ports = addresses.iter().map(|address| address.port());
         for port in ports {
-            let signup_keychain = KeyChain::random();
+            let prepare_keychain = KeyChain::random();
 
             client
-                .advertise_port(signup_keychain.keycard().identity(), port)
+                .advertise_port(prepare_keychain.keycard().identity(), port)
                 .await;
 
             client
-                .publish_card(signup_keychain.keycard().clone(), Some(3))
+                .publish_card(prepare_keychain.keycard().clone(), Some(3))
+                .await
+                .unwrap();
+        }
+
+        let connector = Connector::new(rendezvous, prepare_keychain.clone(), Default::default());
+
+        let addresses = (0..100).map(|_| (Ipv4Addr::UNSPECIFIED, 0));
+
+        let mut _commit_broker =
+            CommitBroker::new(discovery.clone(), genesis.clone(), addresses, connector)
+                .await
+                .unwrap();
+
+        let addresses = _commit_broker.addresses();
+        let ports = addresses.iter().map(|address| address.port());
+        for port in ports {
+            let commit_keychain = KeyChain::random();
+
+            client
+                .advertise_port(commit_keychain.keycard().identity(), port)
+                .await;
+
+            client
+                .publish_card(commit_keychain.keycard().clone(), Some(4))
                 .await
                 .unwrap();
         }
@@ -221,6 +251,7 @@ impl FullBroker {
         Ok(FullBroker {
             _signup_broker,
             _prepare_broker,
+            _commit_broker,
         })
     }
 }

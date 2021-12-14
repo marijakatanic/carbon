@@ -17,7 +17,9 @@ use std::{sync::Arc, time::Duration};
 
 use log::{error, info};
 use rayon::{
-    iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator, IntoParallelIterator},
+    iter::{
+        IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
+    },
     slice::ParallelSliceMut,
 };
 use talk::{

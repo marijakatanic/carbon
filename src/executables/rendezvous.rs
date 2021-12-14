@@ -64,6 +64,7 @@ async fn main() {
                         fast_brokers + full_brokers,
                         full_brokers * 100,
                         full_brokers * 100,
+                        full_brokers * 100,
                     ],
                 },
             )

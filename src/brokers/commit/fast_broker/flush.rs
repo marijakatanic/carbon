@@ -41,7 +41,7 @@ impl FastBroker {
 
                 fuse.spawn(async move {
                     info!("Submitting commit {}", height);
-                    
+
                     let result = FastBroker::broker(view, ping_board, connector, requests).await;
 
                     inlet.send(result).unwrap();

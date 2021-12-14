@@ -42,11 +42,15 @@ impl FastBroker {
 
         // Orchestrate submission to obtain `BatchCompletion`
 
+        let start = Instant::now();
+
         let batch_completion =
             Broker::orchestrate(view.clone(), ping_board, connector.clone(), submission)
                 .await
                 .map_err(|_| BrokerFailure::Error)
                 .unwrap();
+
+        info!("Orchestrate took: {} ms", start.elapsed().as_millis());
 
         // Dispatch appropriate `CompletionProof` to all `serve` tasks
         let start = Instant::now();
@@ -58,7 +62,10 @@ impl FastBroker {
             })
             .collect::<Vec<_>>();
 
-        info!("Creating completion proofs took: {} ms", start.elapsed().as_millis());
+        info!(
+            "Creating completion proofs took: {} ms",
+            start.elapsed().as_millis()
+        );
 
         // If `completion` is `Ok`, publish `BatchCommit` to all replicas
 

@@ -127,7 +127,7 @@ impl System {
                 CommitBroker::new(
                     discovery_client.clone(),
                     view.clone(),
-                    (Ipv4Addr::LOCALHOST, 0),
+                    vec![(Ipv4Addr::LOCALHOST, 0)],
                     connectors.remove(0),
                 )
                 .await
