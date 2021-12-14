@@ -109,7 +109,7 @@ impl FastBroker {
                             let payload = Payload::new(
                                 Entry {
                                     id: assignment.id(),
-                                    height: height as u64,
+                                    height: (height + 1) as u64,
                                 },
                                 operation,
                             );
@@ -157,7 +157,7 @@ impl FastBroker {
                     let prepare = Prepare::new(
                         Entry {
                             id: assignment.id(),
-                            height,
+                            height: height + 1,
                         },
                         operation.identifier(),
                     );
@@ -223,7 +223,7 @@ impl FastBroker {
         let prepare = Prepare::new(
             Entry {
                 id: clients[0].1.id(),
-                height,
+                height: height + 1,
             },
             operation,
         );
@@ -237,7 +237,7 @@ impl FastBroker {
                     let prepare = Prepare::new(
                         Entry {
                             id: assignment.id(),
-                            height,
+                            height: height + 1,
                         },
                         operation,
                     );

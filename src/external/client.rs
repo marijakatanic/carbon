@@ -1,9 +1,11 @@
 use crate::{
-    account::Entry,
+    account::{Entry, Operation},
     brokers::{
+        commit::Request,
         prepare::{BrokerFailure, Inclusion, Request as PrepareRequest},
         signup::BrokerFailure as SignupBrokerFailure,
     },
+    commit::{Commit, CommitProof, Completion, CompletionProof, Payload},
     external::parameters::{BrokerParameters, Export, Parameters},
     prepare::{BatchCommit, Prepare, ReductionStatement},
     signup::{IdAssignment, IdRequest},
@@ -142,9 +144,17 @@ impl Client {
         info!("Sending operations...");
         let prepare_shard = get_shard(&client, 3).await?;
 
-        let mut addresses = Vec::new();
+        info!("Sending operations...");
+        let commit_shard = get_shard(&client, 4).await?;
+
+        let mut prepare_addresses = Vec::new();
         for broker in prepare_shard.iter() {
-            addresses.push(client.get_address(broker.identity()).await.unwrap());
+            prepare_addresses.push(client.get_address(broker.identity()).await.unwrap());
+        }
+
+        let mut commit_addresses = Vec::new();
+        for broker in commit_shard.iter() {
+            commit_addresses.push(client.get_address(broker.identity()).await.unwrap());
         }
 
         let reduction_shard = batch_key_chains[0]
@@ -153,19 +163,22 @@ impl Client {
 
         info!("Getting assignments...");
         for (height, batch) in prepare_request_batches.into_iter().enumerate() {
-            let _commits: Vec<BatchCommit> = batch_key_chains
+            let _completions: Vec<Completion> = batch_key_chains
                 .iter()
                 .zip(batch.into_iter())
                 .enumerate()
                 .map(|(num, (keychain, prepare_request))| {
-                    let address = addresses[100 * num / (prepare_batch_size / num_clients)].clone();
+                    let prepare_address =
+                        prepare_addresses[100 * num / (prepare_batch_size / num_clients)].clone();
+                    let commit_address =
+                        commit_addresses[100 * num / (prepare_batch_size / num_clients)].clone();
 
                     async move {
                         if num == 0 {
                             info!("Client sending prepare for height {}", height);
                         }
 
-                        let stream = TcpStream::connect(address).await.unwrap();
+                        let stream = TcpStream::connect(prepare_address).await.unwrap();
                         let mut connection: PlainConnection = stream.into();
 
                         connection.send(&prepare_request).await.unwrap();
@@ -187,17 +200,50 @@ impl Client {
 
                         connection.send(&reduction_shard).await.unwrap();
 
-                        let result = connection
+                        let batch_commit = connection
                             .receive::<Result<BatchCommit, BrokerFailure>>()
                             .await
                             .unwrap()
                             .unwrap();
 
+                        let commit_proof = CommitProof::new(batch_commit, inclusion.proof);
+
+                        let payload = Payload::new(
+                            Entry {
+                                id: prepare_request.prepare().id(),
+                                height: (prepare_request.prepare().height()),
+                            },
+                            Operation::withdraw(
+                                prepare_request.prepare().id(),
+                                prepare_request.prepare().height() - 1,
+                                0,
+                            ),
+                        );
+
+                        let commit = Commit::new(commit_proof, payload.clone());
+
+                        // Commit
+
+                        let request = Request::new(commit, None);
+
+                        let stream = TcpStream::connect(commit_address).await.unwrap();
+                        let mut connection: PlainConnection = stream.into();
+
+                        connection.send(&request).await.unwrap();
+
+                        let completion_proof = connection
+                            .receive::<Result<CompletionProof, BrokerFailure>>()
+                            .await
+                            .unwrap()
+                            .unwrap();
+
+                        let withdrawal = Completion::new(completion_proof, payload);
+
                         if num == 0 {
                             info!("Client finished prepare for height {}", height);
                         }
 
-                        result
+                        withdrawal
                     }
                 })
                 .collect::<FuturesUnordered<_>>()
@@ -249,13 +295,16 @@ fn prepare(
         .iter()
         .cloned()
         .map(|assignment| {
-            let prepare = Prepare::new(
+            let payload = Payload::new(
                 Entry {
                     id: assignment.id(),
-                    height,
+                    height: (height + 1),
                 },
-                commitment.clone(),
+                Operation::withdraw(assignment.id(), height, 0),
             );
+
+            let prepare = payload.prepare();
+
             PrepareRequest {
                 assignment,
                 prepare,
@@ -264,3 +313,74 @@ fn prepare(
         })
         .collect()
 }
+
+// Copy paste code
+
+// {
+//     let payload = Payload::new(
+//         Entry {
+//             id: assignment.id(),
+//             height: 1,
+//         },
+//         Operation::withdraw(assignment.id(), 0, 0),
+//     );
+
+//     let prepare = payload.prepare();
+
+//     // Prepare
+
+//     let request = PrepareRequest::new(
+//         &client_keychain,
+//         assignment.clone(),
+//         prepare.height(),
+//         prepare.commitment(),
+//     );
+
+//     let stream = TcpStream::connect(prepare_broker.address()).await.unwrap();
+//     let mut connection: PlainConnection = stream.into();
+
+//     connection.send(&request).await.unwrap();
+
+//     let inclusion = connection
+//         .receive::<Result<PrepareInclusion, PrepareBrokerFailure>>()
+//         .await
+//         .unwrap()
+//         .unwrap();
+
+//     let reduction_shard = inclusion
+//         .certify_reduction(&client_keychain, request.prepare())
+//         .unwrap();
+
+//     connection.send(&reduction_shard).await.unwrap();
+
+//     let batch_commit = connection
+//         .receive::<Result<BatchCommit, PrepareBrokerFailure>>()
+//         .await
+//         .unwrap()
+//         .unwrap();
+
+//     let commit_proof = CommitProof::new(batch_commit, inclusion.proof);
+
+//     let commit = Commit::new(commit_proof, payload.clone());
+
+//     println!("[Withdraw] Prepare completed.");
+
+//     // Commit
+
+//     let request = Request::new(commit, None);
+
+//     let stream = TcpStream::connect(commit_broker.address()).await.unwrap();
+//     let mut connection: PlainConnection = stream.into();
+
+//     connection.send(&request).await.unwrap();
+
+//     let completion_proof = connection
+//         .receive::<Result<CompletionProof, BrokerFailure>>()
+//         .await
+//         .unwrap()
+//         .unwrap();
+
+//     let withdrawal = Completion::new(completion_proof, payload);
+
+//     println!("[Withdraw] Commit completed.");
+//     }

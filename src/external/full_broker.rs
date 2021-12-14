@@ -199,6 +199,8 @@ impl FullBroker {
                 .unwrap();
         }
 
+        info!("Initializing commit broker...");
+
         let connector = Connector::new(rendezvous, prepare_keychain.clone(), Default::default());
 
         let addresses = (0..100).map(|_| (Ipv4Addr::UNSPECIFIED, 0));
