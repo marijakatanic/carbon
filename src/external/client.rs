@@ -11,7 +11,7 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use futures::stream::{FuturesUnordered, StreamExt};
+use futures::stream::{FuturesUnordered, StreamExt, FuturesOrdered};
 use log::{error, info};
 use tokio::{net::TcpStream, time};
 
@@ -126,7 +126,7 @@ impl Client {
                         .unwrap()
                 }
             })
-            .collect::<FuturesUnordered<_>>()
+            .collect::<FuturesOrdered<_>>()
             .collect::<Vec<_>>()
             .await;
 

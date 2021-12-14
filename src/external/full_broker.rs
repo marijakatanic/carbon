@@ -1,7 +1,7 @@
 use crate::{
     brokers::{
         prepare::{Broker as PrepareBroker, BrokerSettings as PrepareBrokerSettings},
-        signup::Broker as SignupBroker,
+        signup::Broker as SignupBroker, signup::BrokerSettings as SignupBrokerSettings,
     },
     data::SpongeSettings,
     discovery::Client,
@@ -106,8 +106,16 @@ impl FullBroker {
         );
 
         let addresses = (0..100).map(|_| (Ipv4Addr::UNSPECIFIED, 0));
+        let sponge_settings = SpongeSettings {
+            capacity: signup_batch_size,
+            timeout: Duration::from_millis(1000 as u64),
+        };
+        let settings = SignupBrokerSettings {
+            signup_settings: Default::default(),
+            sponge_settings,
+        };
         let _signup_broker =
-            SignupBroker::new(genesis.clone(), addresses, connector, Default::default())
+            SignupBroker::new(genesis.clone(), addresses, connector, settings)
                 .await
                 .unwrap();
 
