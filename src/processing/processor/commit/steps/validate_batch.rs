@@ -1,4 +1,5 @@
 use buckets::{Buckets, Split};
+use log::warn;
 
 use crate::{
     account::Id,
@@ -134,6 +135,8 @@ pub(in crate::processing::processor::commit) async fn validate_batch(
     // All elements of `unproven_prepares` necessitate a `CommitProof`
     // in order for their corresponding payloads to be committed
     if !unproven_prepares.is_empty() {
+        warn!("Have unproven prepares!");
+
         // Query `session` for the `Id` corresponding to each
         // element of `missing_proofs`
 

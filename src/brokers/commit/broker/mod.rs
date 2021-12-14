@@ -311,7 +311,7 @@ mod tests {
 
         println!("[Deposit] Completion proof:\n{:?}", completion_proof);
 
-        let deposit = Completion::new(completion_proof, payload);
+        let _deposit = Completion::new(completion_proof, payload);
 
         tokio::time::sleep(Duration::from_secs(10)).await;
     }

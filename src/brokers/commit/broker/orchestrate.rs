@@ -60,7 +60,7 @@ struct CompletionCollector {
 }
 
 #[derive(Doom)]
-pub(in crate::brokers::commit::broker) enum OrchestrateError {
+pub(crate) enum OrchestrateError {
     #[doom(description("Failed to collect batch witness"))]
     WitnessCollectionFailed,
     #[doom(description("Failed to collect `BatchCompletion`"))]
@@ -92,7 +92,7 @@ enum CollectorError {
 }
 
 impl Broker {
-    pub(in crate::brokers::commit::broker) async fn orchestrate(
+    pub(in crate::brokers::commit) async fn orchestrate(
         view: View,
         ping_board: PingBoard,
         connector: Arc<SessionConnector>,

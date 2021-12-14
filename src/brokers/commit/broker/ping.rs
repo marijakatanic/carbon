@@ -26,7 +26,7 @@ enum PingError {
 }
 
 impl Broker {
-    pub(in crate::brokers::commit::broker) async fn ping(
+    pub(in crate::brokers::commit) async fn ping(
         board: PingBoard,
         connector: Arc<SessionConnector>,
         replica: Identity,
