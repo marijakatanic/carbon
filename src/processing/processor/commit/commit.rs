@@ -71,6 +71,10 @@ impl Processor {
                 )
                 .await
             }
+            CommitRequest::Completion(completion) => {
+                handlers::completion(discovery.as_ref(), database.as_ref(), session, completion)
+                    .await
+            }
             _ => ServeCommitError::UnexpectedRequest.fail().spot(here!()),
         }
     }

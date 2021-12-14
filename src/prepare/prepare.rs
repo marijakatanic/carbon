@@ -1,6 +1,9 @@
 use buckets::Splittable;
 
-use crate::{account::Id, crypto::Header};
+use crate::{
+    account::{Entry, Id},
+    crypto::Header,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -8,26 +11,25 @@ use talk::crypto::{primitives::hash::Hash, Statement};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Prepare {
-    id: Id,
-    height: u64,
+    entry: Entry,
     commitment: Hash,
 }
 
 impl Prepare {
-    pub fn new(id: Id, height: u64, commitment: Hash) -> Self {
-        Prepare {
-            id,
-            height,
-            commitment,
-        }
+    pub fn new(entry: Entry, commitment: Hash) -> Self {
+        Prepare { entry, commitment }
+    }
+
+    pub fn entry(&self) -> Entry {
+        self.entry
     }
 
     pub fn id(&self) -> Id {
-        self.id
+        self.entry.id
     }
 
     pub fn height(&self) -> u64 {
-        self.height
+        self.entry.height
     }
 
     pub fn commitment(&self) -> Hash {
@@ -39,7 +41,7 @@ impl Splittable for Prepare {
     type Key = Id;
 
     fn key(&self) -> Id {
-        self.id
+        self.entry.id
     }
 }
 

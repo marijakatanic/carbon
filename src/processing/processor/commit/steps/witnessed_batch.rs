@@ -24,23 +24,37 @@ pub(in crate::processing::processor::commit) async fn witnessed_batch(
     session: &mut Session,
     payloads: Vector<Payload>,
 ) -> Result<WitnessedBatch, Top<ServeCommitError>> {
+    // Receive either:
+    //  - A witness
+    //  - A request to validate the batch and produce a witness
+    //    shard, which will be traded for a witness
+
     let request = session
         .receive::<CommitRequest>()
         .await
         .pot(ServeCommitError::ConnectionError, here!())?;
 
     let witness = match request {
-        CommitRequest::Witness(witness) => Ok(witness),
+        CommitRequest::Witness(witness) => {
+            // The batch was verified by a plurality of other replicas
+            // in `view`, no check on the batch is needed
+            Ok(witness)
+        }
         CommitRequest::WitnessRequest => {
+            // Validate the batch to obtain a witness shard
             let witness_shard =
                 steps::validate_batch(keychain, discovery, database, session, &payloads).await?;
 
+            // Trade `witness_shard` for a full witness (which aggregates the witness shards
+            // of a plurality of replicas in `view`)
             let witness = steps::trade_witnesses(session, witness_shard).await?;
 
             Ok(witness)
         }
         _ => ServeCommitError::UnexpectedRequest.fail().spot(here!()),
     }?;
+
+    // Assemble `payloads` and `witness` in a `WitnessedBatch` to validate and return
 
     let batch = WitnessedBatch::new(view.identifier(), payloads, witness);
 

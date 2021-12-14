@@ -1,4 +1,9 @@
-use crate::{account::Id, discovery::Client, prepare::Prepare, signup::IdAssignment};
+use crate::{
+    account::{Entry, Id},
+    discovery::Client,
+    prepare::Prepare,
+    signup::IdAssignment,
+};
 
 use doomstack::{here, Doom, ResultExt, Top};
 
@@ -33,7 +38,13 @@ impl Request {
         height: u64,
         commitment: Hash,
     ) -> Self {
-        let prepare = Prepare::new(assignment.id(), height, commitment);
+        let prepare = Prepare::new(
+            Entry {
+                id: assignment.id(),
+                height,
+            },
+            commitment,
+        );
         let signature = keychain.sign(&prepare).unwrap();
 
         Request {

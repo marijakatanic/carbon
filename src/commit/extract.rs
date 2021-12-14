@@ -1,5 +1,5 @@
 use crate::{
-    account::{Id, Operation},
+    account::{Entry, Id, Operation},
     commit::{Payload, WitnessStatement},
     crypto::Certificate,
     discovery::Client,
@@ -24,11 +24,11 @@ pub(crate) struct Extract {
 
 #[derive(Doom)]
 pub(crate) enum ExtractError {
-    #[doom(description("View unknown"))]
+    #[doom(description("`View` unknown"))]
     ViewUnknown,
     #[doom(description("Witness invalid"))]
     WitnessInvalid,
-    #[doom(description("Inclusion proof invalid"))]
+    #[doom(description("Inclusion `Proof` invalid"))]
     InclusionProofInvalid,
 }
 
@@ -59,6 +59,10 @@ impl Extract {
 
     pub fn height(&self) -> u64 {
         self.payload.height()
+    }
+
+    pub fn entry(&self) -> Entry {
+        self.payload.entry()
     }
 
     pub fn operation(&self) -> &Operation {

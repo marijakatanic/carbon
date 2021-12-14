@@ -74,7 +74,7 @@ impl BatchCommitShard {
             // Assuming that `prepares` was generated locally, it is is sorted by `Id`,
             // and can therefore be searched using `binary_search*`
             prepares
-                .binary_search_by_key(id, |prepare| prepare.id())
+                .binary_search_by_key(id, Prepare::id)
                 .map_err(|_| BatchCommitShardError::ForeignException.into_top())
                 .spot(here!())?;
 

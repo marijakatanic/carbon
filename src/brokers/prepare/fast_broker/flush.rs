@@ -1,4 +1,5 @@
 use crate::{
+    account::Entry,
     brokers::prepare::{broker_settings::BrokerTaskSettings, submission::Submission, FastBroker},
     data::PingBoard,
     discovery::Client,
@@ -114,7 +115,13 @@ impl FastBroker {
                 .par_iter()
                 .enumerate()
                 .map(|(num, (keychain, assignment))| {
-                    let prepare = Prepare::new(assignment.id(), height, operation);
+                    let prepare = Prepare::new(
+                        Entry {
+                            id: assignment.id(),
+                            height,
+                        },
+                        operation,
+                    );
                     if num < num_individual {
                         let sig = keychain.sign(&prepare).unwrap();
                         (prepare, Some(sig))
@@ -174,15 +181,27 @@ impl FastBroker {
             .cloned()
             .collect();
 
-        let prepare = Prepare::new(clients[0].1.id(), height, operation);
+        let prepare = Prepare::new(
+            Entry {
+                id: clients[0].1.id(),
+                height,
+            },
+            operation,
+        );
         let sig = clients[0].0.sign(&prepare).unwrap();
 
         let (prepares, individual_signatures): (Vec<Prepare>, Vec<Option<SingleSignature>>) =
             clients
                 .par_iter()
                 .enumerate()
-                .map(|(num, (keychain, assignment))| {
-                    let prepare = Prepare::new(assignment.id(), height, operation);
+                .map(|(num, (_, assignment))| {
+                    let prepare = Prepare::new(
+                        Entry {
+                            id: assignment.id(),
+                            height,
+                        },
+                        operation,
+                    );
                     if num < num_individual {
                         (prepare, Some(sig.clone()))
                     } else {

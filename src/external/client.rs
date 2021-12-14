@@ -1,4 +1,5 @@
 use crate::{
+    account::Entry,
     brokers::{
         prepare::{BrokerFailure, Inclusion, Request as PrepareRequest},
         signup::BrokerFailure as SignupBrokerFailure,
@@ -235,14 +236,26 @@ fn prepare(
     id_assignments: &Vec<IdAssignment>,
 ) -> Vec<PrepareRequest> {
     let commitment = hash::hash(&0).unwrap();
-    let fake_prepare = Prepare::new(id_assignments[0].id(), height, commitment.clone());
+    let fake_prepare = Prepare::new(
+        Entry {
+            id: id_assignments[0].id(),
+            height,
+        },
+        commitment.clone(),
+    );
     let fake_signature = clients[0].sign(&fake_prepare).unwrap();
 
     id_assignments
         .iter()
         .cloned()
         .map(|assignment| {
-            let prepare = Prepare::new(assignment.id(), height, commitment.clone());
+            let prepare = Prepare::new(
+                Entry {
+                    id: assignment.id(),
+                    height,
+                },
+                commitment.clone(),
+            );
             PrepareRequest {
                 assignment,
                 prepare,

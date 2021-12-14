@@ -1,4 +1,5 @@
 use crate::{
+    account::Operation,
     commit::{CommitProof, CommitProofError, Payload},
     discovery::Client,
 };
@@ -9,8 +10,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Commit {
-    proof: CommitProof,
-    payload: Payload,
+    pub proof: CommitProof,
+    pub payload: Payload,
 }
 
 impl Commit {
@@ -18,9 +19,16 @@ impl Commit {
         Commit { proof, payload }
     }
 
+    pub fn payload(&self) -> &Payload {
+        &self.payload
+    }
+
+    pub fn operation(&self) -> &Operation {
+        self.payload.operation()
+    }
+
     pub fn validate(&self, discovery: &Client) -> Result<(), Top<CommitProofError>> {
         let prepare = self.payload.prepare();
-
         self.proof.validate(&discovery, &prepare)
     }
 }

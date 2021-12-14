@@ -7,7 +7,8 @@ use talk::crypto::primitives::multi::Signature as MultiSignature;
 #[derive(Serialize, Deserialize)]
 pub(crate) enum CommitResponse {
     Pong,
-    MissingProofs(Vec<Id>),
+    MissingCommitProofs(Vec<Id>),
     WitnessShard(MultiSignature),
+    MissingDependencies(Vec<Id>),
     CompletionShard(BatchCompletionShard),
 }

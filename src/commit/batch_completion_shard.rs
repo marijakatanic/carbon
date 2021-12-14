@@ -1,4 +1,9 @@
-use crate::{account::Id, commit::BatchCompletionStatement, crypto::Identify, view::View};
+use crate::{
+    account::Id,
+    commit::{BatchCompletionStatement, Payload},
+    crypto::Identify,
+    view::View,
+};
 
 use doomstack::{here, Doom, ResultExt, Top};
 
@@ -11,8 +16,6 @@ use talk::crypto::{
     KeyCard, KeyChain,
 };
 
-use super::Payload;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct BatchCompletionShard {
     exceptions: BTreeSet<Id>,
@@ -23,7 +26,7 @@ pub(crate) struct BatchCompletionShard {
 pub(crate) enum BatchCompletionShardError {
     #[doom(description("Foreign exception"))]
     ForeignException,
-    #[doom(description("Signature invalid"))]
+    #[doom(description("`Signature` invalid"))]
     SignatureInvalid,
 }
 
@@ -58,9 +61,11 @@ impl BatchCompletionShard {
         payloads: &[Payload],
         completer: &KeyCard,
     ) -> Result<(), Top<BatchCompletionShardError>> {
+        // Assuming that `payloads` was generated locally, it is is sorted by `Id`,
+        // and can therefore be searched using `binary_search*`
         for id in self.exceptions.iter() {
             payloads
-                .binary_search_by_key(id, |payload| payload.id())
+                .binary_search_by_key(id, Payload::id)
                 .map_err(|_| BatchCompletionShardError::ForeignException.into_top())
                 .spot(here!())?;
         }
