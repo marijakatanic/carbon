@@ -42,7 +42,7 @@ async fn main() {
         ("run", Some(subm)) => {
             let rendezvous = subm.value_of("rendezvous").unwrap().to_string();
             let parameters_file = subm.value_of("parameters");
-            let num_clients = subm.value_of("size").unwrap().parse::<usize>().unwrap();
+            let num_clients = subm.value_of("num_clients").unwrap().parse::<usize>().unwrap();
 
             info!("Creating client");
             match Client::new(rendezvous, parameters_file, num_clients).await {
