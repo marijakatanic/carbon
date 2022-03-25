@@ -49,7 +49,7 @@ async fn main() {
                     info!("Replica finished successfully. Beginning to process forever...");
                     std::future::pending::<()>().await;
                 }
-                Err(e) => error!("{}", e),
+                Err(e) => error!("{:?}", e),
             }
         }
         _ => unreachable!(),

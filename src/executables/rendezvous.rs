@@ -13,6 +13,7 @@ async fn main() {
         .subcommand(
             SubCommand::with_name("run")
                 .about("Runs a single rendezvous server")
+                .args_from_usage("--local=<BOOL> 'Whether to use localhost or not'")
                 .args_from_usage("--port=[INT] 'The port in which to run")
                 .args_from_usage("--size=[INT] 'The number of members in the system")
                 .args_from_usage("--fast_brokers=[INT] 'The number of fast brokers in the system")
@@ -36,6 +37,7 @@ async fn main() {
 
     match matches.subcommand() {
         ("run", Some(subm)) => {
+            let local = subm.value_of("local").unwrap().to_string() == String::from("true");
             let port = subm
                 .value_of("port")
                 .unwrap_or("9000")
@@ -58,9 +60,10 @@ async fn main() {
                 .parse::<usize>()
                 .unwrap();
 
-            let address = ("0.0.0.0", port);
+            let ip = if local { "127.0.0.1" } else { "0.0.0.0" };
+            let address = (ip, port);
 
-            info!("Rendezvous server starting...");
+            info!("Rendezvous server starting... Address: {:?}", address);
 
             let server = Server::new(
                 address,

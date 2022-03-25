@@ -55,7 +55,7 @@ async fn main() {
                         info!("Full broker done!");
                         std::future::pending::<()>().await;
                     }
-                    Err(e) => error!("{}", e),
+                    Err(e) => error!("{:?}", e),
                 }
             } else {
                 info!("Creating fast broker!");
@@ -64,7 +64,7 @@ async fn main() {
                         info!("Fast broker done!");
                         std::future::pending::<()>().await;
                     }
-                    Err(e) => error!("{}", e),
+                    Err(e) => error!("{:?}", e),
                 }
             }
         }

@@ -54,7 +54,7 @@ async fn main() {
                     info!("Full client done");
                     std::future::pending::<()>().await;
                 }
-                Err(e) => error!("{}", e),
+                Err(e) => error!("{:?}", e),
             }
         }
         _ => unreachable!(),
