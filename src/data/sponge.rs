@@ -63,6 +63,35 @@ impl<Item> Sponge<Item> {
         }
     }
 
+    pub fn push_multiple<I>(&self, items: I)
+    where
+        I: IntoIterator<Item = Item>,
+    {
+        let mut database = self.database.lock().unwrap();
+
+        let starting_len = database.items.len();
+
+        for item in items.into_iter() {
+            database.items.push(item);
+        }
+
+        if starting_len == 0 && database.items.len() > starting_len {
+            database.start = Instant::now();
+
+            let notify = self.notify.clone();
+            let timeout = self.settings.timeout;
+
+            self.fuse.spawn(async move {
+                time::sleep(timeout).await;
+                notify.notify_one();
+            });
+        }
+
+        if database.items.len() >= self.settings.capacity {
+            self.notify.notify_one();
+        }
+    }
+
     pub async fn flush(&self) -> Vec<Item> {
         loop {
             self.notify.notified().await;

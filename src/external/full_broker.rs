@@ -71,8 +71,7 @@ impl FullBroker {
         let reduction_threshold = 100 - prepare_single_sign_percentage;
         info!("Reduction percentage: {}", reduction_threshold);
 
-        let signup_keychain = KeyChain::random();
-        let prepare_keychain = KeyChain::random();
+        let keychain = KeyChain::random();
 
         let client = RendezvousClient::new(rendezvous.clone(), Default::default());
 
@@ -103,13 +102,8 @@ impl FullBroker {
         );
 
         let genesis = View::genesis(shard);
-        let connector = Connector::new(
-            rendezvous.clone(),
-            signup_keychain.clone(),
-            Default::default(),
-        );
 
-        let addresses = (0..100).map(|_| (Ipv4Addr::UNSPECIFIED, 0));
+        let connector = Connector::new(rendezvous.clone(), keychain.clone(), Default::default());
 
         let sponge_settings = SpongeSettings {
             capacity: signup_batch_size,
@@ -123,27 +117,28 @@ impl FullBroker {
 
         let _signup_broker = SignupBroker::new(
             genesis.clone(),
-            addresses,
+            [(Ipv4Addr::UNSPECIFIED, 0)],
             connector,
             signup_broker_settings,
         )
         .await
         .unwrap();
 
-        let addresses = _signup_broker.addresses();
-        let ports = addresses.iter().map(|address| address.port());
-        for port in ports {
-            let signup_keychain = KeyChain::random();
+        info!("Publishing sign up address...");
 
-            client
-                .advertise_port(signup_keychain.keycard().identity(), port)
-                .await;
+        let signup_keychain = KeyChain::random();
 
-            client
-                .publish_card(signup_keychain.keycard().clone(), Some(2))
-                .await
-                .unwrap();
-        }
+        client
+            .advertise_port(
+                signup_keychain.keycard().identity(),
+                _signup_broker.addresses()[0].port(),
+            )
+            .await;
+
+        client
+            .publish_card(signup_keychain.keycard().clone(), Some(2))
+            .await
+            .unwrap();
 
         info!("Initializing prepare broker...");
 
@@ -153,13 +148,7 @@ impl FullBroker {
             Default::default(),
         ));
 
-        let connector = Connector::new(
-            rendezvous.clone(),
-            prepare_keychain.clone(),
-            Default::default(),
-        );
-
-        let addresses = (0..100).map(|_| (Ipv4Addr::UNSPECIFIED, 0));
+        let connector = Connector::new(rendezvous.clone(), keychain.clone(), Default::default());
 
         let sponge_settings = SpongeSettings {
             capacity: prepare_batch_size,
@@ -177,53 +166,55 @@ impl FullBroker {
         let mut _prepare_broker = PrepareBroker::new(
             discovery.clone(),
             genesis.clone(),
-            addresses,
+            [(Ipv4Addr::UNSPECIFIED, 0)],
             connector,
             broker_settings,
         )
         .await
         .unwrap();
 
-        let addresses = _prepare_broker.addresses();
-        let ports = addresses.iter().map(|address| address.port());
-        for port in ports {
-            let prepare_keychain = KeyChain::random();
+        info!("Publishing prepare address...");
 
-            client
-                .advertise_port(prepare_keychain.keycard().identity(), port)
-                .await;
+        let prepare_keychain = KeyChain::random();
 
-            client
-                .publish_card(prepare_keychain.keycard().clone(), Some(3))
-                .await
-                .unwrap();
-        }
+        client
+            .advertise_port(
+                prepare_keychain.keycard().identity(),
+                _prepare_broker.addresses()[0].port(),
+            )
+            .await;
+
+        client
+            .publish_card(prepare_keychain.keycard().clone(), Some(3))
+            .await
+            .unwrap();
 
         info!("Initializing commit broker...");
 
-        let connector = Connector::new(rendezvous, prepare_keychain.clone(), Default::default());
+        let connector = Connector::new(rendezvous, keychain.clone(), Default::default());
 
-        let addresses = (0..100).map(|_| (Ipv4Addr::UNSPECIFIED, 0));
+        let mut _commit_broker = CommitBroker::new(
+            discovery.clone(),
+            genesis.clone(),
+            [(Ipv4Addr::UNSPECIFIED, 0)],
+            connector,
+        )
+        .await
+        .unwrap();
 
-        let mut _commit_broker =
-            CommitBroker::new(discovery.clone(), genesis.clone(), addresses, connector)
-                .await
-                .unwrap();
+        let commit_keychain = KeyChain::random();
 
-        let addresses = _commit_broker.addresses();
-        let ports = addresses.iter().map(|address| address.port());
-        for port in ports {
-            let commit_keychain = KeyChain::random();
+        client
+            .advertise_port(
+                commit_keychain.keycard().identity(),
+                _commit_broker.addresses()[0].port(),
+            )
+            .await;
 
-            client
-                .advertise_port(commit_keychain.keycard().identity(), port)
-                .await;
-
-            client
-                .publish_card(commit_keychain.keycard().clone(), Some(4))
-                .await
-                .unwrap();
-        }
+        client
+            .publish_card(commit_keychain.keycard().clone(), Some(4))
+            .await
+            .unwrap();
 
         info!("Syncing with other brokers...");
 

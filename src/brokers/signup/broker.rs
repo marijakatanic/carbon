@@ -10,7 +10,10 @@ use crate::{
 use doomstack::{here, Doom, ResultExt, Top};
 
 use futures::stream::{FuturesUnordered, StreamExt};
-use log::error;
+
+use itertools::Itertools;
+
+use log::{error, info};
 
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
@@ -201,42 +204,99 @@ impl Broker {
         mut connection: PlainConnection,
         view: View,
         sponges: Arc<HashMap<Identity, Sponge<Brokerage>>>,
-        signup_settings: SignupSettings,
+        _signup_settings: SignupSettings,
     ) -> Result<(), Top<ServeError>> {
-        let request = connection
-            .receive::<IdRequest>()
+        let requests = connection
+            .receive::<Vec<IdRequest>>()
             .await
             .pot(ServeError::ConnectionError, here!())?;
 
-        request
-            .validate(signup_settings.work_difficulty)
-            .pot(ServeError::RequestInvalid, here!())?;
+        info!("Received IdRequests {}", requests.len());
 
-        if request.view() != view.identifier() {
+        info!("Checking views...");
+
+        // All requests must have the same view
+        if requests
+            .iter()
+            .any(|request| request.view() != view.identifier())
+        {
             return ServeError::ForeignView.fail().spot(here!());
         }
 
-        let sponge = sponges
-            .get(&request.allocator())
-            .ok_or(ServeError::ForeignAllocator.into_top().spot(here!()))?;
+        info!("Checking allocators...");
 
-        let (outcome_inlet, outcome_outlet) = oneshot::channel();
+        // All requests must have a valid allocator
+        if requests
+            .iter()
+            .any(|request| sponges.get(&request.allocator()).is_none())
+        {
+            return ServeError::ForeignAllocator.fail().spot(here!());
+        }
 
-        let brokerage = Brokerage {
-            request,
-            outcome_inlet,
-        };
+        info!("Validating request work...");
 
-        sponge.push(brokerage);
+        // All requests must be valid
 
-        let outcome = outcome_outlet
+        // Skipped for benchmarking purposes
+
+        // if let Err(e) = requests
+        //     .iter()
+        //     .map(|request| request.validate(signup_settings.work_difficulty))
+        //     .collect::<Result<Vec<()>, _>>()
+        // {
+        //     return Err(e).pot(ServeError::RequestInvalid, here!());
+        // }
+
+        info!("Pushing to sponges...");
+
+        let mut outcome_outlets: Vec<Receiver<Result<IdAssignment, BrokerFailure>>> = Vec::new();
+
+        let requests = requests
+            .into_iter()
+            .group_by(|request| request.allocator())
+            .into_iter()
+            .map(|(identity, group)| (identity, group.into_iter().collect::<Vec<_>>()))
+            .collect::<Vec<_>>();
+
+        for (allocator, group) in requests.into_iter() {
+            let sponge = sponges.get(&allocator).unwrap();
+
+            let (brokerages, mut group_outlets): (Vec<_>, Vec<_>) = group
+                .into_iter()
+                .map(|request| {
+                    let (outcome_inlet, outcome_outlet) = oneshot::channel();
+                    let brokerage = Brokerage {
+                        request,
+                        outcome_inlet,
+                    };
+                    (brokerage, outcome_outlet)
+                })
+                .unzip();
+
+            sponge.push_multiple(brokerages);
+
+            outcome_outlets.append(&mut group_outlets);
+        }
+
+        info!("Waiting for IdRequest outcomes...");
+
+        let outcomes = outcome_outlets
+            .into_iter()
+            .collect::<FuturesUnordered<_>>()
+            .collect::<Vec<_>>()
             .await
-            .map_err(ServeError::request_forfeited)
-            .map_err(Doom::into_top)
-            .spot(here!())?;
+            .into_iter()
+            .map(|v| {
+                v.map_err(ServeError::request_forfeited)
+                    .map_err(Doom::into_top)
+                    .spot(here!())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        info!("Sending IdRequest outcomes...");
 
         connection
-            .send(&outcome)
+            .send(&outcomes)
             .await
             .pot(ServeError::ConnectionError, here!())?;
 
@@ -386,9 +446,11 @@ impl Broker {
             .zip(allocations)
             .map(|(request, allocation)| {
                 // Each `allocation` must be valid against the corresponding `request`
-                allocation
-                    .validate(&request)
-                    .pot(SubmitError::InvalidAllocation, here!())?;
+
+                // Skip validation for benchmark purposes
+                // allocation
+                //     .validate(&request)
+                //     .pot(SubmitError::InvalidAllocation, here!())?;
 
                 Ok(IdClaim::new(request, allocation))
             })
@@ -480,6 +542,25 @@ impl Broker {
                     return SubmitError::MalformedResponse.fail().spot(here!());
                 }
 
+                // Check that the signatures are ok, in parallel
+
+                // Skip validation for benchmark purposes
+
+                // if !shards
+                //     .par_iter()
+                //     .zip(slots.par_iter())
+                //     .filter_map(|(shard, slot)| {
+                //         if shard.is_ok() && slot.is_ok() {
+                //             Some((shard.as_ref().unwrap(), slot.as_ref().unwrap()))
+                //         } else {
+                //             None
+                //         }
+                //     })
+                //     .all(|(signature, slot)| slot.check(&assigner, signature).is_ok())
+                // {
+                //     return SubmitError::InvalidShard.fail().spot(here!());
+                // }
+
                 // `progress` zips together corresponding elements of `claims`, `shards`, and
                 // `slots`, selecting only those `slots` that still contain an `aggregator`
                 let progress = claims
@@ -495,10 +576,7 @@ impl Broker {
                         Ok(signature) => {
                             // Try to aggregate `signature` to `slot`'s inner aggregator:
                             // this fails if `signature` is invalid
-                            slot.as_mut()
-                                .unwrap()
-                                .add(&assigner, signature)
-                                .pot(SubmitError::InvalidShard, here!())?;
+                            slot.as_mut().unwrap().add_unchecked(&assigner, signature)
                         }
                         Err(collided_claim) => {
                             // Validate `collided_claim`

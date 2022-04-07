@@ -23,17 +23,7 @@ use talk::{
     sync::fuse::Fuse,
 };
 
-use tokio::sync::oneshot::Sender;
-
-type OutcomeInlet = Sender<Result<IdAssignment, BrokerFailure>>;
-
 pub(crate) struct FastSignupBroker {}
-
-#[derive(Debug)]
-struct Brokerage {
-    request: IdRequest,
-    outcome_inlet: OutcomeInlet,
-}
 
 #[derive(Debug, Clone)]
 struct Collision {

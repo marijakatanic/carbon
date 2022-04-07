@@ -1,11 +1,15 @@
 use crate::{
-    brokers::commit::{brokerage::Brokerage, Broker, Request},
+    brokers::commit::{brokerage::Brokerage, Broker, BrokerFailure, Request},
+    commit::CompletionProof,
     data::Sponge,
     discovery::Client,
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
-use log::error;
+
+use futures::stream::{FuturesUnordered, StreamExt};
+
+use log::{error, info};
 
 use std::sync::Arc;
 
@@ -59,39 +63,65 @@ impl Broker {
     ) -> Result<(), Top<ServeError>> {
         // Receive and validate `Request`
 
-        let request = connection
-            .receive::<Request>()
+        let requests = connection
+            .receive::<Vec<Request>>()
             .await
             .pot(ServeError::ConnectionError, here!())?;
 
-        // Skip for benchmark
-        let _ = request
-            .validate(discovery.as_ref())
-            .pot(ServeError::RequestInvalid, here!());
+        if requests.len() == 0 {
+            return ServeError::RequestInvalid.fail().spot(here!());
+        }
+
+        info!("Verifying commit requests (total: {})...", requests.len());
+
+        // Verify (for fair latency) but accept wrong pre-generated signatures for benchmark purposes
+        let _ = requests
+            .iter()
+            .map(|request| {
+                request
+                    .validate(discovery.as_ref())
+                    .pot(ServeError::RequestInvalid, here!())
+            })
+            .collect::<Result<Vec<()>, Top<ServeError>>>();
 
         // Build and submit `Brokerage` to `brokerage_sponge`
 
-        let (completion_inlet, completion_outlet) = oneshot::channel();
+        // Build and submit `Brokerage` to `brokerage_sponge`
+        let (brokerages, completion_outlets): (Vec<_>, Vec<_>) = requests
+            .into_iter()
+            .map(|request| {
+                let (completion_inlet, completion_outlet) = oneshot::channel();
 
-        let brokerage = Brokerage {
-            request,
-            completion_inlet,
-        };
+                let brokerage = Brokerage {
+                    request,
+                    completion_inlet,
+                };
 
-        brokerage_sponge.push(brokerage);
+                (brokerage, completion_outlet)
+            })
+            .unzip();
+
+        brokerage_sponge.push_multiple(brokerages);
 
         // Wait for `Completion` from `broker` task
 
-        let completion = completion_outlet
+        let completions = completion_outlets
+            .into_iter()
+            .collect::<FuturesUnordered<_>>()
+            .collect::<Vec<_>>()
             .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
             .map_err(ServeError::request_forfeited)
             .map_err(Doom::into_top)
-            .spot(here!())?;
+            .spot(here!())?
+            .into_iter()
+            .collect::<Result<Vec<CompletionProof>, _>>();
 
         // Send `commit` to the served client (note that `commit` is a `Result<Completion, Failure>`)
 
         connection
-            .send(&completion)
+            .send::<Result<Vec<CompletionProof>, BrokerFailure>>(&completions)
             .await
             .pot(ServeError::ConnectionError, here!())?;
 

@@ -1,8 +1,8 @@
 use crate::{
     account::{Entry, Operation},
     brokers::{
-        commit::Request,
-        prepare::{BrokerFailure, Inclusion, Request as PrepareRequest},
+        commit::{BrokerFailure as CommitBrokerFailure, Request as CommitRequest},
+        prepare::{BrokerFailure as PrepareBrokerFailure, Inclusion, Request as PrepareRequest},
         signup::BrokerFailure as SignupBrokerFailure,
     },
     commit::{Commit, CommitProof, Completion, CompletionProof, Payload},
@@ -14,11 +14,16 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use futures::stream::{FuturesUnordered, StreamExt};
 use log::{error, info};
+
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
+
 use tokio::{net::TcpStream, time};
 
-use std::time::Duration;
+use std::{
+    net::{Ipv4Addr, SocketAddr},
+    time::Duration,
+};
 
 use talk::{
     crypto::{primitives::hash, KeyCard, KeyChain},
@@ -38,7 +43,8 @@ impl Client {
     pub async fn new<A: 'static + TcpConnect + Clone>(
         rendezvous: A,
         parameters_file: Option<&str>,
-        num_clients: usize,
+        broker_address: Option<&str>,
+        _num_clients: usize,
     ) -> Result<Self, Top<ClientError>> {
         // Load default parameters if none are specified.
         let BrokerParameters {
@@ -69,207 +75,233 @@ impl Client {
         info!("Getting broker keycard");
 
         let client = RendezvousClient::new(rendezvous.clone(), Default::default());
-        let shard = get_shard(&client, 2).await?;
 
-        info!(
-            "Obtained shard! Honest broker identities {:?}",
-            shard
-                .iter()
-                .map(|keycard| keycard.identity())
-                .collect::<Vec<_>>()
-        );
+        let (batch_keychains, id_assignments) =
+            get_assignments(&client, prepare_batch_size).await?;
 
-        let mut addresses = Vec::new();
-        for broker in shard.iter() {
-            addresses.push(client.get_address(broker.identity()).await.unwrap());
-        }
-
-        let mut shard = get_shard(&client, 0).await?;
-        shard.sort_by_key(|keycard| keycard.identity());
-
-        info!(
-            "Obtained shard! Replica identities {:?}",
-            shard
-                .iter()
-                .map(|keycard| keycard.identity())
-                .collect::<Vec<_>>()
-        );
-
-        let allocator = shard.iter().next().unwrap().identity();
-        let genesis = View::genesis(shard);
-
-        let (batch_key_chains, batch_requests): (Vec<KeyChain>, Vec<IdRequest>) = (0
-            ..prepare_batch_size / num_clients)
-            .map(|_| {
-                let keychain = KeyChain::random();
-                let request = IdRequest::new(&keychain, &genesis, allocator.clone(), 0);
-
-                (keychain, request)
-            })
-            .unzip();
-
-        info!("Getting assignments...");
-
-        let assignments: Vec<IdAssignment> = batch_requests
-            .into_iter()
-            .enumerate()
-            .map(|(num, id_request)| {
-                let address = addresses[100 * num / (prepare_batch_size / num_clients)].clone();
-
-                async move {
-                    let stream = TcpStream::connect(address.clone()).await.unwrap();
-                    let mut connection: PlainConnection = stream.into();
-
-                    connection.send(&id_request).await.unwrap();
-
-                    connection
-                        .receive::<Result<IdAssignment, SignupBrokerFailure>>()
-                        .await
-                        .unwrap()
-                        .unwrap()
-                }
-            })
-            .collect::<FuturesUnordered<_>>()
-            .collect::<Vec<_>>()
-            .await;
-
-        info!("All IdAssignments obtained.");
-
-        let prepare_request_batches = (0..2)
-            .map(|height| prepare(height as u64, &batch_key_chains, &assignments))
+        let prepare_request_batches = (0..prepare_batch_number)
+            .map(|height| prepare(height as u64, &batch_keychains, &id_assignments))
             .collect::<Vec<_>>();
 
-        time::sleep(Duration::from_secs(10)).await;
+        let prepare_address = get_prepare_address(&client, broker_address).await?;
+        let commit_address = get_commit_address(&client, broker_address).await?;
 
-        info!("Getting prepare shard...");
-        let prepare_shard = get_shard(&client, 3).await?;
-
-        info!("Getting commit shard");
-        let commit_shard = get_shard(&client, 4).await?;
-
-        let mut prepare_addresses = Vec::new();
-        for broker in prepare_shard.iter() {
-            prepare_addresses.push(client.get_address(broker.identity()).await.unwrap());
-        }
-
-        let mut commit_addresses = Vec::new();
-        for broker in commit_shard.iter() {
-            commit_addresses.push(client.get_address(broker.identity()).await.unwrap());
-        }
-
-        let reduction_shard = batch_key_chains[0]
-            .multisign(&ReductionStatement::new(hash::hash(&0).unwrap()))
+        let reduction_shard = batch_keychains[0]
+            .multisign(&ReductionStatement::new(hash::hash::<u32>(&0).unwrap()))
             .unwrap();
 
         client
             .publish_card(KeyChain::random().keycard(), Some(1))
             .await
             .unwrap();
+
         let _ = get_shard(&client, 1).await?;
 
         info!("Awaiting to be in the middle of the throughput...");
-        time::sleep(Duration::from_secs(20 + 10)).await;
 
         info!("Starting latency test...");
+
         for (height, batch) in prepare_request_batches.into_iter().enumerate() {
-            let _completions: Vec<Completion> = batch_key_chains
-                .iter()
-                .zip(batch.into_iter())
-                .enumerate()
-                .map(|(num, (keychain, prepare_request))| {
-                    let prepare_address =
-                        prepare_addresses[100 * num / (prepare_batch_size / num_clients)].clone();
-                    let commit_address =
-                        commit_addresses[100 * num / (prepare_batch_size / num_clients)].clone();
+            let stream = TcpStream::connect(prepare_address).await.unwrap();
+            let mut prepare_connection: PlainConnection = stream.into();
+            
+            let stream = TcpStream::connect(commit_address).await.unwrap();
+            let mut commit_connection: PlainConnection = stream.into();
+            
+            info!("Client sending prepare for height {}", height);
 
-                    async move {
-                        if num == 0 {
-                            info!("Client sending prepare for height {}", height);
-                        }
+            prepare_connection
+                .send::<Vec<PrepareRequest>>(&batch)
+                .await
+                .unwrap();
 
-                        let stream = TcpStream::connect(prepare_address).await.unwrap();
-                        let mut connection: PlainConnection = stream.into();
+            let inclusions = prepare_connection
+                .receive::<Result<Vec<Inclusion>, PrepareBrokerFailure>>()
+                .await
+                .unwrap()
+                .unwrap();
 
-                        connection.send(&prepare_request).await.unwrap();
+            // When benchmarking, we only simulate the processing time of a single client
+            // In real life, each client is separate and only processes their own transaction
+            // so other clients' processing time should not be included in latency
+            // if num == 0 {
+            //     let _ = inclusion
+            //         .certify_reduction(&keychain, prepare_request.prepare())
+            //         .unwrap();
+            // }
 
-                        let inclusion = connection
-                            .receive::<Result<Inclusion, BrokerFailure>>()
-                            .await
-                            .unwrap()
-                            .unwrap();
+            let signatures = vec![reduction_shard; inclusions.len()];
+            prepare_connection.send(&signatures).await.unwrap();
 
-                        // When benchmarking, we only simulate the processing time of a single client
-                        // In real life, each client is separate and only processes their own transaction
-                        // so other clients' processing time should not be included in latency
-                        if num == 0 {
-                            let _ = inclusion
-                                .certify_reduction(&keychain, prepare_request.prepare())
-                                .unwrap();
-                        }
+            let batch_commits = prepare_connection
+                .receive::<Result<Vec<BatchCommit>, PrepareBrokerFailure>>()
+                .await
+                .unwrap()
+                .unwrap();
 
-                        connection.send(&reduction_shard).await.unwrap();
+            info!("Got batch commits!");
 
-                        let batch_commit = connection
-                            .receive::<Result<BatchCommit, BrokerFailure>>()
-                            .await
-                            .unwrap()
-                            .unwrap();
+            let (commit_requests, payloads): (Vec<CommitRequest>, Vec<Payload>) = batch
+                .into_par_iter()
+                .zip(inclusions.into_par_iter())
+                .zip(batch_commits.into_par_iter())
+                .map(|((prepare_request, inclusion), commit)| {
+                    let commit_proof = CommitProof::new(commit, inclusion.proof);
 
-                        let commit_proof = CommitProof::new(batch_commit, inclusion.proof);
+                    let payload = Payload::new(
+                        Entry {
+                            id: prepare_request.prepare().id(),
+                            height: (prepare_request.prepare().height()),
+                        },
+                        Operation::withdraw(
+                            prepare_request.prepare().id(),
+                            prepare_request.prepare().height() - 1,
+                            0,
+                        ),
+                    );
 
-                        let payload = Payload::new(
-                            Entry {
-                                id: prepare_request.prepare().id(),
-                                height: (prepare_request.prepare().height()),
-                            },
-                            Operation::withdraw(
-                                prepare_request.prepare().id(),
-                                prepare_request.prepare().height() - 1,
-                                0,
-                            ),
-                        );
+                    let commit = Commit::new(commit_proof, payload.clone());
 
-                        let commit = Commit::new(commit_proof, payload.clone());
+                    let commit_request = CommitRequest::new(commit, None);
 
-                        // Commit
-
-                        let request = Request::new(commit, None);
-
-                        let stream = TcpStream::connect(commit_address).await.unwrap();
-                        let mut connection: PlainConnection = stream.into();
-
-                        connection.send(&request).await.unwrap();
-
-                        let completion_proof = match connection
-                            .receive::<Result<CompletionProof, BrokerFailure>>()
-                            .await
-                            .unwrap()
-                        {
-                            Ok(proof) => proof,
-                            Err(e) => {
-                                error!("Completion error! {:?}", e);
-                                Err(e).unwrap()
-                            }
-                        };
-
-                        let withdrawal = Completion::new(completion_proof, payload);
-
-                        if num == 0 {
-                            info!("Client finished prepare for height {}", height);
-                        }
-
-                        withdrawal
-                    }
+                    (commit_request, payload)
                 })
-                .collect::<FuturesUnordered<_>>()
-                .collect::<Vec<_>>()
-                .await;
+                .unzip();
 
-            time::sleep(Duration::from_secs(30)).await;
+            commit_connection
+                .send::<Vec<CommitRequest>>(&commit_requests)
+                .await
+                .unwrap();
+
+            let completion_proofs = match commit_connection
+                .receive::<Result<Vec<CompletionProof>, CommitBrokerFailure>>()
+                .await
+                .unwrap()
+            {
+                Ok(completion_proofs) => completion_proofs,
+                Err(e) => {
+                    error!("Completion error! {:?}", e);
+                    Err(e).unwrap()
+                }
+            };
+
+            info!("Got completion proofs!");
+
+            let _withdrawals = completion_proofs
+                .into_iter()
+                .zip(payloads.into_iter())
+                .map(|(proof, payload)| Completion::new(proof, payload))
+                .collect::<Vec<_>>();
+
+            info!("Client finished prepare for height {}", height);
         }
+
+        info!("Client done!");
 
         Ok(Client {})
     }
+}
+
+async fn get_address(
+    client: &RendezvousClient,
+    preferred_address: Option<&str>,
+    shard: u32,
+) -> Result<SocketAddr, Top<ClientError>> {
+    info!("Getting prepare address...");
+    let shard = get_shard(&client, shard).await?;
+
+    let mut possible_addresses = Vec::new();
+    for broker in shard.iter() {
+        possible_addresses.push(client.get_address(broker.identity()).await.unwrap());
+    }
+
+    let mut address = possible_addresses[0];
+    if let Some(broker_address) = preferred_address {
+        address = possible_addresses
+            .into_iter()
+            .find(|address| address.ip() == broker_address.parse::<Ipv4Addr>().unwrap())
+            .unwrap_or(address);
+    }
+
+    Ok(address)
+}
+
+async fn get_prepare_address(
+    client: &RendezvousClient,
+    preferred_address: Option<&str>,
+) -> Result<SocketAddr, Top<ClientError>> {
+    get_address(client, preferred_address, 3).await
+}
+
+async fn get_commit_address(
+    client: &RendezvousClient,
+    preferred_address: Option<&str>,
+) -> Result<SocketAddr, Top<ClientError>> {
+    get_address(client, preferred_address, 4).await
+}
+
+async fn get_assignments(
+    client: &RendezvousClient,
+    amount: usize,
+) -> Result<(Vec<KeyChain>, Vec<IdAssignment>), Top<ClientError>> {
+    let shard = get_shard(&client, 2).await?;
+
+    info!(
+        "Obtained shard! Honest broker identities {:?}",
+        shard
+            .iter()
+            .map(|keycard| keycard.identity())
+            .collect::<Vec<_>>()
+    );
+
+    let mut addresses = Vec::new();
+    for broker in shard.iter() {
+        addresses.push(client.get_address(broker.identity()).await.unwrap());
+    }
+
+    let mut shard = get_shard(&client, 0).await?;
+    shard.sort_by_key(|keycard| keycard.identity());
+
+    info!(
+        "Obtained shard! Replica identities {:?}",
+        shard
+            .iter()
+            .map(|keycard| keycard.identity())
+            .collect::<Vec<_>>()
+    );
+
+    let allocator = shard.iter().next().unwrap().identity();
+    let genesis = View::genesis(shard);
+
+    info!("Generating IdRequests...");
+
+    let (batch_key_chains, batch_requests): (Vec<KeyChain>, Vec<IdRequest>) = (0..amount)
+        .map(|_| {
+            let keychain = KeyChain::random();
+            let request = IdRequest::new(&keychain, &genesis, allocator.clone(), 0);
+
+            (keychain, request)
+        })
+        .unzip();
+
+    info!("Getting assignments...");
+
+    let stream = TcpStream::connect(addresses[0].clone()).await.unwrap();
+    let mut signup_connection: PlainConnection = stream.into();
+
+    signup_connection.send(&batch_requests).await.unwrap();
+
+    let assignments: Vec<IdAssignment> = signup_connection
+        .receive::<Vec<Result<IdAssignment, SignupBrokerFailure>>>()
+        .await
+        .unwrap()
+        .into_iter()
+        .collect::<Result<Vec<IdAssignment>, SignupBrokerFailure>>()
+        .unwrap();
+
+    info!("All IdAssignments obtained.");
+
+    Ok((batch_key_chains, assignments))
 }
 
 async fn get_shard(

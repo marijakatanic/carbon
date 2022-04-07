@@ -5,10 +5,16 @@ use crate::{
     },
     data::Sponge,
     discovery::Client,
-    prepare::ReductionStatement,
+    prepare::{BatchCommit, ReductionStatement},
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
+
+use futures::stream::{FuturesUnordered, StreamExt};
+
+use itertools::Itertools;
+
+use log::{error, info};
 
 use std::sync::Arc;
 
@@ -47,7 +53,9 @@ impl Broker {
                 let brokerage_sponge = brokerage_sponge.clone();
 
                 fuse.spawn(async move {
-                    let _ = Broker::serve(discovery, brokerage_sponge, connection).await;
+                    if let Err(e) = Broker::serve(discovery, brokerage_sponge, connection).await {
+                        error!("Error listening to connection: {:?}", e);
+                    };
                 });
             }
         }
@@ -60,51 +68,82 @@ impl Broker {
     ) -> Result<(), Top<ServeError>> {
         // Receive and validate `Request`
 
-        let request = connection
-            .receive::<Request>()
+        let requests = connection
+            .receive::<Vec<Request>>()
             .await
             .pot(ServeError::ConnectionError, here!())?;
 
+        if requests.len() == 0 {
+            return ServeError::RequestInvalid.fail().spot(here!());
+        }
+
+        info!("Verifying prepare requests (total: {})...", requests.len());
+
         // Verify (for fair latency) but accept wrong pre-generated signatures for benchmark purposes
-        let _ = request
-            .validate(discovery.as_ref())
-            .pot(ServeError::RequestInvalid, here!());
+        let _ = requests
+            .iter()
+            .map(|request| {
+                request
+                    .validate(discovery.as_ref())
+                    .pot(ServeError::RequestInvalid, here!())
+            })
+            .collect::<Result<Vec<()>, Top<ServeError>>>();
+
+        info!("Pushing prepare requests to sponge...");
 
         // Build and submit `Brokerage` to `brokerage_sponge`
+        let (keycards, brokerages, reduction_outlets, commit_outlets): (
+            Vec<_>,
+            Vec<_>,
+            Vec<_>,
+            Vec<_>,
+        ) = requests
+            .into_iter()
+            .map(|request| {
+                let keycard = request.keycard().clone(); // Needed to later verify the client's reduction shard
 
-        let keycard = request.keycard().clone(); // Needed to later verify the client's reduction shard
+                let (reduction_inlet, reduction_outlet) = oneshot::channel();
+                let (commit_inlet, commit_outlet) = oneshot::channel();
 
-        let (reduction_inlet, reduction_outlet) = oneshot::channel();
-        let (commit_inlet, commit_outlet) = oneshot::channel();
+                let brokerage = Brokerage {
+                    request,
+                    reduction_inlet,
+                    commit_inlet,
+                };
 
-        let brokerage = Brokerage {
-            request,
-            reduction_inlet,
-            commit_inlet,
-        };
+                (keycard, brokerage, reduction_outlet, commit_outlet)
+            })
+            .multiunzip();
 
-        brokerage_sponge.push(brokerage);
+        brokerage_sponge.push_multiple(brokerages);
 
-        // Wait for `Reduction` from `broker` task
+        info!("Waiting for reductions...");
 
-        let reduction = reduction_outlet
+        // Wait for all `Reduction`s from `broker` task
+
+        let reductions = reduction_outlets
+            .into_iter()
+            .collect::<FuturesUnordered<_>>()
+            .collect::<Vec<_>>()
             .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
             .map_err(ServeError::request_forfeited)
             .map_err(Doom::into_top)
-            .spot(here!())?;
+            .spot(here!())?
+            .into_iter()
+            .collect::<Result<Vec<Reduction>, _>>();
 
         // If `reduction` is `Err`, forward `BrokerFailure` to the served client,
         // otherwise explode `reduction`'s fields
 
-        let Reduction {
-            index,
-            inclusion,
-            reduction_sponge,
-        } = match reduction {
-            Ok(reduction) => reduction,
+        let reductions = match reductions {
+            Ok(reductions) => reductions,
             Err(failure) => {
+                info!("Failure detected. Sending failure to client...");
+
                 connection
-                    .send::<Result<Inclusion, BrokerFailure>>(&Err(failure))
+                    .send::<Result<Vec<Inclusion>, BrokerFailure>>(&Err(failure))
                     .await
                     .pot(ServeError::ConnectionError, here!())?;
 
@@ -114,41 +153,76 @@ impl Broker {
             }
         };
 
-        let root = inclusion.root(); // Needed to later verify the client's reduction shard
+        let root = reductions[0].inclusion.root(); // Needed to later verify the client's reduction shard
+        let reduction_sponge = reductions[0].reduction_sponge.clone(); // Needed to later verify the client's reduction shard
+
+        let (indices, inclusions): (Vec<usize>, Vec<Inclusion>) = reductions
+            .into_iter()
+            .map(|reduction| {
+                let Reduction {
+                    index, inclusion, ..
+                } = reduction;
+
+                (index, inclusion)
+            })
+            .unzip();
+
+        info!("Sending inclusions to client...");
 
         // Trade `inclusion` for a (valid) reduction shard
 
         connection
-            .send::<Result<Inclusion, BrokerFailure>>(&Ok(inclusion))
+            .send::<Result<Vec<Inclusion>, BrokerFailure>>(&Ok(inclusions))
             .await
             .pot(ServeError::ConnectionError, here!())?;
 
-        let reduction_shard = connection
-            .receive::<MultiSignature>()
+        let reduction_shards = connection
+            .receive::<Vec<MultiSignature>>()
             .await
             .pot(ServeError::ConnectionError, here!())?;
+
+        info!("Verifying client inclusions...");
 
         // Verify (for fair latency) but accept wrong pre-generated signatures for benchmark purposes
-        let _ = reduction_shard
-            .verify([&keycard], &ReductionStatement::new(root))
-            .pot(ServeError::ReductionShardInvalid, here!());
+        let _ = reduction_shards
+            .iter()
+            .zip(keycards.iter())
+            .map(|(shard, keycard)| {
+                shard
+                    .verify([keycard], &ReductionStatement::new(root))
+                    .pot(ServeError::ReductionShardInvalid, here!())
+            })
+            .collect::<Result<Vec<()>, _>>();
+
+        info!("Pushing reductions to sponge...");
 
         // Submit `reduction_shard` to `reduction_sponge`
 
-        let _ = reduction_sponge.push((index, reduction_shard));
+        reduction_sponge.push_multiple(indices.into_iter().zip(reduction_shards.into_iter()));
+
+        info!("Waiting for `BatchCommit`s...");
 
         // Wait for `BatchCommit` from `broker` task
 
-        let commit = commit_outlet
+        let commits = commit_outlets
+            .into_iter()
+            .collect::<FuturesUnordered<_>>()
+            .collect::<Vec<_>>()
             .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
             .map_err(ServeError::request_forfeited)
             .map_err(Doom::into_top)
-            .spot(here!())?;
+            .spot(here!())?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>();
 
-        // Send `commit` to the served client (note that `commit` is a `Result<BatchCommit, Failure>`)
+        info!("Sending `BatchCommit`s to clients");
+
+        // Send `commit`s to the served client (note that `commit` is a `Result<Vec<BatchCommit>, Failure>`)
 
         connection
-            .send(&commit)
+            .send::<Result<Vec<BatchCommit>, BrokerFailure>>(&commits)
             .await
             .pot(ServeError::ConnectionError, here!())?;
 

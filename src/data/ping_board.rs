@@ -17,7 +17,7 @@ impl PingBoard {
             .members()
             .keys()
             .copied()
-            .map(|replica| (replica, Duration::MAX))
+            .map(|member| (member, Duration::MAX))
             .collect::<HashMap<_, _>>();
 
         let board = Arc::new(Mutex::new(board));
