@@ -19,7 +19,7 @@ async fn main() {
                     "--rendezvous=<STRING> 'The ip address of the server to rendezvous at'",
                 )
                 // .args_from_usage(
-                //     "--broker=<STRING> 'The ip address of the preferred broker to connect to'",
+                //     "--broker_address=<STRING> 'The ip address of the preferred broker to connect to'",
                 // )
                 .args_from_usage("--parameters=[FILE] 'The file containing the client parameters'")
                 .args_from_usage("--num_clients=[INT] 'The total number of clients'"),

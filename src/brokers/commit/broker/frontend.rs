@@ -11,6 +11,8 @@ use futures::stream::{FuturesUnordered, StreamExt};
 
 use log::{error, info};
 
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+
 use std::sync::Arc;
 
 use talk::{net::PlainConnection, sync::fuse::Fuse};
@@ -76,13 +78,13 @@ impl Broker {
 
         // Verify (for fair latency) but accept wrong pre-generated signatures for benchmark purposes
         let _ = requests
-            .iter()
+            .par_iter()
             .map(|request| {
                 request
                     .validate(discovery.as_ref())
                     .pot(ServeError::RequestInvalid, here!())
             })
-            .collect::<Result<Vec<()>, Top<ServeError>>>();
+            .collect::<Vec<Result<(), Top<ServeError>>>>();
 
         // Build and submit `Brokerage` to `brokerage_sponge`
 
@@ -101,9 +103,13 @@ impl Broker {
             })
             .unzip();
 
+        info!("Pushing commits to sponge...");
+
         brokerage_sponge.push_multiple(brokerages);
 
         // Wait for `Completion` from `broker` task
+
+        info!("Waiting for completions...");
 
         let completions = completion_outlets
             .into_iter()
@@ -118,12 +124,16 @@ impl Broker {
             .into_iter()
             .collect::<Result<Vec<CompletionProof>, _>>();
 
+        info!("Sending completions to client...");
+
         // Send `commit` to the served client (note that `commit` is a `Result<Completion, Failure>`)
 
         connection
             .send::<Result<Vec<CompletionProof>, BrokerFailure>>(&completions)
             .await
             .pot(ServeError::ConnectionError, here!())?;
+
+        info!("Completions sent!");
 
         // Successfully delivering a `BrokerFailure` to the served client is not a shortcoming
         // of `serve`, and should not result in an `Err` (see above)

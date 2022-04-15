@@ -87,7 +87,7 @@ impl Processor {
                 result
             }
             PrepareRequest::Commit(commit) => {
-                info!("Serving prepare!");
+                info!("Serving commit!");
 
                 let start = Instant::now();
                 let commit =
@@ -97,7 +97,7 @@ impl Processor {
                     start.elapsed().as_millis()
                 );
 
-                info!("Finished serving prepare!");
+                info!("Finished serving commit!");
 
                 commit
             }

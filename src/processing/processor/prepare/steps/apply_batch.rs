@@ -45,8 +45,6 @@ pub(in crate::processing::processor::prepare) async fn apply_batch(
         .lock()
         .pot(ServePrepareError::DatabaseVoid, here!())?;
 
-    let start = Instant::now();
-
     // This function extracts the appropriate (mutable and immutable) references to
     // `database`'s fields from a mutable reference to `database`. It is unclear
     // whether or not a more compact syntax exists to achieve the same.
@@ -179,8 +177,6 @@ pub(in crate::processing::processor::prepare) async fn apply_batch(
     // Use `exceptions` to return an appropriate `BatchCommitShard`
 
     let shard = BatchCommitShard::new(&keychain, view.identifier(), root, exceptions);
-
-    info!("Applied batch in {} ms", start.elapsed().as_millis());
 
     Ok(shard)
 }

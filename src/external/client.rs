@@ -97,6 +97,10 @@ impl Client {
 
         let _ = get_shard(&client, 1).await?;
 
+        // info!("Synced with other brokers. Making sure IdAssignments are published...");
+
+        // time::sleep(Duration::from_secs(20)).await;
+
         info!("Awaiting to be in the middle of the throughput...");
 
         info!("Starting latency test...");
@@ -104,11 +108,11 @@ impl Client {
         for (height, batch) in prepare_request_batches.into_iter().enumerate() {
             let stream = TcpStream::connect(prepare_address).await.unwrap();
             let mut prepare_connection: PlainConnection = stream.into();
-            
+
             let stream = TcpStream::connect(commit_address).await.unwrap();
             let mut commit_connection: PlainConnection = stream.into();
-            
-            info!("Client sending prepare for height {}", height);
+
+            info!("Client sending batch for height {}", height);
 
             prepare_connection
                 .send::<Vec<PrepareRequest>>(&batch)
@@ -193,7 +197,7 @@ impl Client {
                 .map(|(proof, payload)| Completion::new(proof, payload))
                 .collect::<Vec<_>>();
 
-            info!("Client finished prepare for height {}", height);
+            info!("Client completed batch for height {}", height);
         }
 
         info!("Client done!");

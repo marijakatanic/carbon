@@ -10,9 +10,10 @@ use crate::{
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
-use log::error;
 
-use std::sync::Arc;
+use log::{error, info};
+
+use std::{sync::Arc, time::Instant};
 
 use talk::{
     crypto::KeyChain,
@@ -66,7 +67,9 @@ impl Processor {
         match request {
             CommitRequest::Ping => handlers::ping(session).await,
             CommitRequest::Batch(payloads) => {
-                handlers::batch(
+                let start = Instant::now();
+
+                let result = handlers::batch(
                     &keychain,
                     discovery.as_ref(),
                     &view,
@@ -74,7 +77,11 @@ impl Processor {
                     session,
                     payloads,
                 )
-                .await
+                .await;
+
+                info!("Processed commit batch in {} ms", start.elapsed().as_millis());
+
+                result
             }
             CommitRequest::Completion(completion) => {
                 handlers::completion(discovery.as_ref(), database.as_ref(), session, completion)

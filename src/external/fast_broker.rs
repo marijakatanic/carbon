@@ -132,9 +132,9 @@ impl FastBroker {
 
         let local_rate = rate / shard.len();
 
-        info!("Synced with other brokers. Making sure IdAssignments are published...");
+        // info!("Synced with other brokers. Making sure IdAssignments are published...");
 
-        time::sleep(Duration::from_secs(20)).await;
+        // time::sleep(Duration::from_secs(20)).await;
 
         info!("Initiating prepare phase...");
 

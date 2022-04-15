@@ -16,8 +16,7 @@ async fn main() {
                 .args_from_usage("--local=<BOOL> 'Whether to use localhost or not'")
                 .args_from_usage("--port=[INT] 'The port in which to run")
                 .args_from_usage("--size=[INT] 'The number of members in the system")
-                .args_from_usage("--fast_brokers=[INT] 'The number of fast brokers in the system")
-                .args_from_usage("--full_brokers=[INT] 'The number of full brokers in the system")
+                .args_from_usage("--num_brokers=[INT] 'The number of brokers in the system")
                 .args_from_usage("--num_clients=[INT] 'The number of clients in the system"),
         )
         .setting(AppSettings::SubcommandRequiredElseHelp)
@@ -44,17 +43,12 @@ async fn main() {
                 .parse::<u16>()
                 .unwrap();
             let shard_size = subm.value_of("size").unwrap().parse::<usize>().unwrap();
-            let fast_brokers = subm
-                .value_of("fast_brokers")
+            let num_brokers = subm
+                .value_of("num_brokers")
                 .unwrap()
                 .parse::<usize>()
                 .unwrap();
-            let full_brokers = subm
-                .value_of("full_brokers")
-                .unwrap()
-                .parse::<usize>()
-                .unwrap();
-            let clients = subm
+            let num_clients = subm
                 .value_of("num_clients")
                 .unwrap()
                 .parse::<usize>()
@@ -70,10 +64,10 @@ async fn main() {
                 ServerSettings {
                     shard_sizes: vec![
                         shard_size,
-                        fast_brokers + full_brokers + clients,
-                        full_brokers,
-                        full_brokers,
-                        full_brokers,
+                        num_brokers + num_clients,
+                        num_brokers,
+                        num_brokers,
+                        num_brokers,
                     ],
                 },
             )

@@ -53,6 +53,8 @@ pub(in crate::processing::processor::prepare) async fn validate_signed(
             .zip(batch.individual_signatures()),
     );
 
+    let start = Instant::now();
+
     // Map and collect each element of `steps` into an optional reduction signer
     let reduction_signers = steps
         .map(
@@ -69,6 +71,13 @@ pub(in crate::processing::processor::prepare) async fn validate_signed(
         )
         .collect::<Result<Vec<Option<&KeyCard>>, Top<ServePrepareError>>>()?;
 
+    info!(
+        "Prepare: validated individual batch signatures in {} ms",
+        start.elapsed().as_millis()
+    );
+
+    let start = Instant::now();
+
     // Select all `Some` `reduction_signers`
     let reduction_signers = reduction_signers
         .into_iter()
@@ -82,14 +91,16 @@ pub(in crate::processing::processor::prepare) async fn validate_signed(
 
     let reduction_statement = ReductionStatement::new(batch.root());
 
-    let start = Instant::now();
-
     let _ = batch
         .reduction_signature()
         .verify(reduction_signers, &reduction_statement)
         .pot(ServePrepareError::InvalidBatch, here!()); // Accept all signatures
 
-    info!("Validated batch in {} ms", start.elapsed().as_millis());
+    info!(
+        "Prepare: validated batch multisignature in {} ms",
+        start.elapsed().as_millis()
+    );
+
     // `batch` is valid, generate and return witness shard
 
     let witness_statement = WitnessStatement::new(batch.root());
