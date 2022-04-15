@@ -79,7 +79,10 @@ impl Processor {
                 )
                 .await;
 
-                info!("Processed commit batch in {} ms", start.elapsed().as_millis());
+                info!(
+                    "Processed commit batch in {} ms",
+                    start.elapsed().as_millis()
+                );
 
                 result
             }

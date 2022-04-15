@@ -14,6 +14,8 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
+use futures::stream::{FuturesUnordered, StreamExt};
+
 use log::{error, info};
 
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
@@ -97,21 +99,29 @@ impl Client {
 
         let _ = get_shard(&client, 1).await?;
 
-        // info!("Synced with other brokers. Making sure IdAssignments are published...");
+        info!("Synced with other brokers. Making sure IdAssignments are published...");
 
-        // time::sleep(Duration::from_secs(20)).await;
+        time::sleep(Duration::from_secs(10)).await;
 
-        info!("Awaiting to be in the middle of the throughput...");
+        info!("Connecting with brokers...");
 
-        info!("Starting latency test...");
+        let connections: Vec<(PlainConnection, PlainConnection)> = (0..prepare_request_batches.len())
+            .map(|_| async move {
+                let stream = TcpStream::connect(prepare_address).await.unwrap();
+                let prepare_connection: PlainConnection = stream.into();
 
-        for (height, batch) in prepare_request_batches.into_iter().enumerate() {
-            let stream = TcpStream::connect(prepare_address).await.unwrap();
-            let mut prepare_connection: PlainConnection = stream.into();
+                let stream = TcpStream::connect(commit_address).await.unwrap();
+                let commit_connection: PlainConnection = stream.into();
 
-            let stream = TcpStream::connect(commit_address).await.unwrap();
-            let mut commit_connection: PlainConnection = stream.into();
+                (prepare_connection, commit_connection)
+            })
+            .collect::<FuturesUnordered<_>>()
+            .collect::<Vec<_>>()
+            .await;
 
+        time::sleep(Duration::from_secs(2)).await;
+
+        for (height, (batch, (mut prepare_connection, mut commit_connection))) in prepare_request_batches.into_iter().zip(connections.into_iter()).enumerate() {
             info!("Client sending batch for height {}", height);
 
             prepare_connection

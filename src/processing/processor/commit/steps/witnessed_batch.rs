@@ -49,7 +49,10 @@ pub(in crate::processing::processor::commit) async fn witnessed_batch(
             let start = Instant::now();
             let witness_shard =
                 steps::validate_batch(keychain, discovery, database, session, &payloads).await?;
-            info!("Commit: validated batch in {} ms", start.elapsed().as_millis());
+            info!(
+                "Commit: validated batch in {} ms",
+                start.elapsed().as_millis()
+            );
 
             // Trade `witness_shard` for a full witness (which aggregates the witness shards
             // of a plurality of replicas in `view`)

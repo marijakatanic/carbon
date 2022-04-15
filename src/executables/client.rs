@@ -47,7 +47,7 @@ async fn main() {
             let parameters_file = subm.value_of("parameters");
             let mut broker_address = subm.value_of("broker_address");
             if let Some(address) = broker_address {
-                if address == format!("") {
+                if address == format!("none") {
                     broker_address = None;
                 }
             }
