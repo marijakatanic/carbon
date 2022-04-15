@@ -20,7 +20,7 @@ lazy_static = { version = "1.4.0" }
 itertools = { version = "0.10.3" }
 
 talk = { git = "https://github.com/Distributed-EPFL/talk", features=[ "test_utilities" ], branch="benchmark" }
-zebra = { git = "ssh://git@github.com/Distributed-EPFL/zebra", branch="benchmark" }
+zebra = { git = "https://github.com/Distributed-EPFL/zebra", branch="benchmark" }
 doomstack = { git = "https://github.com/Distributed-EPFL/doomstack" }
 buckets = { git = "https://github.com/Distributed-EPFL/buckets" }
 
