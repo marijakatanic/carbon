@@ -18,9 +18,9 @@ async fn main() {
                 .args_from_usage(
                     "--rendezvous=<STRING> 'The ip address of the server to rendezvous at'",
                 )
-                // .args_from_usage(
-                //     "--broker_address=<STRING> 'The ip address of the preferred broker to connect to'",
-                // )
+                .args_from_usage(
+                    "--broker_address=<STRING> 'The ip address of the preferred broker to connect to'",
+                )
                 .args_from_usage("--parameters=[FILE] 'The file containing the client parameters'")
                 .args_from_usage("--num_clients=[INT] 'The total number of clients'"),
         )
@@ -45,7 +45,12 @@ async fn main() {
         ("run", Some(subm)) => {
             let rendezvous = subm.value_of("rendezvous").unwrap().to_string();
             let parameters_file = subm.value_of("parameters");
-            let broker_address = subm.value_of("broker_address");
+            let mut broker_address = subm.value_of("broker_address");
+            if let Some(address) = broker_address {
+                if address == format!("") {
+                    broker_address = None;
+                }
+            }
             let num_clients = subm
                 .value_of("num_clients")
                 .unwrap()
