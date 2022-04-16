@@ -48,6 +48,10 @@ impl Replica {
             parameters.client.prepare_batch_number
         );
         info!(
+            "Client parallel streams number {}",
+            parameters.client.parallel_streams
+        );
+        info!(
             "Broker signup batch size {}",
             parameters.broker.signup_batch_size
         );
