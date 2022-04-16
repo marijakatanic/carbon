@@ -11,9 +11,9 @@ use futures::stream::{FuturesUnordered, StreamExt};
 
 use log::{error, info};
 
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator, IntoParallelIterator};
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use talk::{net::PlainConnection, sync::fuse::Fuse};
 
@@ -75,6 +75,7 @@ impl Broker {
         }
 
         info!("Verifying commit requests (total: {})...", requests.len());
+        let start = Instant::now();
 
         // Verify (for fair latency) but accept wrong pre-generated signatures for benchmark purposes
         let _ = requests
@@ -90,7 +91,7 @@ impl Broker {
 
         // Build and submit `Brokerage` to `brokerage_sponge`
         let (brokerages, completion_outlets): (Vec<_>, Vec<_>) = requests
-            .into_iter()
+            .into_par_iter()
             .map(|request| {
                 let (completion_inlet, completion_outlet) = oneshot::channel();
 
@@ -102,6 +103,8 @@ impl Broker {
                 (brokerage, completion_outlet)
             })
             .unzip();
+
+        info!("Verified requests in {} ms", start.elapsed().as_millis());
 
         info!("Pushing commits to sponge...");
 
