@@ -16,14 +16,15 @@ use doomstack::{here, Doom, ResultExt, Top};
 
 use futures::stream::{FuturesUnordered, StreamExt};
 
-use log::{error, info};
+use log::{error, info, warn};
 
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
-use tokio::{net::TcpStream, time};
+use tokio::{net::TcpStream, sync::Semaphore, time};
 
 use std::{
     net::{Ipv4Addr, SocketAddr},
+    sync::Arc,
     time::Duration,
 };
 
@@ -46,7 +47,7 @@ impl Client {
         rendezvous: A,
         parameters_file: Option<&str>,
         broker_address: Option<&str>,
-        _num_clients: usize,
+        individual_rate: usize,
     ) -> Result<Self, Top<ClientError>> {
         // Load default parameters if none are specified.
         let parameters = match parameters_file {
@@ -123,124 +124,149 @@ impl Client {
 
         time::sleep(Duration::from_secs(10)).await;
 
+        let semaphore = Arc::new(Semaphore::new(parallel_streams));
+
         for (height, (batch, connections)) in prepare_request_batches
             .into_iter()
             .zip(connections.into_iter())
             .enumerate()
         {
-            let mini_batches = batch
-                .chunks_exact(batch.len() / parallel_streams)
-                .map(|chunk| chunk.to_vec())
-                .collect::<Vec<Vec<_>>>();
+            let mut permits = Vec::new();
+            for _ in 0..parallel_streams {
+                let permit = {
+                    if let Ok(permit) = semaphore.clone().try_acquire_owned() {
+                        permit
+                    } else {
+                        warn!("Client could not keep up with rate!");
+                        semaphore.clone().acquire_owned().await.unwrap()
+                    }
+                };
+                permits.push(permit);
+            }
 
-            info!("Client sending batch for height {}", height);
+            tokio::spawn(async move {
+                let mini_batches = batch
+                    .chunks_exact(batch.len() / parallel_streams)
+                    .map(|chunk| chunk.to_vec())
+                    .collect::<Vec<Vec<_>>>();
 
-            mini_batches
-                .into_iter()
-                .zip(connections.into_iter())
-                .map(
-                    |(batch, (mut prepare_connection, mut commit_connection))| async move {
-                        prepare_connection
-                            .send::<Vec<PrepareRequest>>(&batch)
-                            .await
-                            .unwrap();
+                info!("Client sending batch for height {}", height);
 
-                        // let bytes_sent = bincode::serialize(&batch).unwrap().len();
-                        // info!("Sent {} bytes", bytes_sent);
+                mini_batches
+                    .into_iter()
+                    .zip(connections.into_iter())
+                    .zip(permits)
+                    .map(
+                        |((batch, (mut prepare_connection, mut commit_connection)), permit)| async move {
+                            prepare_connection
+                                .send::<Vec<PrepareRequest>>(&batch)
+                                .await
+                                .unwrap();
+    
+                            // let bytes_sent = bincode::serialize(&batch).unwrap().len();
+                            // info!("Sent {} bytes", bytes_sent);
+    
+                            let inclusions = prepare_connection
+                                .receive::<Result<Vec<Inclusion>, PrepareBrokerFailure>>()
+                                .await
+                                .unwrap()
+                                .unwrap();
 
-                        let inclusions = prepare_connection
-                            .receive::<Result<Vec<Inclusion>, PrepareBrokerFailure>>()
-                            .await
-                            .unwrap()
-                            .unwrap();
+                            drop(permit);
+    
+                            // let bytes_received = bincode::serialize(&inclusions).unwrap().len();
+                            // info!("Received {} bytes", bytes_received);
+    
+                            // When benchmarking, we only simulate the processing time of a single client
+                            // In real life, each client is separate and only processes their own transaction
+                            // so other clients' processing time should not be included in latency
+                            // if num == 0 {
+                            //     let _ = inclusion
+                            //         .certify_reduction(&keychain, prepare_request.prepare())
+                            //         .unwrap();
+                            // }
+    
+                            let signatures = vec![reduction_shard; inclusions.len()];
+                            prepare_connection.send(&signatures).await.unwrap();
+    
+                            // let bytes_sent = bincode::serialize(&signatures).unwrap().len();
+                            // info!("Sent {} bytes", bytes_sent);
+    
+                            let batch_commits = prepare_connection
+                                .receive::<Result<Vec<BatchCommit>, PrepareBrokerFailure>>()
+                                .await
+                                .unwrap()
+                                .unwrap();
+    
+                            // let bytes_received = bincode::serialize(&batch_commits).unwrap().len();
+                            // info!("Received {} bytes", bytes_received);
+    
+                            // info!("Got batch commits!");
+    
+                            let (commit_requests, payloads): (Vec<CommitRequest>, Vec<Payload>) = batch
+                                .into_par_iter()
+                                .zip(inclusions.into_par_iter())
+                                .zip(batch_commits.into_par_iter())
+                                .map(|((prepare_request, inclusion), commit)| {
+                                    let commit_proof = CommitProof::new(commit, inclusion.proof);
+    
+                                    let payload = Payload::new(
+                                        Entry {
+                                            id: prepare_request.prepare().id(),
+                                            height: (prepare_request.prepare().height()),
+                                        },
+                                        Operation::withdraw(
+                                            prepare_request.prepare().id(),
+                                            prepare_request.prepare().height() - 1,
+                                            0,
+                                        ),
+                                    );
+    
+                                    let commit = Commit::new(commit_proof, payload.clone());
+    
+                                    let commit_request = CommitRequest::new(commit, None);
+    
+                                    (commit_request, payload)
+                                })
+                                .unzip();
+    
+                            commit_connection
+                                .send::<Vec<CommitRequest>>(&commit_requests)
+                                .await
+                                .unwrap();
+    
+                            let completion_proofs = match commit_connection
+                                .receive::<Result<Vec<CompletionProof>, CommitBrokerFailure>>()
+                                .await
+                                .unwrap()
+                            {
+                                Ok(completion_proofs) => completion_proofs,
+                                Err(e) => {
+                                    error!("Completion error! {:?}", e);
+                                    Err(e).unwrap()
+                                }
+                            };
+    
+                            // info!("Got completion proofs!");
+    
+                            let _withdrawals = completion_proofs
+                                .into_iter()
+                                .zip(payloads.into_iter())
+                                .map(|(proof, payload)| Completion::new(proof, payload))
+                                .collect::<Vec<_>>();
+                        },
+                    )
+                    .collect::<FuturesUnordered<_>>()
+                    .collect::<Vec<()>>()
+                    .await;
 
-                        // let bytes_received = bincode::serialize(&inclusions).unwrap().len();
-                        // info!("Received {} bytes", bytes_received);
+                info!("Client completed batch for height {}", height);
+            });
 
-                        // When benchmarking, we only simulate the processing time of a single client
-                        // In real life, each client is separate and only processes their own transaction
-                        // so other clients' processing time should not be included in latency
-                        // if num == 0 {
-                        //     let _ = inclusion
-                        //         .certify_reduction(&keychain, prepare_request.prepare())
-                        //         .unwrap();
-                        // }
-
-                        let signatures = vec![reduction_shard; inclusions.len()];
-                        prepare_connection.send(&signatures).await.unwrap();
-
-                        // let bytes_sent = bincode::serialize(&signatures).unwrap().len();
-                        // info!("Sent {} bytes", bytes_sent);
-
-                        let batch_commits = prepare_connection
-                            .receive::<Result<Vec<BatchCommit>, PrepareBrokerFailure>>()
-                            .await
-                            .unwrap()
-                            .unwrap();
-
-                        // let bytes_received = bincode::serialize(&batch_commits).unwrap().len();
-                        // info!("Received {} bytes", bytes_received);
-
-                        // info!("Got batch commits!");
-
-                        let (commit_requests, payloads): (Vec<CommitRequest>, Vec<Payload>) = batch
-                            .into_par_iter()
-                            .zip(inclusions.into_par_iter())
-                            .zip(batch_commits.into_par_iter())
-                            .map(|((prepare_request, inclusion), commit)| {
-                                let commit_proof = CommitProof::new(commit, inclusion.proof);
-
-                                let payload = Payload::new(
-                                    Entry {
-                                        id: prepare_request.prepare().id(),
-                                        height: (prepare_request.prepare().height()),
-                                    },
-                                    Operation::withdraw(
-                                        prepare_request.prepare().id(),
-                                        prepare_request.prepare().height() - 1,
-                                        0,
-                                    ),
-                                );
-
-                                let commit = Commit::new(commit_proof, payload.clone());
-
-                                let commit_request = CommitRequest::new(commit, None);
-
-                                (commit_request, payload)
-                            })
-                            .unzip();
-
-                        commit_connection
-                            .send::<Vec<CommitRequest>>(&commit_requests)
-                            .await
-                            .unwrap();
-
-                        let completion_proofs = match commit_connection
-                            .receive::<Result<Vec<CompletionProof>, CommitBrokerFailure>>()
-                            .await
-                            .unwrap()
-                        {
-                            Ok(completion_proofs) => completion_proofs,
-                            Err(e) => {
-                                error!("Completion error! {:?}", e);
-                                Err(e).unwrap()
-                            }
-                        };
-
-                        // info!("Got completion proofs!");
-
-                        let _withdrawals = completion_proofs
-                            .into_iter()
-                            .zip(payloads.into_iter())
-                            .map(|(proof, payload)| Completion::new(proof, payload))
-                            .collect::<Vec<_>>();
-                    },
-                )
-                .collect::<FuturesUnordered<_>>()
-                .collect::<Vec<()>>()
-                .await;
-
-            info!("Client completed batch for height {}", height);
+            time::sleep(Duration::from_millis(
+                ((1000 * prepare_batch_size) / individual_rate) as u64,
+            ))
+            .await;
         }
 
         info!("Client done!");

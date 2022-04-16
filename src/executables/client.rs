@@ -22,7 +22,7 @@ async fn main() {
                     "--broker_address=<STRING> 'The ip address of the preferred broker to connect to'",
                 )
                 .args_from_usage("--parameters=[FILE] 'The file containing the client parameters'")
-                .args_from_usage("--num_clients=[INT] 'The total number of clients'"),
+                .args_from_usage("--individual_rate=[INT] 'This client's target request rate (Op/S)'"),
         )
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .get_matches();
@@ -51,14 +51,14 @@ async fn main() {
                     broker_address = None;
                 }
             }
-            let num_clients = subm
-                .value_of("num_clients")
+            let individual_rate = subm
+                .value_of("individual_rate")
                 .unwrap()
                 .parse::<usize>()
                 .unwrap();
 
             info!("Creating client");
-            match Client::new(rendezvous, parameters_file, broker_address, num_clients).await {
+            match Client::new(rendezvous, parameters_file, broker_address, individual_rate).await {
                 Ok(_broker) => {
                     info!("Full client done");
                     std::future::pending::<()>().await;
