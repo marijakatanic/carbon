@@ -183,7 +183,11 @@ impl Broker {
             // Because a quorum of replicas is (theoretically) guaranteed to provide
             // a plurality of responses, collection of witness shards from a quorum
             // must carry on, without timeout, until success or failure.
+            info!("Waiting for witness progress");
+
             witness_collector.progress(&mut update_outlet).await;
+
+            info!("Progressed!");
 
             // Because `witness_collector.progress()` returned, if `witness_collector.complete()`
             // is `Ok`, then a plurality of witness shards was achieved.
