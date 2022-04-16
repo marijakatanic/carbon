@@ -5,7 +5,6 @@ use crate::{
         prepare::{broker_settings::BrokerTaskSettings, submission::Submission, FastBroker},
     },
     commit::{Commit, CommitProof, Payload},
-    crypto::Identify,
     data::PingBoard,
     discovery::Client,
     prepare::{Prepare, ReductionStatement},
@@ -24,9 +23,7 @@ use rayon::{
 };
 use talk::{
     crypto::{
-        primitives::{
-            hash, multi::Signature as MultiSignature, sign::Signature as SingleSignature,
-        },
+        primitives::{hash, sign::Signature as SingleSignature},
         KeyChain,
     },
     net::SessionConnector,

@@ -1,5 +1,4 @@
 use crate::{
-    crypto::Identify,
     database::Database,
     processing::{
         messages::SignupResponse, processor::signup::errors::ServeSignupError,

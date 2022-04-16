@@ -1,5 +1,4 @@
 use buckets::{Buckets, Split};
-use log::info;
 
 use crate::{
     account::Id,
@@ -15,10 +14,7 @@ use crate::{
 
 use doomstack::{here, ResultExt, Top};
 
-use std::{
-    collections::{HashMap, HashSet},
-    time::Instant,
-};
+use std::collections::{HashMap, HashSet};
 
 use talk::{
     crypto::{primitives::hash::Hash, KeyChain},

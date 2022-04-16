@@ -9,12 +9,10 @@ use crate::{
 
 use doomstack::{here, Doom, ResultExt, Top};
 
-use rayon::prelude::*;
-
 use talk::sync::voidable::Voidable;
 
 pub(in crate::processing::processor::signup) fn id_assignments(
-    discovery: &Client,
+    _discovery: &Client,
     database: &Voidable<Database>,
     assignments: Vec<IdAssignment>,
 ) -> Result<SignupResponse, Top<ServeSignupError>> {
