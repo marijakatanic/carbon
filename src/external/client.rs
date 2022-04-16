@@ -6,7 +6,7 @@ use crate::{
         signup::BrokerFailure as SignupBrokerFailure,
     },
     commit::{Commit, CommitProof, Completion, CompletionProof, Payload},
-    external::parameters::{BrokerParameters, Export, Parameters},
+    external::parameters::{ClientParameters, Export, Parameters},
     prepare::{BatchCommit, Prepare, ReductionStatement},
     signup::{IdAssignment, IdRequest},
     view::View,
@@ -49,30 +49,25 @@ impl Client {
         _num_clients: usize,
     ) -> Result<Self, Top<ClientError>> {
         // Load default parameters if none are specified.
-        let BrokerParameters {
-            signup_batch_number,
-            signup_batch_size,
+        let parameters = match parameters_file {
+            Some(filename) => Parameters::read(filename).pot(ClientError::Fail, here!())?,
+            None => Parameters::default(),
+        };
+
+        let ClientParameters {
             prepare_batch_number,
             prepare_batch_size,
             prepare_single_sign_percentage,
-            ..
-        } = match parameters_file {
-            Some(filename) => {
-                Parameters::read(filename)
-                    .pot(ClientError::Fail, here!())?
-                    .broker
-            }
-            None => Parameters::default().broker,
-        };
+            parallel_streams,
+        } = parameters.client;
 
-        info!("Signup batch number: {}", signup_batch_number);
-        info!("Signup batch size: {}", signup_batch_size);
         info!("Prepare batch number: {}", prepare_batch_number);
         info!("Prepare batch size: {}", prepare_batch_size);
         info!(
             "Prepare single sign percentage: {}",
             prepare_single_sign_percentage
         );
+        info!("Parallel TCP streams: {}", parallel_streams);
 
         info!("Getting broker keycard");
 
@@ -110,7 +105,7 @@ impl Client {
             .map(|_| async move {
                 let mut connections = Vec::new();
 
-                for _ in 0..100 {
+                for _ in 0..parallel_streams {
                     let stream = TcpStream::connect(prepare_address).await.unwrap();
                     let prepare_connection: PlainConnection = stream.into();
 
@@ -134,7 +129,7 @@ impl Client {
             .enumerate()
         {
             let mini_batches = batch
-                .chunks_exact(batch.len() / 100)
+                .chunks_exact(batch.len() / parallel_streams)
                 .map(|chunk| chunk.to_vec())
                 .collect::<Vec<Vec<_>>>();
 

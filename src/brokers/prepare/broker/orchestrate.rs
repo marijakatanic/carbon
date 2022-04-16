@@ -169,7 +169,7 @@ impl Broker {
         let complete = witness_collector
             .complete()
             .pot(OrchestrateError::WitnessCollectionFailed, here!())?;
-            
+
         if !complete {
             error!("Witness not complete!");
 

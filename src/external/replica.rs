@@ -44,16 +44,8 @@ impl Replica {
 
         info!("NODE CONFIGURATION");
         info!(
-            "Broker signup batch number {}",
-            parameters.broker.signup_batch_number
-        );
-        info!(
-            "Broker signup batch size {}",
-            parameters.broker.signup_batch_size
-        );
-        info!(
             "Broker prepare batch number {}",
-            parameters.broker.prepare_batch_number
+            parameters.client.prepare_batch_number
         );
         info!(
             "Broker prepare batch size {}",

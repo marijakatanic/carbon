@@ -11,7 +11,7 @@ use futures::stream::{FuturesUnordered, StreamExt};
 
 use log::{error, info};
 
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator, IntoParallelIterator};
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
 use std::{sync::Arc, time::Instant};
 
