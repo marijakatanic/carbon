@@ -144,13 +144,7 @@ impl Client {
                 .into_iter()
                 .zip(connections.into_iter())
                 .map(
-                    |(batch, (mut _prepare_connection, mut _commit_connection))| async move {
-                        let stream = TcpStream::connect(prepare_address).await.unwrap();
-                        let mut prepare_connection: PlainConnection = stream.into();
-
-                        let stream = TcpStream::connect(commit_address).await.unwrap();
-                        let mut commit_connection: PlainConnection = stream.into();
-
+                    |(batch, (mut prepare_connection, mut commit_connection))| async move {
                         prepare_connection
                             .send::<Vec<PrepareRequest>>(&batch)
                             .await

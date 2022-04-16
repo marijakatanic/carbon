@@ -10,7 +10,8 @@ use crate::{
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
-use log::error;
+
+use log::{error, info};
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -152,6 +153,8 @@ impl Broker {
 
         // Wait (or timeout) for the fastest plurality of slaves to produce witness shards
 
+        info!("Waiting for witness shards...");
+
         let _ = time::timeout(
             settings.optimistic_witness_timeout,
             witness_collector.progress(&mut update_outlet),
@@ -166,8 +169,10 @@ impl Broker {
         let complete = witness_collector
             .complete()
             .pot(OrchestrateError::WitnessCollectionFailed, here!())?;
-
+            
         if !complete {
+            error!("Witness not complete!");
+
             for replica in &rankings[view.plurality()..view.quorum()] {
                 let _ = command_inlets
                     .get_mut(replica)
@@ -190,6 +195,8 @@ impl Broker {
         // Finalize `witness_collector` to obtain witness
 
         let (commit_collector, witness) = witness_collector.finalize();
+
+        info!("Obtained full witness");
 
         // Direct all slaves to send `witness`
 

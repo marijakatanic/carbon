@@ -98,14 +98,18 @@ impl Broker {
 
         // Wait for `reduction_sponge` to flush
 
+        info!("Waiting to flush reduction sponge");
+
         let reduction_shards = reduction_sponge.flush().await;
+
+        info!("Flushed reduction sponge");
 
         // Aggregate reduction signature
 
         // Each element of `reduction_shards` has been previously verified, and can be
         // aggregated without any further checks
         let reduction_signature =
-            MultiSignature::aggregate(reduction_shards.into_iter().map(|(index, shard)| {
+            MultiSignature::fast_aggregate(reduction_shards.into_iter().map(|(index, shard)| {
                 individual_signatures[index] = None;
                 shard
             }))
@@ -121,6 +125,8 @@ impl Broker {
         );
 
         // Orchestrate submission of `submission`
+
+        info!("Orchestrating commit");
 
         let commit = Broker::orchestrate(
             discovery,
