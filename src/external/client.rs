@@ -126,6 +126,8 @@ impl Client {
 
         let semaphore = Arc::new(Semaphore::new(parallel_streams));
 
+        let mut handles = Vec::new();
+
         for (height, (batch, connections)) in prepare_request_batches
             .into_iter()
             .zip(connections.into_iter())
@@ -144,7 +146,7 @@ impl Client {
                 permits.push(permit);
             }
 
-            tokio::spawn(async move {
+            let handle = tokio::spawn(async move {
                 let mini_batches = batch
                     .chunks_exact(batch.len() / parallel_streams)
                     .map(|chunk| chunk.to_vec())
@@ -263,10 +265,16 @@ impl Client {
                 info!("Client completed batch for height {}", height);
             });
 
+            handles.push(handle);
+
             time::sleep(Duration::from_millis(
                 ((1000 * prepare_batch_size) / individual_rate) as u64,
             ))
             .await;
+        }
+
+        for handle in handles {
+            let _ = handle.await;
         }
 
         info!("Client done!");
