@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use crate::{
     commit::{Payload, WitnessedBatch},
     crypto::Identify,
@@ -11,6 +13,8 @@ use crate::{
 };
 
 use doomstack::{here, Doom, ResultExt, Top};
+
+use log::info;
 
 use talk::{crypto::KeyChain, net::Session, sync::voidable::Voidable};
 
@@ -42,8 +46,13 @@ pub(in crate::processing::processor::commit) async fn witnessed_batch(
         }
         CommitRequest::WitnessRequest => {
             // Validate the batch to obtain a witness shard
+            let start = Instant::now();
             let witness_shard =
                 steps::validate_batch(keychain, discovery, database, session, &payloads).await?;
+            info!(
+                "Commit: validated batch in {} ms",
+                start.elapsed().as_millis()
+            );
 
             // Trade `witness_shard` for a full witness (which aggregates the witness shards
             // of a plurality of replicas in `view`)

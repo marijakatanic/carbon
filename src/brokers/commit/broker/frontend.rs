@@ -11,7 +11,9 @@ use futures::stream::{FuturesUnordered, StreamExt};
 
 use log::{error, info};
 
-use std::sync::Arc;
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+
+use std::{sync::Arc, time::Instant};
 
 use talk::{net::PlainConnection, sync::fuse::Fuse};
 
@@ -73,22 +75,23 @@ impl Broker {
         }
 
         info!("Verifying commit requests (total: {})...", requests.len());
+        let start = Instant::now();
 
         // Verify (for fair latency) but accept wrong pre-generated signatures for benchmark purposes
         let _ = requests
-            .iter()
+            .par_iter()
             .map(|request| {
                 request
                     .validate(discovery.as_ref())
                     .pot(ServeError::RequestInvalid, here!())
             })
-            .collect::<Result<Vec<()>, Top<ServeError>>>();
+            .collect::<Vec<Result<(), Top<ServeError>>>>();
 
         // Build and submit `Brokerage` to `brokerage_sponge`
 
         // Build and submit `Brokerage` to `brokerage_sponge`
         let (brokerages, completion_outlets): (Vec<_>, Vec<_>) = requests
-            .into_iter()
+            .into_par_iter()
             .map(|request| {
                 let (completion_inlet, completion_outlet) = oneshot::channel();
 
@@ -101,9 +104,15 @@ impl Broker {
             })
             .unzip();
 
+        info!("Verified requests in {} ms", start.elapsed().as_millis());
+
+        info!("Pushing commits to sponge...");
+
         brokerage_sponge.push_multiple(brokerages);
 
         // Wait for `Completion` from `broker` task
+
+        info!("Waiting for completions...");
 
         let completions = completion_outlets
             .into_iter()
@@ -118,12 +127,16 @@ impl Broker {
             .into_iter()
             .collect::<Result<Vec<CompletionProof>, _>>();
 
+        info!("Sending completions to client...");
+
         // Send `commit` to the served client (note that `commit` is a `Result<Completion, Failure>`)
 
         connection
             .send::<Result<Vec<CompletionProof>, BrokerFailure>>(&completions)
             .await
             .pot(ServeError::ConnectionError, here!())?;
+
+        info!("Completions sent!");
 
         // Successfully delivering a `BrokerFailure` to the served client is not a shortcoming
         // of `serve`, and should not result in an `Err` (see above)

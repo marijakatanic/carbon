@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use crate::{
     commit::Payload,
     database::Database,
@@ -10,6 +12,8 @@ use crate::{
 };
 
 use doomstack::{here, ResultExt, Top};
+
+use log::info;
 
 use talk::{crypto::KeyChain, net::Session, sync::voidable::Voidable};
 
@@ -36,7 +40,12 @@ pub(in crate::processing::processor::commit) async fn batch(
 
     // Apply `batch` to `database` to obtain a `BatchCompletionShard`
 
+    let start = Instant::now();
     let shard = steps::apply_batch(keychain, view, database, batch, dependencies).await?;
+    info!(
+        "Commit: applied batch in {} ms",
+        start.elapsed().as_millis()
+    );
 
     // Send `shard` and end `session`
 

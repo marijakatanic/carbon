@@ -40,9 +40,7 @@ impl FastBroker {
     ) -> Result<Self, Top<FastBrokerError>> {
         // Load default parameters if none are specified.
         let BrokerParameters {
-            signup_batch_number,
             signup_batch_size,
-            prepare_batch_number,
             prepare_batch_size,
             prepare_single_sign_percentage,
             ..
@@ -55,10 +53,11 @@ impl FastBroker {
             None => Parameters::default().broker,
         };
 
+        let prepare_batch_number = 10;
+        let signup_batch_number = 10;
+
         info!("Rate limit: {}", rate);
-        info!("Signup batch number: {}", signup_batch_number);
         info!("Signup batch size: {}", signup_batch_size);
-        info!("Prepare batch number: {}", prepare_batch_number);
         info!("Prepare batch size: {}", prepare_batch_size);
         info!(
             "Prepare single sign percentage: {}",
@@ -132,9 +131,9 @@ impl FastBroker {
 
         let local_rate = rate / shard.len();
 
-        info!("Synced with other brokers. Making sure IdAssignments are published...");
+        // info!("Synced with other brokers. Making sure IdAssignments are published...");
 
-        time::sleep(Duration::from_secs(20)).await;
+        // time::sleep(Duration::from_secs(20)).await;
 
         info!("Initiating prepare phase...");
 

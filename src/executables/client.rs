@@ -18,11 +18,11 @@ async fn main() {
                 .args_from_usage(
                     "--rendezvous=<STRING> 'The ip address of the server to rendezvous at'",
                 )
-                // .args_from_usage(
-                //     "--broker=<STRING> 'The ip address of the preferred broker to connect to'",
-                // )
+                .args_from_usage(
+                    "--broker_address=<STRING> 'The ip address of the preferred broker to connect to'",
+                )
                 .args_from_usage("--parameters=[FILE] 'The file containing the client parameters'")
-                .args_from_usage("--num_clients=[INT] 'The total number of clients'"),
+                .args_from_usage("--individual_rate=[INT] 'This client's target request rate (Op/S)'"),
         )
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .get_matches();
@@ -45,15 +45,20 @@ async fn main() {
         ("run", Some(subm)) => {
             let rendezvous = subm.value_of("rendezvous").unwrap().to_string();
             let parameters_file = subm.value_of("parameters");
-            let broker_address = subm.value_of("broker_address");
-            let num_clients = subm
-                .value_of("num_clients")
+            let mut broker_address = subm.value_of("broker_address");
+            if let Some(address) = broker_address {
+                if address == format!("none") {
+                    broker_address = None;
+                }
+            }
+            let individual_rate = subm
+                .value_of("individual_rate")
                 .unwrap()
                 .parse::<usize>()
                 .unwrap();
 
             info!("Creating client");
-            match Client::new(rendezvous, parameters_file, broker_address, num_clients).await {
+            match Client::new(rendezvous, parameters_file, broker_address, individual_rate).await {
                 Ok(_broker) => {
                     info!("Full client done");
                     std::future::pending::<()>().await;

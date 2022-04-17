@@ -1,5 +1,4 @@
 use crate::{
-    crypto::Identify,
     database::Database,
     processing::{
         messages::SignupResponse, processor::signup::errors::ServeSignupError,
@@ -19,10 +18,10 @@ use zebra::database::CollectionTransaction;
 
 pub(in crate::processing::processor::signup) fn id_claims(
     keychain: &KeyChain,
-    view: &View,
+    _view: &View,
     database: &Voidable<Database>,
     claims: Vec<IdClaim>,
-    settings: &Signup,
+    _settings: &Signup,
 ) -> Result<SignupResponse, Top<ServeSignupError>> {
     // Verify that `claims` is sorted and deduplicated
 

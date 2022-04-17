@@ -59,8 +59,8 @@ impl Default for BrokerSettings {
             brokerage_sponge_settings: Default::default(),
 
             reduction_threshold: 1.,
-            reduction_timeout: Duration::from_secs(1),
-            optimistic_witness_timeout: Duration::from_secs(1),
+            reduction_timeout: Duration::from_secs(5),
+            optimistic_witness_timeout: Duration::from_secs(5),
 
             ping_interval: Duration::from_secs(60),
         }
