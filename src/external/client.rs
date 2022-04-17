@@ -69,22 +69,45 @@ impl Client {
             prepare_single_sign_percentage
         );
         info!("Parallel TCP streams: {}", parallel_streams);
+        info!("Individual rate: {}", individual_rate);
 
         info!("Getting broker keycard");
 
         let client = RendezvousClient::new(rendezvous.clone(), Default::default());
 
-        let (batch_keychains, id_assignments) =
-            get_assignments(&client, prepare_batch_size).await?;
+        let send_period = (prepare_batch_size as f64) / individual_rate as f64;
+        let cyclical_batches = (6f64 / send_period).ceil() as usize;
+        info!(
+            "Send period: {}. Generating enough ids for {} non-interfering batches.",
+            send_period, cyclical_batches
+        );
 
-        let prepare_request_batches = (0..prepare_batch_number)
-            .map(|height| prepare(height as u64, &batch_keychains, &id_assignments))
-            .collect::<Vec<_>>();
+        let mut vec_batch_keychains = Vec::new();
+        let mut vec_id_assignments = Vec::new();
+        for _ in 0..cyclical_batches {
+            let (batch_keychains, id_assignments) =
+                get_assignments(&client, prepare_batch_size).await?;
+            vec_batch_keychains.push(batch_keychains);
+            vec_id_assignments.push(id_assignments);
+        }
+
+        let prepare_request_batches = (0..(prepare_batch_number as f64/cyclical_batches as f64).ceil() as usize)
+            .map(|height| {
+                vec_batch_keychains
+                    .iter()
+                    .zip(vec_id_assignments.iter())
+                    .map(move |(batch_keychains, id_assignments)| {
+                        prepare(height as u64, &batch_keychains, &id_assignments)
+                    })
+            })
+            .flatten()
+            .take(prepare_batch_number)
+            .collect::<Vec<Vec<PrepareRequest>>>();
 
         let prepare_address = get_prepare_address(&client, broker_address).await?;
         let commit_address = get_commit_address(&client, broker_address).await?;
 
-        let reduction_shard = batch_keychains[0]
+        let reduction_shard = vec_batch_keychains[0][0]
             .multisign(&ReductionStatement::new(hash::hash::<u32>(&0).unwrap()))
             .unwrap();
 
@@ -132,7 +155,7 @@ impl Client {
             .into_iter()
             .zip(connections.into_iter())
             .enumerate()
-        {
+        {   
             let mut permits = Vec::new();
             for _ in 0..parallel_streams {
                 let permit = {
@@ -164,7 +187,7 @@ impl Client {
                                 .send::<Vec<PrepareRequest>>(&batch)
                                 .await
                                 .unwrap();
-    
+
                             // let bytes_sent = bincode::serialize(&batch).unwrap().len();
                             // info!("Sent {} bytes", bytes_sent);
     
